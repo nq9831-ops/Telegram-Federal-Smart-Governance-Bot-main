@@ -6,9 +6,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 内存角色源——切片 3 的实现，供开发与测试使用。
  *
- * <p><b>性质说明</b>：进程内存储，重启即失；不跨实例共享。
- * 这对本阶段的 Bot 是够用的（单实例、权限配置量小），
- * 但**不可用于生产**——生产需换成模块三/十一提供的持久化实现。
+ * <p><b>性质说明（与装配事实保持一致）</b>：本类**当前就是生产装配的实现**——
+ * 由 {@code TggCoreConfiguration#roleSource} 装配，授权从配置项
+ * {@code tgg.permission.admins} 在启动时载入。因此它是「配置即持久化载体」：
+ * 重启后授权从配置重放，不会丢失。
+ *
+ * <p><b>局限（明确记录）</b>：进程内存储、多实例之间不同步；
+ * 运行期变更授权需重启或另加管理接口。
+ * 模块三/十一引入数据库后应替换为持久化实现——届时判定逻辑不变，只换数据来源。
  */
 public class InMemoryRoleSource implements RoleSource {
 

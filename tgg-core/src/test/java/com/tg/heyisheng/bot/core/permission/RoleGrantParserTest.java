@@ -68,6 +68,27 @@ class RoleGrantParserTest {
                 .hasMessageContaining("无法识别的角色");
     }
 
+    /**
+     * 回归（安全）：漏填角色名必须报错，不得静默授予 ADMIN。
+     *
+     * <p>Java 的 {@code split(":")} 会丢弃尾部空串，使 {@code "-100:42:"} 与
+     * {@code "-100:42"}（有意省略角色段）都解析成 2 段——若不区分，
+     * 一个手滑的冒号就会把普通用户提权为管理员。
+     */
+    @Test
+    void rejectsTrailingColonWithoutRoleName() {
+        assertThatThrownBy(() -> RoleGrantParser.apply(source, "-100:42:"))
+                .isInstanceOf(TggConfigException.class)
+                .hasMessageContaining("未填角色名");
+    }
+
+    @Test
+    void omittingRoleEntirelyStillDefaultsToAdmin() {
+        RoleGrantParser.apply(source, "-100:42");
+
+        assertThat(source.roleOf(-100L, 42L)).isEqualTo(Role.ADMIN);
+    }
+
     @Test
     void roleNameIsCaseInsensitive() {
         RoleGrantParser.apply(source, "-100:9:moderator");

@@ -12,7 +12,7 @@ import java.util.Set;
  * 权限已改由 {@link com.tg.heyisheng.bot.core.dispatch.CommandDispatcher} 按
  * {@code @BotCommand(requiredPermission = ...)} 的声明判定。
  *
- * <p>本类已从 { com.tg.heyisheng.bot.core.config.TggCoreConfiguration} 的中间件链中移除，
+ * <p>本类已从 {@link com.tg.heyisheng.bot.core.config.TggCoreConfiguration} 的中间件链中移除，
  * 保留文件仅为避免误伤可能的外部引用；确认无引用后可安全删除。
  */
 @Deprecated(since = "切片 3 收尾", forRemoval = true)

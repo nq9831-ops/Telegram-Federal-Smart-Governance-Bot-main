@@ -2,7 +2,6 @@ package com.tg.heyisheng.bot.core.permission;
 
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -43,17 +42,6 @@ public final class RoleGrantParser {
         }
     }
 
-    /** 便于测试与诊断：解析为三元组。 */
-    public static List<String> describe(String spec) {
-        if (spec == null || spec.isBlank()) {
-            return List.of();
-        }
-        return List.of(spec.split(",")).stream()
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
-    }
-
     private static long parseChatId(String item) {
         return parseLong(part(item, 0, item), "chatId", item);
     }
@@ -63,9 +51,17 @@ public final class RoleGrantParser {
     }
 
     private static Role parseRole(String item) {
-        String[] parts = item.split(":");
-        if (parts.length < 3 || parts[2].isBlank()) {
+        // 必须用 split(":", -1) —— 默认的 split(":") 会丢弃尾部空串，
+        // 使 "-100:42:"（漏填角色名）与 "-100:42"（有意省略角色段）无法区分，
+        // 导致配置笔误被静默授予 ADMIN。该行为已用探针实测确认。
+        String[] parts = item.split(":", -1);
+        if (parts.length < 3) {
+            // 真正地省略了整个角色段
             return Role.ADMIN;
+        }
+        if (parts[2].isBlank()) {
+            throw new TggConfigException("授权项写了角色分隔符但未填角色名：'" + item
+                    + "'（应写成 <chatId>:<userId>:<role>，或整体省略角色段）");
         }
         try {
             return Role.valueOf(parts[2].trim().toUpperCase(Locale.ROOT));
@@ -75,7 +71,7 @@ public final class RoleGrantParser {
     }
 
     private static String part(String item, int index, String whole) {
-        String[] parts = item.split(":");
+        String[] parts = item.split(":", -1);
         if (parts.length <= index || parts[index].isBlank()) {
             throw new TggConfigException(
                     "授权项格式非法 '" + whole + "'，应为 <chatId>:<userId>[:role]");
