@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
+import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
@@ -53,6 +54,96 @@ public class UpdateDispatcher {
     private final ModerationReviewRecorder reviewRecorder;
     private final BannedWordDetector bannedWordDetector;
     private final RepeatedMessageDetector repeatedMessageDetector;
+    private final CallbackRouter callbackRouter;
+
+    /**
+     * 构造器已增至 9 个参数，继续叠加会难以维护——新增装配一律走 {@link #builder()}；
+     * 下列重载保留给既有测试与"只需要一部分能力"的场景。
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /** 装配构建器：必填项为中间件链与命令分发器，其余按需设置。 */
+    public static final class Builder {
+        private MiddlewareChain middlewareChain;
+        private CommandDispatcher commandDispatcher;
+        private MessageScrubber scrubber = new MessageScrubber();
+        private ModerationLayer moderationLayer;
+        private IdHasher idHasher = IdHasher.fromEnvironment();
+        private ModerationActionSender actionSender = ModerationActionSender.noop();
+        private ModerationReviewRecorder reviewRecorder = ModerationReviewRecorder.noop();
+        private BannedWordDetector bannedWordDetector;
+        private RepeatedMessageDetector repeatedMessageDetector;
+        private CallbackRouter callbackRouter;
+
+        public Builder middlewareChain(MiddlewareChain value) {
+            this.middlewareChain = value;
+            return this;
+        }
+
+        public Builder commandDispatcher(CommandDispatcher value) {
+            this.commandDispatcher = value;
+            return this;
+        }
+
+        public Builder scrubber(MessageScrubber value) {
+            this.scrubber = value;
+            return this;
+        }
+
+        public Builder moderationLayer(ModerationLayer value) {
+            this.moderationLayer = value;
+            return this;
+        }
+
+        public Builder idHasher(IdHasher value) {
+            this.idHasher = value;
+            return this;
+        }
+
+        public Builder actionSender(ModerationActionSender value) {
+            this.actionSender = value;
+            return this;
+        }
+
+        public Builder reviewRecorder(ModerationReviewRecorder value) {
+            this.reviewRecorder = value;
+            return this;
+        }
+
+        public Builder bannedWordDetector(BannedWordDetector value) {
+            this.bannedWordDetector = value;
+            return this;
+        }
+
+        public Builder repeatedMessageDetector(RepeatedMessageDetector value) {
+            this.repeatedMessageDetector = value;
+            return this;
+        }
+
+        public Builder callbackRouter(CallbackRouter value) {
+            this.callbackRouter = value;
+            return this;
+        }
+
+        public UpdateDispatcher build() {
+            return new UpdateDispatcher(this);
+        }
+    }
+
+    private UpdateDispatcher(Builder b) {
+        this.middlewareChain = b.middlewareChain;
+        this.commandDispatcher = b.commandDispatcher;
+        this.scrubber = b.scrubber;
+        this.moderationLayer = b.moderationLayer;
+        this.idHasher = b.idHasher;
+        this.enforcer = new ModerationEnforcer(b.actionSender);
+        this.reviewRecorder = b.reviewRecorder == null ? ModerationReviewRecorder.noop() : b.reviewRecorder;
+        this.bannedWordDetector = b.bannedWordDetector;
+        this.repeatedMessageDetector = b.repeatedMessageDetector;
+        this.callbackRouter = b.callbackRouter;
+    }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
         this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment(),
@@ -143,21 +234,28 @@ public class UpdateDispatcher {
                             ModerationReviewRecorder reviewRecorder,
                             BannedWordDetector bannedWordDetector,
                             RepeatedMessageDetector repeatedMessageDetector) {
-        this.middlewareChain = middlewareChain;
-        this.commandDispatcher = commandDispatcher;
-        this.scrubber = scrubber;
-        this.moderationLayer = moderationLayer;
-        this.idHasher = idHasher;
-        this.enforcer = new ModerationEnforcer(actionSender);
-        this.reviewRecorder = reviewRecorder == null ? ModerationReviewRecorder.noop() : reviewRecorder;
-        this.bannedWordDetector = bannedWordDetector;
-        this.repeatedMessageDetector = repeatedMessageDetector;
+        this(builder()
+                .middlewareChain(middlewareChain)
+                .commandDispatcher(commandDispatcher)
+                .scrubber(scrubber)
+                .moderationLayer(moderationLayer)
+                .idHasher(idHasher)
+                .actionSender(actionSender)
+                .reviewRecorder(reviewRecorder)
+                .bannedWordDetector(bannedWordDetector)
+                .repeatedMessageDetector(repeatedMessageDetector));
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
         try {
             if (update == null) {
                 return Optional.empty();
+            }
+
+            // 按钮回调是独立入口：它没有 message/edited_message/channel_post，
+            // 因此必须在 relevantMessage 之前分流，否则会被当成"无内容更新"静默丢弃。
+            if (callbackRouter != null && update.hasCallbackQuery()) {
+                return callbackRouter.route(update.getCallbackQuery());
             }
 
             Message message = relevantMessage(update);
