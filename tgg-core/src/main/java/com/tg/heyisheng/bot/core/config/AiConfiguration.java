@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.core.ai.DeepSeekLayer;
 import com.tg.heyisheng.bot.core.ai.JsonHttpClient;
+import com.tg.heyisheng.bot.core.ai.LocalModelLayer;
 import com.tg.heyisheng.bot.core.ai.OkHttpJsonHttpClient;
 import com.tg.heyisheng.bot.core.ai.TggAiProperties;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
@@ -77,6 +78,27 @@ public class AiConfiguration {
                 properties.getDeepseek().getApiKey(),
                 properties.getDeepseek().getBaseUrl(),
                 properties.getDeepseek().getModel());
+    }
+
+    /**
+     * L2 · 本地 ML 分类器：仅在 {@code tgg.ai.local.l2-enabled=true} 时创建。
+     *
+     * <p>层名 {@code L2-local-ml} 决定它在流水线中的位置（按层名排序）——排在 L3 之前，
+     * 因此本地命中时**根本不会调用 DeepSeek**（省费用，也少把内容送出去一次）。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "tgg.ai.local", name = "l2-enabled", havingValue = "true")
+    public LocalModelLayer l2LocalModelLayer(JsonHttpClient aiJsonHttpClient, ObjectMapper objectMapper) {
+        return new LocalModelLayer(aiJsonHttpClient, objectMapper, "L2-local-ml",
+                properties.getLocal().getL2Endpoint(), "L2_LOCAL_ML");
+    }
+
+    /** L4 · 本地零样本：仅在 {@code tgg.ai.local.l4-enabled=true} 时创建。排在最后。 */
+    @Bean
+    @ConditionalOnProperty(prefix = "tgg.ai.local", name = "l4-enabled", havingValue = "true")
+    public LocalModelLayer l4LocalModelLayer(JsonHttpClient aiJsonHttpClient, ObjectMapper objectMapper) {
+        return new LocalModelLayer(aiJsonHttpClient, objectMapper, "L4-local-zeroshot",
+                properties.getLocal().getL4Endpoint(), "L4_LOCAL_ZEROSHOT");
     }
 
     /**
