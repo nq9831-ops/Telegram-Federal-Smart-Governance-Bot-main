@@ -6,6 +6,7 @@ import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import org.slf4j.Logger;
@@ -41,17 +42,18 @@ public class UpdateDispatcher {
     private final ModerationLayer moderationLayer;
     private final IdHasher idHasher;
     private final ModerationEnforcer enforcer;
+    private final ModerationReviewRecorder reviewRecorder;
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
         this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain,
                             CommandDispatcher commandDispatcher,
                             MessageScrubber scrubber) {
         this(middlewareChain, commandDispatcher, scrubber, null, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
     }
 
     /**
@@ -62,7 +64,7 @@ public class UpdateDispatcher {
                             MessageScrubber scrubber,
                             ModerationLayer moderationLayer) {
         this(middlewareChain, commandDispatcher, scrubber, moderationLayer, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
     }
 
     /**
@@ -74,7 +76,7 @@ public class UpdateDispatcher {
                             ModerationLayer moderationLayer,
                             IdHasher idHasher) {
         this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher,
-                ModerationActionSender.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
     }
 
     /**
@@ -86,12 +88,27 @@ public class UpdateDispatcher {
                             ModerationLayer moderationLayer,
                             IdHasher idHasher,
                             ModerationActionSender actionSender) {
+        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
+                ModerationReviewRecorder.noop());
+    }
+
+    /**
+     * @param reviewRecorder 中高风险命中的复核入队通道；未装配场景应传 {@link ModerationReviewRecorder#noop()}
+     */
+    public UpdateDispatcher(MiddlewareChain middlewareChain,
+                            CommandDispatcher commandDispatcher,
+                            MessageScrubber scrubber,
+                            ModerationLayer moderationLayer,
+                            IdHasher idHasher,
+                            ModerationActionSender actionSender,
+                            ModerationReviewRecorder reviewRecorder) {
         this.middlewareChain = middlewareChain;
         this.commandDispatcher = commandDispatcher;
         this.scrubber = scrubber;
         this.moderationLayer = moderationLayer;
         this.idHasher = idHasher;
         this.enforcer = new ModerationEnforcer(actionSender);
+        this.reviewRecorder = reviewRecorder == null ? ModerationReviewRecorder.noop() : reviewRecorder;
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
@@ -172,6 +189,12 @@ public class UpdateDispatcher {
             log.info("L1 审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
                     verdict.matchedRuleIds(), verdict.riskLevel(), verdict.hardLine(),
                     idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
+        }
+
+        // 中高风险（非硬红线）入队待人工复核：硬红线走「立即删除 + 封禁」不等复核，
+        // clean 无需复核。入队失败不影响主链路（由 recorder 实现 fail-open）。
+        if (verdict.needsReview() && !verdict.shouldFreezeImmediately()) {
+            reviewRecorder.record(ctx, verdict);
         }
     }
 

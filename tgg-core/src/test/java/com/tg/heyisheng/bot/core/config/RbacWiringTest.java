@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
@@ -52,6 +53,8 @@ class RbacWiringTest {
                         () -> org.mockito.Mockito.mock(GroupConfigService.class))
                 // 发送通道装配依赖 ObjectMapper；ApplicationContextRunner 不做自动配置，需手工提供
                 .withBean(ObjectMapper.class, ObjectMapper::new)
+                // 复核入队通道是 @Service（组件扫描），ApplicationContextRunner 不扫描，需手工提供
+                .withBean(ModerationReviewRecorder.class, ModerationReviewRecorder::noop)
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(

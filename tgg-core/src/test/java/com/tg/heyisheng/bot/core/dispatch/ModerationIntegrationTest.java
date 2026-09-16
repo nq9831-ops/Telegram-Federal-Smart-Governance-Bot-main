@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
 import com.tg.heyisheng.bot.core.moderation.ModerationRule;
@@ -219,6 +220,26 @@ class ModerationIntegrationTest {
     }
 
     /**
+     * 只有中高风险（非硬红线）入队待人工复核。
+     *
+     * <p>三条对照：中风险命中 → 入队；硬红线 → 不入队（走立即处置，不等复核）；
+     * clean → 不入队（无可复核）。
+     */
+    @Test
+    void enqueuesOnlyMidHighNonHardLineHits() throws Exception {
+        List<ModerationVerdict> recorded = new ArrayList<>();
+        UpdateDispatcher dispatcher = dispatcherRecording(recorded);
+
+        dispatcher.dispatch(messageUpdateWithId("快来 888casino 玩", 1));        // SPAM_CASINO(LOW) → 入队
+        dispatcher.dispatch(messageUpdateWithId("send me your private key", 2)); // 硬红线 → 不入队
+        dispatcher.dispatch(messageUpdateWithId("今天天气不错", 3));               // clean → 不入队
+
+        assertThat(recorded).as("只有中高风险（非硬红线）入队").hasSize(1);
+        assertThat(recorded.get(0).riskLevel()).isEqualTo(RiskLevel.LOW);
+        assertThat(recorded.get(0).matchedRuleIds()).containsExactly("SPAM_CASINO");
+    }
+
+    /**
      * 与 {@link #messageUpdate} 相同，但带 messageId——处置（删除）需要它定位目标。
      * 真实 Telegram 消息必带 messageId，故此处更贴近现实。
      */
@@ -238,6 +259,14 @@ class ModerationIntegrationTest {
         update.setUpdateId(1);
         update.setMessage(message);
         return update;
+    }
+
+    /** 与 {@link #dispatcherCapturing} 同构，但注入一个记录入队的复核通道。 */
+    private UpdateDispatcher dispatcherRecording(List<ModerationVerdict> sink) {
+        MiddlewareChain capturing = new MiddlewareChain(List.of((ctx, chain) -> true));
+        return new UpdateDispatcher(capturing, noopDispatcher, new MessageScrubber(), layer,
+                IdHasher.fromEnvironment(), ModerationActionSender.noop(),
+                (ctx, verdict) -> sink.add(verdict));
     }
 
     private UpdateDispatcher dispatcherCapturing(UpdateContext[] sink) {

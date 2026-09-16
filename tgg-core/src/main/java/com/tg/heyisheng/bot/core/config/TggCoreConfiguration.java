@@ -14,6 +14,7 @@ import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -162,11 +163,13 @@ public class TggCoreConfiguration {
                                              CommandDispatcher commandDispatcher,
                                              ModerationLayer moderationLayer,
                                              ModerationActionSender moderationActionSender,
+                                             ModerationReviewRecorder moderationReviewRecorder,
                                              IdHasher idHasher) {
         // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文。
         // 注入主动处置通道：硬红线封禁走它（webhook 返回值只能执行一个方法，删除作返回值保底）。
+        // 注入复核入队通道：中高风险命中入队待人工确认（fail-open，不阻断主链路）。
         return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer,
-                idHasher, moderationActionSender);
+                idHasher, moderationActionSender, moderationReviewRecorder);
     }
 
     @Bean
