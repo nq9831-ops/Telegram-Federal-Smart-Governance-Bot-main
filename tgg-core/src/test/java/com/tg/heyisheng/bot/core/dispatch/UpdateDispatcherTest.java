@@ -1,0 +1,125 @@
+package com.tg.heyisheng.bot.core.dispatch;
+
+import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
+import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import org.junit.jupiter.api.Test;
+import org.telegram.telegrambots.meta.api.objects.EntityType;
+import org.telegram.telegrambots.meta.api.objects.MessageEntity;
+import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * UpdateDispatcher 测试：聚焦「库的 Update → 项目上下文」的提取，以及上下文向 handler 的<b>贯通</b>。
+ *
+ * <p>贯通是本次修复的重点：此前中间件链与 handler 各持一个上下文对象，
+ * 中间件的任何 enrich 都传不到 handler。
+ */
+class UpdateDispatcherTest {
+
+    private final CommandRegistry registry = new CommandRegistry(List.of(new EchoCommandHandler()));
+
+    @Test
+    void extractsRoutingMetadataFromUpdate() throws Exception {
+        UpdateContext[] seenByMiddleware = new UpdateContext[1];
+        UpdateDispatcher dispatcher = dispatcherCapturing(seenByMiddleware);
+
+        dispatcher.dispatch(update("/echo", 42L, -100L));
+
+        UpdateContext ctx = seenByMiddleware[0];
+        assertThat(ctx.updateId()).isEqualTo(1);
+        assertThat(ctx.userId()).isEqualTo(42L);
+        assertThat(ctx.chatId()).isEqualTo(-100L);
+        assertThat(ctx.command()).contains("/echo");
+    }
+
+    /** 关键回归：中间件看到的对象与 handler 收到的必须是同一个（避免 enrich 丢失）。 */
+    @Test
+    void sameContextInstanceReachesHandler() throws Exception {
+        UpdateContext[] seenByMiddleware = new UpdateContext[1];
+        UpdateContext[] seenByHandler = new UpdateContext[1];
+
+        CommandHandler capturingHandler = ctx -> {
+            seenByHandler[0] = ctx;
+            return null;
+        };
+        CommandRegistry capturingRegistry = new CommandRegistry(List.of(new CapturingBean(capturingHandler)));
+        MiddlewareChain chain = new MiddlewareChain(List.of((ctx, c) -> {
+            seenByMiddleware[0] = ctx;
+            return true;
+        }));
+
+        new UpdateDispatcher(chain, new CommandDispatcher(capturingRegistry))
+                .dispatch(update("/capture", 42L, -100L));
+
+        assertThat(seenByHandler[0]).as("handler 必须收到中间件链上那个上下文").isSameAs(seenByMiddleware[0]);
+    }
+
+    @Test
+    void middlewareInterruptionSkipsCommandDispatch() throws Exception {
+        UpdateDispatcher dispatcher = new UpdateDispatcher(
+                new MiddlewareChain(List.of(new AuthenticationMiddleware())),
+                new CommandDispatcher(registry));
+
+        // 缺 from → userId 为 null → 链首认证中间件中断
+        assertThat(dispatcher.dispatch(update("/echo", null, -100L))).isEmpty();
+    }
+
+    @BotCommand("capture")
+    static class CapturingBean implements CommandHandler {
+        private final CommandHandler delegate;
+
+        CapturingBean(CommandHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod<?> handle(UpdateContext ctx)
+                throws Exception {
+            return delegate.handle(ctx);
+        }
+    }
+
+    private UpdateDispatcher dispatcherCapturing(UpdateContext[] sink) {
+        MiddlewareChain chain = new MiddlewareChain(List.of((ctx, c) -> {
+            sink[0] = ctx;
+            return true;
+        }));
+        return new UpdateDispatcher(chain, new CommandDispatcher(registry));
+    }
+
+    private static Update update(String commandText, Long fromId, Long chatId) {
+        MessageEntity entity = MessageEntity.builder()
+                .type(EntityType.BOTCOMMAND)
+                .offset(0)
+                .length(commandText.length())
+                .build();
+
+        var messageBuilder = Message.builder()
+                .text(commandText)
+                .entities(List.of(entity));
+
+        if (chatId != null) {
+            messageBuilder.chat(Chat.builder().id(chatId).type("supergroup").build());
+        }
+        if (fromId != null) {
+            // User 的 firstName / isBot 均被 @NonNull 标注，构造时必须提供
+            messageBuilder.from(User.builder()
+                    .id(fromId)
+                    .firstName("Test")
+                    .isBot(false)
+                    .build());
+        }
+
+        Update update = new Update();
+        update.setUpdateId(1);
+        update.setMessage(messageBuilder.build());
+        return update;
+    }
+}

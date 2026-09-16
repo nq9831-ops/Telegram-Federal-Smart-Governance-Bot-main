@@ -37,7 +37,7 @@ public class UpdateDispatcher {
             return Optional.empty();
         }
 
-        return commandDispatcher.dispatch(update);
+        return commandDispatcher.dispatch(ctx);
     }
 
     /**
