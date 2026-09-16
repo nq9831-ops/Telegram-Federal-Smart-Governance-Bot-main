@@ -53,6 +53,14 @@
         <artifactId>telegrambots-springboot-webhook-starter</artifactId>
         <version>${telegrambots.version}</version>
       </dependency>
+      <!-- 长轮询：刻意只引【纯库】而非 telegrambots-springboot-longpolling-starter。
+           两个 starter 的自动配置类同名且共用 telegrambots.enabled 开闭，
+           若同时引入会导致 webhook 与长轮询同时激活——降级必须由本项目自己控制启停。 -->
+      <dependency>
+        <groupId>org.telegram</groupId>
+        <artifactId>telegrambots-longpolling</artifactId>
+        <version>${telegrambots.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
