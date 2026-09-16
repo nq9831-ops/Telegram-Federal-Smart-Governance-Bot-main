@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
+import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ public class UpdateDispatcher {
     private final ModerationEnforcer enforcer;
     private final ModerationReviewRecorder reviewRecorder;
     private final BannedWordDetector bannedWordDetector;
+    private final RepeatedMessageDetector repeatedMessageDetector;
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
         this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment(),
@@ -125,6 +127,22 @@ public class UpdateDispatcher {
                             ModerationActionSender actionSender,
                             ModerationReviewRecorder reviewRecorder,
                             BannedWordDetector bannedWordDetector) {
+        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
+                reviewRecorder, bannedWordDetector, null);
+    }
+
+    /**
+     * @param repeatedMessageDetector 反刷屏（重复内容）检测器；为 null 表示该能力未装配
+     */
+    public UpdateDispatcher(MiddlewareChain middlewareChain,
+                            CommandDispatcher commandDispatcher,
+                            MessageScrubber scrubber,
+                            ModerationLayer moderationLayer,
+                            IdHasher idHasher,
+                            ModerationActionSender actionSender,
+                            ModerationReviewRecorder reviewRecorder,
+                            BannedWordDetector bannedWordDetector,
+                            RepeatedMessageDetector repeatedMessageDetector) {
         this.middlewareChain = middlewareChain;
         this.commandDispatcher = commandDispatcher;
         this.scrubber = scrubber;
@@ -133,6 +151,7 @@ public class UpdateDispatcher {
         this.enforcer = new ModerationEnforcer(actionSender);
         this.reviewRecorder = reviewRecorder == null ? ModerationReviewRecorder.noop() : reviewRecorder;
         this.bannedWordDetector = bannedWordDetector;
+        this.repeatedMessageDetector = repeatedMessageDetector;
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
@@ -196,7 +215,8 @@ public class UpdateDispatcher {
      * 「审过且干净」与「压根没审」，避免把"没审核"误当成"审核通过"。
      */
     private void moderateInto(UpdateContext ctx, Message message) {
-        if (message == null || (moderationLayer == null && bannedWordDetector == null)) {
+        if (message == null || (moderationLayer == null && bannedWordDetector == null
+                && repeatedMessageDetector == null)) {
             return;
         }
 
@@ -222,8 +242,12 @@ public class UpdateDispatcher {
         ModerationVerdict bannedWord = bannedWordDetector == null
                 ? null
                 : bannedWordDetector.inspect(ctx.chatId(), content).orElse(null);
+        // 反刷屏：需要 userId 才能归因到"同一用户重复"
+        ModerationVerdict flood = repeatedMessageDetector == null
+                ? null
+                : repeatedMessageDetector.inspect(ctx.chatId(), ctx.userId(), content).orElse(null);
 
-        ModerationVerdict verdict = worseOf(l1, bannedWord);
+        ModerationVerdict verdict = worseOf(worseOf(l1, bannedWord), flood);
         if (verdict == null) {
             // 有审核能力但都没命中：仍挂 clean，让下游能区分「审过且干净」与「压根没审」。
             verdict = ModerationVerdict.clean();

@@ -15,6 +15,7 @@ import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
+import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -61,6 +62,11 @@ public class TggCoreConfiguration {
     /** 全局维度：10 秒 200 条。 */
     private static final int GLOBAL_LIMIT = 200;
     private static final Duration WINDOW = Duration.ofSeconds(10);
+
+    /** 反刷屏：同一窗口内允许的同内容条数（第 N+1 条起判为重复刷屏）。 */
+    private static final int REPEAT_ALLOWED = 3;
+    /** 反刷屏：滑动窗口秒数。 */
+    private static final int REPEAT_WINDOW_SECONDS = 60;
 
     @Bean
     public CommandRegistry commandRegistry(List<CommandHandler> handlers) {
@@ -179,6 +185,22 @@ public class TggCoreConfiguration {
         return new BannedWordDetector(bannedWordService);
     }
 
+    /**
+     * 反刷屏：同一用户在同一群重复发相同内容的检测器（模块三）。
+     *
+     * <p>复用 {@link InMemoryRateLimiter} 做「群:用户:指纹」的滑动窗口计数——不另造轮子，
+     * 并自动享有它的陈旧键驱逐（否则指纹 key 会随时间无界增长）。
+     *
+     * <p><b>阈值保守是刻意的</b>：活跃群里连发「收到」「好的」并不罕见，阈值过严会误删正常发言。
+     * 默认「{@value #REPEAT_WINDOW_SECONDS} 秒内同内容 {@value #REPEAT_ALLOWED} 次」，
+     * 超出即判刷屏（中风险，入复核队列供人工回看）。
+     */
+    @Bean
+    public RepeatedMessageDetector repeatedMessageDetector() {
+        return new RepeatedMessageDetector(new InMemoryRateLimiter(
+                REPEAT_ALLOWED, Duration.ofSeconds(REPEAT_WINDOW_SECONDS)));
+    }
+
     @Bean
     public UpdateDispatcher updateDispatcher(MiddlewareChain middlewareChain,
                                              CommandDispatcher commandDispatcher,
@@ -186,13 +208,15 @@ public class TggCoreConfiguration {
                                              ModerationActionSender moderationActionSender,
                                              ModerationReviewRecorder moderationReviewRecorder,
                                              BannedWordDetector bannedWordDetector,
+                                             RepeatedMessageDetector repeatedMessageDetector,
                                              IdHasher idHasher) {
         // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文。
         // 注入主动处置通道：硬红线封禁走它（webhook 返回值只能执行一个方法，删除作返回值保底）。
         // 注入复核入队通道：中高风险命中入队待人工确认（fail-open，不阻断主链路）。
-        // 注入违禁词检测器：按群词表拦截（与 L1 并列，取最严重）。
+        // 注入违禁词检测器与反刷屏检测器：与 L1 并列，取最严重。
         return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer,
-                idHasher, moderationActionSender, moderationReviewRecorder, bannedWordDetector);
+                idHasher, moderationActionSender, moderationReviewRecorder, bannedWordDetector,
+                repeatedMessageDetector);
     }
 
     @Bean

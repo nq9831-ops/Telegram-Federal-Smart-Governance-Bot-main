@@ -6,6 +6,7 @@ import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.ModerationRule;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -264,6 +265,45 @@ class ModerationIntegrationTest {
         return new UpdateDispatcher(capturing, noopDispatcher, new MessageScrubber(), layer,
                 IdHasher.fromEnvironment(), ModerationActionSender.noop(),
                 (ctx, verdict) -> sink.add(verdict));
+    }
+
+    /** 与 {@link #dispatcherCapturing} 同构，但注入反刷屏检测器。 */
+    private UpdateDispatcher dispatcherWithFlood() {
+        return new UpdateDispatcher(
+                new MiddlewareChain(List.of()),
+                noopDispatcher,
+                new MessageScrubber(),
+                layer,
+                IdHasher.fromEnvironment(),
+                ModerationActionSender.noop(),
+                ModerationReviewRecorder.noop(),
+                null,
+                new com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector(
+                        new com.tg.heyisheng.bot.core.ratelimit.InMemoryRateLimiter(3,
+                                java.time.Duration.ofSeconds(60))));
+    }
+
+    /**
+     * 反刷屏端到端：同一用户连发相同内容，超出阈值的那条经真实链路被判违规并删除。
+     *
+     * <p>同时验证"不误伤"——换内容后应立即放行（内容不同不算重复）。
+     */
+    @Test
+    void flagsRepeatedIdenticalMessagesFromSameUser() throws Exception {
+        UpdateDispatcher dispatcher = dispatcherWithFlood();
+
+        for (int i = 1; i <= 3; i++) {
+            assertThat(dispatcher.dispatch(messageUpdateWithId("刷屏内容", i)))
+                    .as("阈值内第 %d 条应放行", i).isEmpty();
+        }
+
+        Optional<BotApiMethod<?>> action = dispatcher.dispatch(messageUpdateWithId("刷屏内容", 4));
+
+        assertThat(action).as("第 4 条相同内容应判刷屏").isPresent();
+        assertThat(action.get()).isInstanceOf(DeleteMessage.class);
+
+        assertThat(dispatcher.dispatch(messageUpdateWithId("换一条内容", 5)))
+                .as("内容不同不算重复，应放行").isEmpty();
     }
 
     private UpdateDispatcher dispatcherCapturing(UpdateContext[] sink) {
