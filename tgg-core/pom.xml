@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tg.heyisheng.bot</groupId>
+    <artifactId>tgg-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tgg-core</artifactId>
+  <name>tgg-core</name>
+  <description>模块一：Webhook 接入 / 中间件链 / 命令分发 / 限流 / 权限</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-common</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- TelegramBots 10.3.0：注意坐标是 springboot（无连字符），旧坐标 spring-boot 已停更于 6.9.7.1 -->
+    <dependency>
+      <groupId>org.telegram</groupId>
+      <artifactId>telegrambots-springboot-webhook-starter</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
