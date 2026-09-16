@@ -71,6 +71,16 @@ public class TelegramApiWebhookHealthProbe implements WebhookHealthProbe {
                     return false;
                 }
                 JsonNode result = root.path("result");
+
+                // 「没有错误」≠「健康」：webhook 从未配置成功时（url 为空），
+                // last_error_date 也不存在。若只看后者，会恒判健康 →
+                // 连续失败计数永不增长 → 降级永不触发。
+                String webhookUrl = result.path("url").asText("");
+                if (webhookUrl.isBlank()) {
+                    log.warn("getWebhookInfo 的 url 为空：webhook 未配置或已被清除，判定为不健康");
+                    return false;
+                }
+
                 long lastErrorDate = result.path("last_error_date").asLong(0L);
                 if (lastErrorDate <= 0L) {
                     return true;

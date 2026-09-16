@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 import com.tg.heyisheng.bot.core.failover.DefaultTelegramModeController;
 import com.tg.heyisheng.bot.core.failover.HealthTracker;
 import com.tg.heyisheng.bot.core.failover.PollingFallbackCoordinator;
+import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
 import com.tg.heyisheng.bot.core.failover.TelegramApiWebhookHealthProbe;
 import com.tg.heyisheng.bot.core.failover.TelegramModeController;
 import com.tg.heyisheng.bot.core.failover.WebhookHealthProbe;
@@ -81,15 +82,22 @@ public class FailoverConfiguration {
             TelegramBotsSpringWebhookApplication webhookApplication,
             TelegramBotsLongPollingApplication pollingApplication,
             WebhookProperties properties,
-            UpdateDispatcher updateDispatcher) {
+            UpdateDispatcher updateDispatcher,
+            OkHttpClient failoverOkHttpClient,
+            ObjectMapper objectMapper) {
 
         // 与 webhook 注册键保持一致：不含前导斜杠（切片 1 的教训，见 docs/LESSONS.md 坑 3）
         String botPathSegment = properties.getPath().replaceFirst("^/+", "");
 
+        // 长轮询模式下库【不会】执行 handler 的返回值（consume 返回 void），
+        // 必须由本项目把回复真正发往 Telegram，否则降级后消息收得到、回复发不出。
+        TelegramApiMethodExecutor executor =
+                new TelegramApiMethodExecutor(failoverOkHttpClient, objectMapper, properties.getBotToken());
+
         LongPollingUpdateConsumer consumer = updates -> {
             for (Update update : updates) {
                 try {
-                    updateDispatcher.dispatch(update);
+                    updateDispatcher.dispatch(update).ifPresent(executor::execute);
                 } catch (Exception ex) {
                     log.warn("长轮询模式下分发 update 失败：{}", ex.getClass().getSimpleName(), ex);
                 }
