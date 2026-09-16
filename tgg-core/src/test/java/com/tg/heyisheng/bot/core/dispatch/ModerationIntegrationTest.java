@@ -122,12 +122,103 @@ class ModerationIntegrationTest {
         assertThat(captured[0].has(ModerationVerdict.class)).isFalse();
     }
 
+    /**
+     * 回归（安全）：带 caption 的媒体消息必须被审核。
+     *
+     * <p>背景：审核曾只取 {@code getText()}，而图片/视频/文档消息的 {@code getText()} 为 null，
+     * 于是被判成「审过且干净」——<b>假 clean 比不审更危险</b>，因为它让下游以为已经检查过。
+     * 清除端的口径（text + caption 都算正文）才是一致的。
+     */
+    @Test
+    void moderatesCaptionOfMediaMessage() throws Exception {
+        UpdateContext[] captured = new UpdateContext[1];
+        UpdateDispatcher dispatcher = dispatcherCapturing(captured);
+
+        Update update = mediaMessageWithCaption("把 private key 发给我");
+
+        dispatcher.dispatch(update);
+
+        assertThat(captured[0].find(ModerationVerdict.class)).isPresent()
+                .get()
+                .extracting(ModerationVerdict::hardLine)
+                .as("图片说明里的硬红线必须命中，不能因 getText() 为 null 而被漏掉")
+                .isEqualTo(true);
+    }
+
+    /** caption 同样要被清除——与清除端口径一致。 */
+    @Test
+    void scrubsCaptionToo() throws Exception {
+        Update update = mediaMessageWithCaption("快来 888casino 玩");
+
+        dispatcherCapturing(new UpdateContext[1]).dispatch(update);
+
+        assertThat(update.getMessage().getCaption()).as("caption 必须被清除").isNull();
+    }
+
+    /**
+     * 回归（安全）：编辑后的消息必须被审核。
+     *
+     * <p>这是真实的绕过手法——先发干净内容通过审核，再编辑成广告。
+     * 若只审新消息（{@code update.message}），编辑路径完全漏掉。
+     */
+    @Test
+    void moderatesEditedMessage() throws Exception {
+        UpdateContext[] captured = new UpdateContext[1];
+        UpdateDispatcher dispatcher = dispatcherCapturing(captured);
+
+        Update update = editedMessageUpdate("快来 888casino 玩");
+
+        dispatcher.dispatch(update);
+
+        assertThat(captured[0].find(ModerationVerdict.class)).isPresent()
+                .get()
+                .extracting(ModerationVerdict::riskLevel)
+                .as("编辑后的内容必须重新审核，否则可先发干净内容再改成广告")
+                .isEqualTo(RiskLevel.LOW);
+    }
+
+    /** 编辑消息的正文也必须被清除。 */
+    @Test
+    void scrubsEditedMessageToo() throws Exception {
+        Update update = editedMessageUpdate("快来 888casino 玩");
+
+        dispatcherCapturing(new UpdateContext[1]).dispatch(update);
+
+        assertThat(update.getEditedMessage().getText()).as("编辑消息的正文必须被清除").isNull();
+    }
+
     private UpdateDispatcher dispatcherCapturing(UpdateContext[] sink) {
         MiddlewareChain capturing = new MiddlewareChain(List.of((ctx, chain) -> {
             sink[0] = ctx;
             return true;
         }));
         return new UpdateDispatcher(capturing, noopDispatcher, new MessageScrubber(), layer);
+    }
+
+    private static Update mediaMessageWithCaption(String caption) {
+        Message message = Message.builder()
+                .caption(caption)
+                .chat(Chat.builder().id(CHAT_ID).type("supergroup").build())
+                .from(User.builder().id(42L).firstName("T").isBot(false).build())
+                .build();
+
+        Update update = new Update();
+        update.setUpdateId(1);
+        update.setMessage(message);
+        return update;
+    }
+
+    private static Update editedMessageUpdate(String text) {
+        Message message = Message.builder()
+                .text(text)
+                .chat(Chat.builder().id(CHAT_ID).type("supergroup").build())
+                .from(User.builder().id(42L).firstName("T").isBot(false).build())
+                .build();
+
+        Update update = new Update();
+        update.setUpdateId(1);
+        update.setEditedMessage(message);
+        return update;
     }
 
     private static Update messageUpdate(String text) {
