@@ -71,6 +71,29 @@ class UpdateDispatcherTest {
         assertThat(dispatcher.dispatch(update("/echo", null, -100L))).isEmpty();
     }
 
+    /** 隐私管道：正常处理完也要清除正文。 */
+    @Test
+    void scrubsMessageTextAfterSuccessfulDispatch() throws Exception {
+        Update update = update("/echo", 42L, -100L);
+
+        new UpdateDispatcher(new MiddlewareChain(List.of()), new CommandDispatcher(registry))
+                .dispatch(update);
+
+        assertThat(update.getMessage().getText()).as("处理后不得残留消息原文").isNull();
+    }
+
+    /** 隐私管道：被中断的路径同样要清除——它一样会走到日志与审计。 */
+    @Test
+    void scrubsMessageTextWhenChainInterrupted() throws Exception {
+        Update update = update("/echo", null, -100L);
+
+        new UpdateDispatcher(new MiddlewareChain(List.of(new AuthenticationMiddleware())),
+                new CommandDispatcher(registry))
+                .dispatch(update);
+
+        assertThat(update.getMessage().getText()).as("中断路径也不得残留消息原文").isNull();
+    }
+
     @BotCommand("capture")
     static class CapturingBean implements CommandHandler {
         private final CommandHandler delegate;

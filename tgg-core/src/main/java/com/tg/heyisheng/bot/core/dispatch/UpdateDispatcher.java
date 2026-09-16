@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
@@ -20,24 +21,38 @@ public class UpdateDispatcher {
 
     private final MiddlewareChain middlewareChain;
     private final CommandDispatcher commandDispatcher;
+    private final MessageScrubber scrubber;
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
+        this(middlewareChain, commandDispatcher, new MessageScrubber());
+    }
+
+    public UpdateDispatcher(MiddlewareChain middlewareChain,
+                            CommandDispatcher commandDispatcher,
+                            MessageScrubber scrubber) {
         this.middlewareChain = middlewareChain;
         this.commandDispatcher = commandDispatcher;
+        this.scrubber = scrubber;
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
-        if (update == null) {
-            return Optional.empty();
+        try {
+            if (update == null) {
+                return Optional.empty();
+            }
+
+            UpdateContext ctx = toContext(update);
+
+            if (!middlewareChain.proceed(ctx)) {
+                return Optional.empty();
+            }
+
+            return commandDispatcher.dispatch(ctx);
+        } finally {
+            // 隐私管道：无论成功、被中断还是抛异常，正文都必须被清除。
+            // 放在 finally 里是刻意的——异常路径才是最容易被日志带出正文的那条。
+            scrubber.scrub(update == null ? null : update.getMessage());
         }
-
-        UpdateContext ctx = toContext(update);
-
-        if (!middlewareChain.proceed(ctx)) {
-            return Optional.empty();
-        }
-
-        return commandDispatcher.dispatch(ctx);
     }
 
     /**
