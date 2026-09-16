@@ -5,12 +5,17 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import java.util.Set;
 
 /**
- * 权限校验中间件（切片 1 为静态最简实现）。
+ * 【已废弃】权限校验中间件。
  *
- * <p>当前只提供基于静态管理员名单的 {@link #isAdmin(Long)} 判定，供管理类命令使用；
- * <b>不阻断</b>任何更新——因为切片 1 尚无「哪些命令需要何种权限」的元数据。
- * 完整 RBAC（Role + PermissionChecker + 持久化）在切片 3 实现。
+ * <p><b>废弃原因</b>：中间件看不到「即将执行哪条命令」，因此无法判断该命令需要什么权限——
+ * 它只能做到「链上不停」，实际上是个空转节点；而 {@code isAdmin} 从未被任何生产代码调用。
+ * 权限已改由 {@link com.tg.heyisheng.bot.core.dispatch.CommandDispatcher} 按
+ * {@code @BotCommand(requiredPermission = ...)} 的声明判定。
+ *
+ * <p>本类已从 { com.tg.heyisheng.bot.core.config.TggCoreConfiguration} 的中间件链中移除，
+ * 保留文件仅为避免误伤可能的外部引用；确认无引用后可安全删除。
  */
+@Deprecated(since = "切片 3 收尾", forRemoval = true)
 public class PermissionMiddleware implements Middleware {
 
     private final Set<Long> adminUserIds;

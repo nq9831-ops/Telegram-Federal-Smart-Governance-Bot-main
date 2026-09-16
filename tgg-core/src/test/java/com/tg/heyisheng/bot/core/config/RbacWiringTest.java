@@ -1,0 +1,97 @@
+package com.tg.heyisheng.bot.core.config;
+
+import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
+import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
+import com.tg.heyisheng.bot.core.permission.Permission;
+import com.tg.heyisheng.bot.core.permission.Role;
+import com.tg.heyisheng.bot.core.permission.RoleSource;
+import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * RBAC 装配测试——防止「接好了但没通电」再次发生。
+ *
+ * <p>回归背景：切片 3b 交付时 {@code TggCoreConfiguration} 用的是
+ * {@code new CommandDispatcher(registry)} 单参构造器，它会落到
+ * 「恒最小权限」的兜底判定器，使权限门控在生产中完全不生效。
+ * 本类从**容器里取出的那个 dispatcher** 出发做行为断言，因此能捕获这类装配错误。
+ */
+class RbacWiringTest {
+
+    private static final long CHAT = -100L;
+    private static final long ADMIN_USER = 42L;
+    private static final long ORDINARY_USER = 999L;
+
+    @BotCommand(value = "ban", requiredPermission = Permission.BAN_USER)
+    static class BanHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            // 必须返回非 null：dispatch 用 Optional.ofNullable 包装返回值，
+            // 返回 null 会让"成功执行"与"未执行"在断言层面无法区分（本次就踩了这个坑）
+            return new SendMessage(String.valueOf(ctx.chatId()), "ok");
+        }
+    }
+
+    private ApplicationContextRunner runner(String adminsSpec) {
+        return new ApplicationContextRunner()
+                .withUserConfiguration(TggCoreConfiguration.class)
+                .withBean(BanHandler.class, BanHandler::new)
+                // WebhookProperties 由 @EnableConfigurationProperties 创建，
+                // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
+                .withPropertyValues(
+                        "tgg.webhook.secret=test-secret",
+                        "tgg.permission.admins=" + adminsSpec);
+    }
+
+    @Test
+    void configuredAdminPassesThePermissionGate() {
+        runner(CHAT + ":" + ADMIN_USER + ":MODERATOR").run(context -> {
+            // 分段断言：先确认配置确实进了角色源，再确认门控放行。
+            // 合成一条断言的话，失败时分不清是"配置没生效"还是"装配没接上"。
+            assertThat(context.getBean(RoleSource.class).roleOf(CHAT, ADMIN_USER))
+                    .as("第一步：配置中的授权应进入 RoleSource")
+                    .isEqualTo(Role.MODERATOR);
+
+            assertThat(context.getBean(CommandRegistry.class).registeredCommands())
+                    .as("第二步：受限命令应已注册到注册表")
+                    .contains("ban");
+
+            CommandDispatcher dispatcher = context.getBean(CommandDispatcher.class);
+            assertThat(dispatcher.dispatch(ctx(ADMIN_USER)))
+                    .as("第三步：授权用户应能执行受限命令——否则说明装配未注入真实判定器")
+                    .isPresent();
+        });
+    }
+
+    @Test
+    void ordinaryUserIsRejectedByTheSameGate() {
+        runner(CHAT + ":" + ADMIN_USER + ":MODERATOR").run(context -> {
+            CommandDispatcher dispatcher = context.getBean(CommandDispatcher.class);
+
+            assertThat(dispatcher.dispatch(ctx(ORDINARY_USER)))
+                    .as("未授权用户必须被拦下——同一容器内取反断言，排除『门控整体失效』的假绿")
+                    .isEmpty();
+        });
+    }
+
+    @Test
+    void withoutAnyGrantEveryoneIsRejected() {
+        runner("").run(context -> {
+            CommandDispatcher dispatcher = context.getBean(CommandDispatcher.class);
+
+            assertThat(dispatcher.dispatch(ctx(ADMIN_USER))).isEmpty();
+        });
+    }
+
+    private static UpdateContext ctx(long userId) {
+        return new UpdateContext(1, userId, CHAT, "/ban");
+    }
+}
