@@ -13,11 +13,14 @@ import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.objects.LinkPreviewOptions;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.Venue;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.polls.Poll;
 import org.telegram.telegrambots.meta.api.objects.polls.PollOption;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOptionAdded;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOptionDeleted;
 
 import java.util.List;
 import java.util.Optional;
@@ -294,6 +297,23 @@ public class UpdateDispatcher {
         if (venue != null) {
             appendPart(sb, venue.getTitle());
             appendPart(sb, venue.getAddress());
+        }
+
+        // 投票选项的增删事件带 optionText——清除端会清掉它们，审核端也必须看：
+        // 否则是"被清但没审"，违规词既拦不住、事后也无痕迹。
+        PollOptionAdded added = message.getPollOptionAdded();
+        if (added != null) {
+            appendPart(sb, added.getOptionText());
+        }
+        PollOptionDeleted deleted = message.getPollOptionDeleted();
+        if (deleted != null) {
+            appendPart(sb, deleted.getOptionText());
+        }
+
+        // 链接预览选项里唯一的文本字段是 url（其余为展示开关）
+        LinkPreviewOptions preview = message.getLinkPreviewOptions();
+        if (preview != null) {
+            appendPart(sb, preview.getUrlField());
         }
 
         return sb.isEmpty() ? null : sb.toString();

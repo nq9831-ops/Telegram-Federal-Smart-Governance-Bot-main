@@ -4,14 +4,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * 违禁词服务单元测试（不依赖数据库）。
  *
- * <p>核心是 fail-open：读词表失败必须按「无词表」放行，而非抛异常中断消息处理。
+ * <p>核心两条：读词表 fail-open（失败不阻断消息处理）；写词幂等（撞唯一约束视作已存在）。
+ * 真实数据库上的写入行为由 {@code BannedWordPersistenceIT} 覆盖。
  */
 class BannedWordServiceTest {
 
@@ -36,42 +39,35 @@ class BannedWordServiceTest {
         assertThat(service.addWord(null, "spam", 1L)).isFalse();
     }
 
+    /** 存储前必须归一化（去首尾空白），否则 "  spam" 与 "spam" 会绕过去重。 */
     @Test
-    void addIsIdempotentAfterNormalization() {
+    void addStoresNormalizedWord() {
         BannedWordRepository repo = mock(BannedWordRepository.class);
-        when(repo.existsByChatIdAndWord(CHAT, "spam")).thenReturn(true);
-
-        BannedWordService service = new BannedWordService(repo);
-
-        assertThat(service.addWord(CHAT, "  spam  ", 1L))
-                .as("去空白后与既有词相同则不再新增").isFalse();
-    }
-
-    @Test
-    void addSavesNormalizedWord() {
-        BannedWordRepository repo = mock(BannedWordRepository.class);
-        when(repo.existsByChatIdAndWord(CHAT, "spam")).thenReturn(false);
-
+        when(repo.insertIgnore(any(), any(), any(), any())).thenReturn(1);
         BannedWordService service = new BannedWordService(repo);
 
         assertThat(service.addWord(CHAT, "  spam  ", 1L)).isTrue();
+
+        org.mockito.ArgumentCaptor<String> word = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(repo).insertIgnore(org.mockito.ArgumentMatchers.eq(CHAT), word.capture(),
+                org.mockito.ArgumentMatchers.eq(1L), any());
+        assertThat(word.getValue()).isEqualTo("spam");
     }
 
     /**
-     * 并发下第二个请求会撞 (chat_id, word) 唯一约束——语义等同"已存在"，
-     * 必须返回 false 而不是把异常抛给命令层（那会让 /addword 直接失败，破坏幂等契约）。
+     * 幂等：数据库忽略冲突（受影响行数 0）即表示该词已存在，返回 false。
+     *
+     * <p>注意本用例只验证返回值映射；<b>真实数据库上的冲突行为与"不污染 session"</b>
+     * 由 {@code BannedWordPersistenceIT} 覆盖。
      */
     @Test
-    void addTreatsUniqueConstraintViolationAsAlreadyExists() {
+    void addReturnsFalseWhenDatabaseIgnoredTheInsert() {
         BannedWordRepository repo = mock(BannedWordRepository.class);
-        when(repo.existsByChatIdAndWord(CHAT, "spam")).thenReturn(false);
-        when(repo.save(any(BannedWord.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(repo.insertIgnore(any(), any(), any(), any())).thenReturn(0);
 
         BannedWordService service = new BannedWordService(repo);
 
-        assertThat(service.addWord(CHAT, "spam", 1L))
-                .as("撞唯一约束应按已存在处理，返回 false 而非抛异常").isFalse();
+        assertThat(service.addWord(CHAT, "spam", 1L)).as("已存在时应返回 false").isFalse();
     }
 
     @Test

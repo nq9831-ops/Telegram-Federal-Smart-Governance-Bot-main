@@ -3,12 +3,16 @@ package com.tg.heyisheng.bot.core.privacy;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.objects.EntityType;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
+import org.telegram.telegrambots.meta.api.objects.LinkPreviewOptions;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.Venue;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.polls.Poll;
 import org.telegram.telegrambots.meta.api.objects.polls.PollOption;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOptionAdded;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOptionDeleted;
+import org.telegram.telegrambots.meta.api.objects.stories.Story;
 
 import java.util.List;
 
@@ -75,25 +79,36 @@ class MessageScrubberTest {
     }
 
     /**
-     * 投票与地点同样承载用户文本（问题/选项、标题/地址），必须一并清除。
+     * 投票、地点、故事、链接预览都承载用户文本，必须一并清除——测试须覆盖到每一个新增的清除点，
+     * 否则"改了实现却没测"（本用例初版即犯此错：名字提了 story 却只构造 poll/venue）。
      *
-     * <p>回归背景：初版只清 text/caption/entities 等六个字段，投票与地点被漏掉——
-     * 那些内容既不进审核（假 clean）也不被清除（泄露面）。
+     * <p>回归背景：初版只清 text/caption/entities 等六个字段，这些被漏掉——
+     * 它们既不进审核（假 clean）也不被清除（泄露面）。
      */
     @Test
-    void clearsPollAndVenueAndStory() {
+    void clearsPollVenueStoryAndLinkPreview() {
         Message message = Message.builder()
                 .poll(Poll.builder()
                         .question("投票问题")
                         .options(List.of(PollOption.builder().text("选项一").build()))
                         .build())
                 .venue(Venue.builder().title("某地点").address("某地址").build())
+                .pollOptionAdded(PollOptionAdded.builder().optionText("新增选项").build())
+                .pollOptionDeleted(PollOptionDeleted.builder().optionText("删除选项").build())
+                .story(Story.builder().build())
+                .replyToStory(Story.builder().build())
+                .linkPreviewOptions(LinkPreviewOptions.builder().urlField("https://example.com").build())
                 .build();
 
         scrubber.scrub(message);
 
         assertThat(message.getPoll()).as("投票问题与选项都是用户文本").isNull();
         assertThat(message.getVenue()).as("地点标题与地址是用户文本").isNull();
+        assertThat(message.getPollOptionAdded()).as("选项增删事件带 optionText").isNull();
+        assertThat(message.getPollOptionDeleted()).isNull();
+        assertThat(message.getStory()).isNull();
+        assertThat(message.getReplyToStory()).isNull();
+        assertThat(message.getLinkPreviewOptions()).as("含用户可控的 url").isNull();
     }
 
     @Test

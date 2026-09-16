@@ -2,10 +2,10 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -49,6 +49,12 @@ public class BannedWordService {
     /**
      * 添加一条词（幂等）。
      *
+     * <p><b>幂等由数据库承担</b>：{@code INSERT IGNORE}，命中唯一约束 {@code (chat_id, word)} 时静默跳过。
+     *
+     * <p><b>为什么不"先查后存 + catch 异常"</b>：那条路在真实数据库上会坏——约束冲突使 Hibernate
+     * session 因 flush 失败进入不可用状态，方法即便 catch 了异常，同一事务里后续操作也会失败
+     * （详见 {@link BannedWordRepository#insertIgnore}）。改用"不产生异常"的写法才是真幂等。
+     *
      * @return true 表示新增成功；false 表示已存在或参数非法
      */
     @Transactional
@@ -57,19 +63,7 @@ public class BannedWordService {
         if (chatId == null || normalized == null) {
             return false;
         }
-        if (repository.existsByChatIdAndWord(chatId, normalized)) {
-            return false;
-        }
-        try {
-            repository.save(new BannedWord(chatId, normalized, createdBy));
-            return true;
-        } catch (DataIntegrityViolationException ex) {
-            // 并发下两个请求同时通过了上面的 exists 检查，第二个会撞 (chat_id, word) 唯一约束。
-            // 语义上等同"已存在"，因此返回 false，而不是把异常抛给命令层
-            // （那会让 /addword 直接失败，破坏本方法宣称的幂等契约）。
-            log.debug("并发添加违禁词撞唯一约束，按已存在处理（chatId={}）", chatId);
-            return false;
-        }
+        return repository.insertIgnore(chatId, normalized, createdBy, Instant.now()) > 0;
     }
 
     /**

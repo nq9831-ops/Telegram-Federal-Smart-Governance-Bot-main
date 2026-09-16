@@ -46,6 +46,8 @@ public class MessageScrubber {
         // 转发故事与「回复某故事」——可能嵌套媒体说明
         message.setStory(null);
         message.setReplyToStory(null);
+        // 链接预览选项：含用户可控的 url（唯一文本字段，其余为展示开关）
+        message.setLinkPreviewOptions(null);
         log.debug("已清除消息正文（messageId={}）", message.getMessageId());
     }
 }
