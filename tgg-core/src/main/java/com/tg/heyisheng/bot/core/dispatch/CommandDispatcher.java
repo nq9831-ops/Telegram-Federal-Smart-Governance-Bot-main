@@ -48,6 +48,41 @@ public class CommandDispatcher {
      * @return 处理器产出的 Bot API 调用；无命令、未知命令、权限不足或处理器返回 null 时为空
      */
     public Optional<BotApiMethod<?>> dispatch(UpdateContext ctx) throws Exception {
+        Optional<CommandHandler> resolvable = resolvableHandler(ctx);
+        if (resolvable.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.ofNullable(resolvable.get().handle(ctx));
+        } catch (Exception ex) {
+            // 统一包装为项目异常，便于上游 @RestControllerAdvice 识别与记录
+            throw new TggDispatchException("命令处理失败：" + ctx.command().orElseThrow(), ex);
+        }
+    }
+
+    /**
+     * 这条更新是否会**真的执行**一条命令（已注册 + 权限足够 + 群开关允许）。
+     *
+     * <p><b>供审核层使用</b>：内容审核对命令消息的豁免必须以此为条件，而**不能**用
+     * {@code Message.isCommand()}——后者只表示"文本看起来像命令"（有 offset 0 的 bot_command
+     * entity），与命令是否注册、发送者有无权限毫无关系。若拿它当豁免依据，任何成员只要把违规内容
+     * 写成 {@code /任意词 <违规内容>} 就能绕过内容审核（消息不会被删，命令又因未注册/无权限而不执行）。
+     *
+     * <p>注意：本判定发生在中间件链<b>之前</b>时会拿不到群配置（群开关退化为"启用"）——
+     * 该边界已在 KNOWN-ISSUES 记录，影响面仅"管理员在已停用群内发命令"。
+     */
+    public boolean willExecute(UpdateContext ctx) {
+        return resolvableHandler(ctx).isPresent();
+    }
+
+    /**
+     * 依次施加三道门禁（已注册 → 权限 → 群开关），返回可执行的处理器。
+     *
+     * <p>抽出来是为了让 {@link #dispatch} 与 {@link #willExecute} 共用同一套判定条件——
+     * 两处若各写一份，迟早会漂移成"审核以为会执行、实际不执行"或反之。
+     */
+    private Optional<CommandHandler> resolvableHandler(UpdateContext ctx) {
         if (ctx == null || !ctx.hasCommand()) {
             return Optional.empty();
         }
@@ -71,12 +106,7 @@ public class CommandDispatcher {
             return Optional.empty();
         }
 
-        try {
-            return Optional.ofNullable(handler.get().handle(ctx));
-        } catch (Exception ex) {
-            // 统一包装为项目异常，便于上游 @RestControllerAdvice 识别与记录
-            throw new TggDispatchException("命令处理失败：" + command, ex);
-        }
+        return handler;
     }
 
     /**

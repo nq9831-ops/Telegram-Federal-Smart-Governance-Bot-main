@@ -194,12 +194,15 @@ public class UpdateDispatcher {
             return;
         }
 
-        // 命令消息豁免内容审核——它是**控制面**（管理操作），不是群聊内容。
-        // 典型缺陷：`/delword <词>` 的命令文本里含该词本身，若照常送审会被先判违规而删除、
-        // dispatch 提前返回，命令永不执行（`/delword` 对它唯一的用途 100% 失效）。
-        // 命令的安全性由权限门控（@BotCommand.requiredPermission）保障，不依赖内容审核。
-        // 注意：豁免的只是「审核」，消息正文仍会被 finally 里的 scrub 照常清除。
-        if (message.isCommand()) {
+        // 豁免条件：这条消息**会真的执行一条命令**（已注册 + 发送者有权限 + 群开关允许）。
+        //
+        // 不能用 `message.isCommand()`——那只是"文本看起来像命令"（offset 0 的 bot_command entity），
+        // 与命令是否注册、发送者有无权限无关。拿它当豁免依据，任何人只要把违规内容写成
+        // `/任意词 <违规内容>` 就能绕过内容审核：消息不被删，而命令又因未注册/无权限而不执行，
+        // 违规内容于是留在群里。这是提交后审查抓到的 HIGH 绕过。
+        //
+        // 豁免的只是「审核」；消息正文仍会被 finally 里的 scrub 照常清除。
+        if (commandDispatcher.willExecute(ctx)) {
             return;
         }
 

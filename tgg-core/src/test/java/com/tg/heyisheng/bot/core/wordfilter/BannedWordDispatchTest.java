@@ -39,6 +39,11 @@ class BannedWordDispatchTest {
     private static final long CHAT_A = -100L;
     private static final long CHAT_B = -200L;
 
+    /** 放行一切权限（模拟已授权管理员）。 */
+    private static final PermissionChecker ALLOW_ALL = new PermissionChecker((chatId, userId) -> Role.OWNER);
+    /** 拒绝一切受限权限（模拟普通成员）——用于验证"命令外壳"不能成为绕过审核的通道。 */
+    private static final PermissionChecker DENY_ALL = new PermissionChecker((chatId, userId) -> Role.MEMBER);
+
     private final BannedWordRepository repository = mock(BannedWordRepository.class);
     private final BannedWordService service = new BannedWordService(repository);
     private final BannedWordDetector detector = new BannedWordDetector(service);
@@ -122,13 +127,43 @@ class BannedWordDispatchTest {
                 detector);
     }
 
-    /** 带真实 /delword 命令的 dispatcher——用于验证命令消息能否穿过审核链到达命令层。 */
+    /**
+     * 绕过回归（HIGH）：**无权限**成员把违规内容写成命令外壳，不得被豁免审核。
+     *
+     * <p>豁免条件必须是"这条消息会**真的执行**一条已授权命令"。若只看 {@code isCommand()}，
+     * 任何人加个 {@code /xxx } 前缀就能让违规内容免于删除——消息不被删、
+     * 命令又因权限不足而不执行，内容就留在群里了。
+     */
+    @Test
+    void unauthorizedCommandShellDoesNotBypassModeration() throws Exception {
+        Optional<BotApiMethod<?>> action = dispatcherWith(DENY_ALL)
+                .dispatch(commandUpdate("/delword 广告话术", 8));
+
+        assertThat(action).as("无权限者的命令外壳不得豁免审核").isPresent();
+        assertThat(action.get()).as("违规内容仍须被删除").isInstanceOf(DeleteMessage.class);
+    }
+
+    /** 绕过回归：**未注册**的命令外壳同样不得豁免。 */
+    @Test
+    void unregisteredCommandShellDoesNotBypassModeration() throws Exception {
+        Optional<BotApiMethod<?>> action = dispatcherWithCommands()
+                .dispatch(commandUpdate("/nonsense 广告话术", 9));
+
+        assertThat(action).as("未注册命令的外壳不得豁免审核").isPresent();
+        assertThat(action.get()).as("违规内容仍须被删除").isInstanceOf(DeleteMessage.class);
+    }
+
+    /** 带真实 /delword 命令的 dispatcher，并放行权限——用于验证命令消息能否穿过审核链到达命令层。 */
     private UpdateDispatcher dispatcherWithCommands() {
         // /delword 需要 MANAGE_CONFIG，故此处放行权限——本测试聚焦"审核是否拦截命令"，不是权限门控
-        PermissionChecker allowAll = new PermissionChecker((chatId, userId) -> Role.OWNER);
+        return dispatcherWith(ALLOW_ALL);
+    }
+
+    /** 权限判定可注入：同一套装配，只换权限来源，才能隔离出"豁免条件是否正确"。 */
+    private UpdateDispatcher dispatcherWith(PermissionChecker permissionChecker) {
         return new UpdateDispatcher(
                 new MiddlewareChain(List.of()),
-                new CommandDispatcher(new CommandRegistry(List.of(new DelWordCommandHandler(service))), allowAll),
+                new CommandDispatcher(new CommandRegistry(List.of(new DelWordCommandHandler(service))), permissionChecker),
                 new MessageScrubber(),
                 null,
                 IdHasher.fromEnvironment(),
