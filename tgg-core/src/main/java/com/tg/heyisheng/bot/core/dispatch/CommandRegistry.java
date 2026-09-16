@@ -23,7 +23,7 @@ import java.util.Set;
 public class CommandRegistry {
 
     /** 一条命令的注册项。 */
-    private record Entry(CommandHandler handler, Permission permission) {
+    private record Entry(CommandHandler handler, Permission permission, boolean worksWhenDisabled) {
     }
 
     private final Map<String, Entry> entries;
@@ -40,7 +40,7 @@ public class CommandRegistry {
                         "@BotCommand 标注的类必须实现 CommandHandler：" + bean.getClass().getName());
             }
             String owner = bean.getClass().getName();
-            Entry entry = new Entry(handler, annotation.requiredPermission());
+            Entry entry = new Entry(handler, annotation.requiredPermission(), annotation.worksWhenDisabled());
             register(map, annotation.value(), entry, owner);
             for (String alias : annotation.aliases()) {
                 register(map, alias, entry, owner);
@@ -85,6 +85,16 @@ public class CommandRegistry {
     public Permission requiredPermission(String command) {
         Entry entry = entries.get(normalize(command));
         return entry == null ? Permission.NONE : entry.permission();
+    }
+
+    /**
+     * 查询某命令是否可在「该群功能已关闭」时执行。
+     *
+     * @return 命令不存在时返回 {@code false}（未知命令本就不会被执行）
+     */
+    public boolean worksWhenDisabled(String command) {
+        Entry entry = entries.get(normalize(command));
+        return entry != null && entry.worksWhenDisabled();
     }
 
     public Set<String> registeredCommands() {

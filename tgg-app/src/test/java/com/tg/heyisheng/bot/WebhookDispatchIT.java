@@ -3,6 +3,8 @@ package com.tg.heyisheng.bot;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -30,9 +32,27 @@ class WebhookDispatchIT {
 
     private static final String SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
     private static final String SECRET = "test-secret-value";
+    /** 本测试专用的群 ID——刻意不同于人工验收常用的 -100，避免与手工数据相撞。 */
+    private static final long TEST_CHAT_ID = -777001L;
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private GroupConfigService groupConfigService;
+
+    /**
+     * 建立前置条件：确保本测试用群处于「启用」状态。
+     *
+     * <p>必须显式设置——测试直连真实 MySQL，库里可能存在他处写入的
+     * {@code enabled = false} 记录（例如人工验收留下的数据），
+     * 那会让中间件如实中断链路、测试失败在一个与本次改动无关的原因上。
+     * 依赖库的既有状态是测试隔离缺陷，不能靠"记得清库"来规避。
+     */
+    @BeforeEach
+    void ensureTestChatEnabled() {
+        groupConfigService.setEnabled(TEST_CHAT_ID, true);
+    }
 
     @TestConfiguration
     static class FailingHandlerConfig {
@@ -99,10 +119,10 @@ class WebhookDispatchIT {
                     "date": 1700000000,
                     "from": {"id": 42, "is_bot": false, "first_name": "Test"},
                     "text": "%s",
-                    "chat": {"id": -100, "type": "supergroup"},
+                    "chat": {"id": %d, "type": "supergroup"},
                     "entities": [{"type": "bot_command", "offset": 0, "length": %d}]
                   }
                 }
-                """.formatted(command, command.length());
+                """.formatted(command, TEST_CHAT_ID, command.length());
     }
 }

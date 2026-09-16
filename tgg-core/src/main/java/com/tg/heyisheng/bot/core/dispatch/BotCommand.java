@@ -38,4 +38,15 @@ public @interface BotCommand {
      * 保持既有命令（如 {@code /echo}）行为不变。
      */
     Permission requiredPermission() default Permission.NONE;
+
+    /**
+     * 本命令是否在该群「功能已关闭」时仍可执行。
+     *
+     * <p>默认 {@code false}——绝大多数命令在停用群内不应生效。
+     *
+     * <p><b>必须为 true 的例外</b>：用于<b>恢复</b>群组状态的命令（如 {@code /enable}）。
+     * 否则一旦某群被停用，群内任何命令都进不来，该群将<b>永久锁死</b>，
+     * 只能由运维直接改数据库恢复——这是实测暴露的真实缺陷，不是理论风险。
+     */
+    boolean worksWhenDisabled() default false;
 }

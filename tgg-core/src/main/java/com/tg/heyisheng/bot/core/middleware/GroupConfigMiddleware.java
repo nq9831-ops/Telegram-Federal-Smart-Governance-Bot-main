@@ -30,14 +30,11 @@ public class GroupConfigMiddleware implements Middleware {
 
     @Override
     public boolean handle(UpdateContext ctx, MiddlewareChain chain) {
-        GroupConfigView config = groupConfigService.findOrDefault(ctx.chatId());
-        ctx.attach(config);
-
-        if (!config.enabled()) {
-            // 记日志而非静默跳过：否则运维者会看到"机器人在群里完全不响应"却查不出原因
-            log.info("群 {} 的功能开关为关闭，跳过本次处理", ctx.chatId());
-            return false;
-        }
+        // 只负责加载与挂载。是否因「功能已关闭」而拒绝执行，交由 CommandDispatcher 判断——
+        // 中间件看不到「即将执行哪条命令」，无法知道该命令是否属于恢复类命令（如 /enable 必须放行）。
+        // 早期实现曾在此处直接中断链，导致被停用的群永久锁死（/enable 自己都进不来），
+        // 只能由运维改数据库恢复——那是实测暴露的真实缺陷。
+        ctx.attach(groupConfigService.findOrDefault(ctx.chatId()));
         return true;
     }
 }

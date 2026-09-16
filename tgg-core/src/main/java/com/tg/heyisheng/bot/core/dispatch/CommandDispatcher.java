@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.exception.TggDispatchException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.core.groupconfig.GroupConfigView;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import com.tg.heyisheng.bot.core.permission.Role;
@@ -63,11 +64,27 @@ public class CommandDispatcher {
             return Optional.empty();
         }
 
+        // 群功能开关：关闭时只放行「恢复类」命令。
+        // 若在此处一刀切地拒绝，被停用的群连 /enable 都进不来——会永久锁死。
+        if (!registry.worksWhenDisabled(command) && !isGroupEnabled(ctx)) {
+            log.debug("群 {} 功能已关闭，忽略命令 {}", ctx.chatId(), command);
+            return Optional.empty();
+        }
+
         try {
             return Optional.ofNullable(handler.get().handle(ctx));
         } catch (Exception ex) {
             // 统一包装为项目异常，便于上游 @RestControllerAdvice 识别与记录
             throw new TggDispatchException("命令处理失败：" + command, ex);
         }
+    }
+
+    /**
+     * 读取上下文里由 {@code GroupConfigMiddleware} 挂载的开关状态。
+     *
+     * <p>未挂载时按「启用」处理——这保证不装配该中间件的场景（如单元测试）行为不变。
+     */
+    private static boolean isGroupEnabled(UpdateContext ctx) {
+        return ctx.find(GroupConfigView.class).map(GroupConfigView::enabled).orElse(true);
     }
 }

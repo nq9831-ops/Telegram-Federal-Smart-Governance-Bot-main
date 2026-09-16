@@ -38,19 +38,25 @@ class GroupConfigMiddlewareTest {
                 .contains(config);
     }
 
+    /**
+     * 中间件<b>不再</b>因功能关闭而中断链——开关判断已移到命令级。
+     *
+     * <p>回归背景：早期实现在此处直接中断，导致被停用的群连 {@code /enable} 都进不来、
+     * 永久锁死（实测暴露）。中间件看不到「即将执行哪条命令」，因此天生无法做这个判断。
+     */
     @Test
-    void disabledGroupInterruptsTheChain() {
+    void doesNotInterruptEvenWhenGroupDisabled() {
         when(service.findOrDefault(CHAT_ID))
                 .thenReturn(new GroupConfigView(CHAT_ID, "测试群", false));
 
         UpdateContext ctx = new UpdateContext(1, 42L, CHAT_ID, "/echo");
 
         assertThat(middleware.handle(ctx, chain))
-                .as("功能开关关闭的群不得继续处理")
-                .isFalse();
+                .as("中间件必须放行——是否拒绝由 CommandDispatcher 按命令判断")
+                .isTrue();
     }
 
-    /** 关闭的群也要挂载配置——否则后续若要做"为什么没响应"的解释就拿不到依据。 */
+    /** 关闭的群也要挂载配置——分发器要靠它判断是否放行。 */
     @Test
     void disabledGroupStillAttachesConfig() {
         GroupConfigView config = new GroupConfigView(CHAT_ID, "测试群", false);
