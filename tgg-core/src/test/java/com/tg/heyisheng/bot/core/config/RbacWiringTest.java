@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
+import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.Role;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,6 +62,9 @@ class RbacWiringTest {
                 // 违禁词服务同样是 @Service；其 detector bean 由 TggCoreConfiguration 创建
                 .withBean(BannedWordService.class,
                         () -> org.mockito.Mockito.mock(BannedWordService.class))
+                // 四层审核流水线由 AiConfiguration 提供（本 runner 不加载它）——用空流水线占位：
+                // 本测试关心的是权限门控装配，不是审核层
+                .withBean(ModerationPipeline.class, () -> new ModerationPipeline(List.of()))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(

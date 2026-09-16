@@ -16,6 +16,7 @@ import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
+import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
@@ -208,6 +209,7 @@ public class TggCoreConfiguration {
     public UpdateDispatcher updateDispatcher(MiddlewareChain middlewareChain,
                                              CommandDispatcher commandDispatcher,
                                              ModerationLayer moderationLayer,
+                                             ModerationPipeline moderationPipeline,
                                              ModerationActionSender moderationActionSender,
                                              ModerationReviewRecorder moderationReviewRecorder,
                                              BannedWordDetector bannedWordDetector,
@@ -222,6 +224,7 @@ public class TggCoreConfiguration {
                 .commandDispatcher(commandDispatcher)
                 .scrubber(new MessageScrubber())
                 .moderationLayer(moderationLayer)
+                .moderationPipeline(moderationPipeline)
                 .idHasher(idHasher)
                 .actionSender(moderationActionSender)
                 .reviewRecorder(moderationReviewRecorder)
