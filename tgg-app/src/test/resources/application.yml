@@ -1,0 +1,6 @@
+# 测试专用配置：提供 WebhookProperties 的必填项（生产环境必须由环境变量注入，绝不入库）
+tgg:
+  webhook:
+    path: /webhook
+    secret: test-secret-value
+    bot-token: test-bot-token

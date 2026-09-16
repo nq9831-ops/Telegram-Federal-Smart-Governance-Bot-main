@@ -50,4 +50,23 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <build>
+    <plugins>
+      <!-- 默认 surefire 只跑 *Test；集成测试（*IT）由 failsafe 在 verify 阶段执行。
+           没有它，WebhookDispatchIT 会被静默跳过——BUILD SUCCESS 并不代表端到端跑过。 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
