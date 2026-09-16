@@ -1,7 +1,9 @@
 package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -36,15 +38,17 @@ public class UpdateDispatcher {
     private final CommandDispatcher commandDispatcher;
     private final MessageScrubber scrubber;
     private final ModerationLayer moderationLayer;
+    private final IdHasher idHasher;
+    private final ModerationEnforcer enforcer = new ModerationEnforcer();
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
-        this(middlewareChain, commandDispatcher, new MessageScrubber(), null);
+        this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment());
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain,
                             CommandDispatcher commandDispatcher,
                             MessageScrubber scrubber) {
-        this(middlewareChain, commandDispatcher, scrubber, null);
+        this(middlewareChain, commandDispatcher, scrubber, null, IdHasher.fromEnvironment());
     }
 
     /**
@@ -54,10 +58,22 @@ public class UpdateDispatcher {
                             CommandDispatcher commandDispatcher,
                             MessageScrubber scrubber,
                             ModerationLayer moderationLayer) {
+        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, IdHasher.fromEnvironment());
+    }
+
+    /**
+     * @param idHasher 日志脱敏用的标识哈希器——用户/群 id 不得以明文进日志
+     */
+    public UpdateDispatcher(MiddlewareChain middlewareChain,
+                            CommandDispatcher commandDispatcher,
+                            MessageScrubber scrubber,
+                            ModerationLayer moderationLayer,
+                            IdHasher idHasher) {
         this.middlewareChain = middlewareChain;
         this.commandDispatcher = commandDispatcher;
         this.scrubber = scrubber;
         this.moderationLayer = moderationLayer;
+        this.idHasher = idHasher;
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
@@ -69,6 +85,13 @@ public class UpdateDispatcher {
             Message message = relevantMessage(update);
             UpdateContext ctx = toContext(update, message);
             moderateInto(ctx, message);
+
+            // 审核命中的处置<b>优先于一切</b>：违规消息不再走中间件链与命令分发。
+            // 否则一条既违规又带命令的消息会先被执行、再被删除——本末倒置。
+            Optional<BotApiMethod<?>> enforced = enforcer.enforce(ctx);
+            if (enforced.isPresent()) {
+                return enforced;
+            }
 
             if (!middlewareChain.proceed(ctx)) {
                 return Optional.empty();
@@ -127,10 +150,10 @@ public class UpdateDispatcher {
 
         if (verdict.needsReview()) {
             // 审计日志：不记正文、不记命中片段（避免经日志这条侧路泄露原文）。
-            // 记录规则 id 与群/用户以便追责，等级与红线标记供后续处置分级使用。
-            log.info("L1 审核命中：rule={} level={} hardLine={} chatId={} userId={}",
+            // 用户/群标识**必须哈希化**——V5.0 明确要求，明文 id 属个人数据处理。
+            log.info("L1 审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
                     verdict.matchedRuleIds(), verdict.riskLevel(), verdict.hardLine(),
-                    ctx.chatId(), ctx.userId());
+                    idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
         }
     }
 
@@ -168,6 +191,8 @@ public class UpdateDispatcher {
         }
         Long userId = message.getFrom() == null ? null : message.getFrom().getId();
         Long chatId = message.getChat() == null ? null : message.getChat().getId();
-        return new UpdateContext(update.getUpdateId(), userId, chatId, message.getCommand());
+        // messageId 供处置动作定位目标（如删除违规消息）
+        return new UpdateContext(update.getUpdateId(), userId, chatId, message.getMessageId(),
+                message.getCommand());
     }
 }

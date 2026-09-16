@@ -20,6 +20,8 @@ public final class UpdateContext {
     private final Integer updateId;
     private final Long userId;
     private final Long chatId;
+    /** 触发本次更新的消息 id。删除消息等处置动作需要它。 */
+    private final Integer messageId;
     private final String command;
 
     /**
@@ -30,10 +32,16 @@ public final class UpdateContext {
      */
     private final Map<Class<?>, Object> attributes = new ConcurrentHashMap<>();
 
+    /** 兼容构造器：不含消息 id（不需要处置动作的场景）。 */
     public UpdateContext(Integer updateId, Long userId, Long chatId, String command) {
+        this(updateId, userId, chatId, null, command);
+    }
+
+    public UpdateContext(Integer updateId, Long userId, Long chatId, Integer messageId, String command) {
         this.updateId = updateId;
         this.userId = userId;
         this.chatId = chatId;
+        this.messageId = messageId;
         this.command = command;
     }
 
@@ -47,6 +55,10 @@ public final class UpdateContext {
 
     public Long chatId() {
         return chatId;
+    }
+
+    public Optional<Integer> messageId() {
+        return Optional.ofNullable(messageId);
     }
 
     public Optional<String> command() {
