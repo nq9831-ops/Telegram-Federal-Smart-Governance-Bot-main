@@ -1,14 +1,18 @@
 package com.tg.heyisheng.bot.core.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
+import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
+import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
@@ -21,6 +25,9 @@ import com.tg.heyisheng.bot.core.ratelimit.RateLimitMiddleware;
 import com.tg.heyisheng.bot.core.webhook.SecretTokenFilter;
 import com.tg.heyisheng.bot.core.webhook.SecretTokenVerifier;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
+import okhttp3.OkHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -41,6 +48,8 @@ import java.util.List;
 @Configuration
 @EnableConfigurationProperties(WebhookProperties.class)
 public class TggCoreConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(TggCoreConfiguration.class);
 
     /** 用户维度：10 秒 20 条。 */
     private static final int USER_LIMIT = 20;
@@ -104,12 +113,39 @@ public class TggCoreConfiguration {
         return new RegexLayer(BuiltInRules.all());
     }
 
+    /**
+     * 硬红线封禁等额外动作的主动发送通道。
+     *
+     * <p><b>无条件装配（不挂 {@code tgg.failover.enabled} 开关）</b>——硬红线冻结是安全关键功能，
+     * 不能因默认关闭的 failover 而静默缺失（本项目反复踩的「默认关闭即静默降级」坑）。
+     *
+     * <p><b>token 缺失处理</b>：主动调用 Telegram API 需 bot token。若未配置 {@code TGG_BOT_TOKEN}，
+     * 退化为空通道并<b>显式告警</b>——违规消息仍会被删除，只是封禁不可用；不静默降级。
+     * 要启用硬红线封禁，请注入 TGG_BOT_TOKEN（见 docs/DEPLOYMENT-VERIFICATION.md）。
+     */
+    @Bean
+    public ModerationActionSender moderationActionSender(ObjectMapper objectMapper,
+                                                         WebhookProperties properties) {
+        String token = properties.getBotToken();
+        if (token == null || token.isBlank()) {
+            log.warn("未配置 TGG_BOT_TOKEN：硬红线封禁不可用（违规消息仍会被删除）。"
+                    + "要启用硬红线封禁，请注入 TGG_BOT_TOKEN。");
+            return ModerationActionSender.noop();
+        }
+        TelegramApiMethodExecutor executor =
+                new TelegramApiMethodExecutor(new OkHttpClient(), objectMapper, token);
+        return executor::execute;
+    }
+
     @Bean
     public UpdateDispatcher updateDispatcher(MiddlewareChain middlewareChain,
                                              CommandDispatcher commandDispatcher,
-                                             ModerationLayer moderationLayer) {
-        // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文
-        return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer);
+                                             ModerationLayer moderationLayer,
+                                             ModerationActionSender moderationActionSender) {
+        // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文。
+        // 注入主动处置通道：硬红线封禁走它（webhook 返回值只能执行一个方法，删除作返回值保底）。
+        return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer,
+                IdHasher.fromEnvironment(), moderationActionSender);
     }
 
     @Bean

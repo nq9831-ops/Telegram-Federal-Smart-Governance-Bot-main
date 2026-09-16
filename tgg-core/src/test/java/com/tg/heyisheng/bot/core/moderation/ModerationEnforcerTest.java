@@ -3,8 +3,10 @@ package com.tg.heyisheng.bot.core.moderation;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,13 +54,62 @@ class ModerationEnforcerTest {
         assertThat(enforcer.enforce(ctx)).isEmpty();
     }
 
-    /** 硬红线同样走删除（冻结动作是后续增量，但删除必须立刻生效）。 */
+    /** 硬红线同样走删除——删除是保底动作，任何情况下都必须立刻生效。 */
     @Test
     void hardLineIsAlsoDeletedImmediately() {
         UpdateContext ctx = ctxWithVerdict(
                 new ModerationVerdict(RiskLevel.HIGH, true, List.of("HARD_SECRET_PHRASE")));
 
         assertThat(enforcer.enforce(ctx)).isPresent();
+    }
+
+    /**
+     * 硬红线封禁：webhook 一次只能返回一个方法，故删除作响应体、封禁走主动通道。
+     *
+     * <p>这是「只删不冻」缺口的护栏——旧实现下硬红线只返回删除、从不封禁，
+     * 而旧的 hardLineIsAlsoDeletedImmediately 只断言 present，盖不住这个洞。
+     */
+    @Test
+    void bansPublisherOnHardLine() {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        ModerationEnforcer banningEnforcer = new ModerationEnforcer(sent::add);
+        UpdateContext ctx = ctxWithVerdict(
+                new ModerationVerdict(RiskLevel.HIGH, true, List.of("HARD_SECRET_PHRASE")));
+
+        Optional<BotApiMethod<?>> action = banningEnforcer.enforce(ctx);
+
+        assertThat(action).as("删除仍作为返回值保底").isPresent();
+        assertThat(action.get()).isInstanceOf(DeleteMessage.class);
+        assertThat(sent).as("硬红线必须经主动通道封禁发布者").hasSize(1);
+        assertThat(sent.get(0)).isInstanceOf(BanChatMember.class);
+        BanChatMember ban = (BanChatMember) sent.get(0);
+        assertThat(ban.getChatId()).as("封禁须定位到正确群").isEqualTo(String.valueOf(CHAT_ID));
+        assertThat(ban.getUserId()).as("封禁须定位到发布者").isEqualTo(42L);
+    }
+
+    /** 非硬红线不得封禁——封禁是硬红线的专属处置。 */
+    @Test
+    void doesNotBanOnNonHardLine() {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        ModerationEnforcer banningEnforcer = new ModerationEnforcer(sent::add);
+        UpdateContext ctx = ctxWithVerdict(
+                new ModerationVerdict(RiskLevel.LOW, false, List.of("SPAM_CASINO")));
+
+        banningEnforcer.enforce(ctx);
+
+        assertThat(sent).as("轻微/中风险不封禁，仅删除").isEmpty();
+    }
+
+    /** 缺少 userId 时无法定位发布者：删除仍生效，但不得封禁、更不得抛异常。 */
+    @Test
+    void doesNotBanWhenUserIdMissingButStillDeletes() {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        ModerationEnforcer banningEnforcer = new ModerationEnforcer(sent::add);
+        UpdateContext ctx = new UpdateContext(1, null, CHAT_ID, MESSAGE_ID, null);
+        ctx.attach(new ModerationVerdict(RiskLevel.HIGH, true, List.of("HARD_SECRET_PHRASE")));
+
+        assertThat(banningEnforcer.enforce(ctx)).isPresent();
+        assertThat(sent).isEmpty();
     }
 
     /** 缺少 messageId 时无法定位目标：应放弃处置而非抛异常中断整条链路。 */

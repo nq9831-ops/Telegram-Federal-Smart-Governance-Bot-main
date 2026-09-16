@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
@@ -39,16 +40,18 @@ public class UpdateDispatcher {
     private final MessageScrubber scrubber;
     private final ModerationLayer moderationLayer;
     private final IdHasher idHasher;
-    private final ModerationEnforcer enforcer = new ModerationEnforcer();
+    private final ModerationEnforcer enforcer;
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
-        this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment());
+        this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment(),
+                ModerationActionSender.noop());
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain,
                             CommandDispatcher commandDispatcher,
                             MessageScrubber scrubber) {
-        this(middlewareChain, commandDispatcher, scrubber, null, IdHasher.fromEnvironment());
+        this(middlewareChain, commandDispatcher, scrubber, null, IdHasher.fromEnvironment(),
+                ModerationActionSender.noop());
     }
 
     /**
@@ -58,7 +61,8 @@ public class UpdateDispatcher {
                             CommandDispatcher commandDispatcher,
                             MessageScrubber scrubber,
                             ModerationLayer moderationLayer) {
-        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, IdHasher.fromEnvironment());
+        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, IdHasher.fromEnvironment(),
+                ModerationActionSender.noop());
     }
 
     /**
@@ -69,11 +73,25 @@ public class UpdateDispatcher {
                             MessageScrubber scrubber,
                             ModerationLayer moderationLayer,
                             IdHasher idHasher) {
+        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher,
+                ModerationActionSender.noop());
+    }
+
+    /**
+     * @param actionSender 硬红线封禁等额外动作的主动通道；未装配场景应传 {@link ModerationActionSender#noop()}
+     */
+    public UpdateDispatcher(MiddlewareChain middlewareChain,
+                            CommandDispatcher commandDispatcher,
+                            MessageScrubber scrubber,
+                            ModerationLayer moderationLayer,
+                            IdHasher idHasher,
+                            ModerationActionSender actionSender) {
         this.middlewareChain = middlewareChain;
         this.commandDispatcher = commandDispatcher;
         this.scrubber = scrubber;
         this.moderationLayer = moderationLayer;
         this.idHasher = idHasher;
+        this.enforcer = new ModerationEnforcer(actionSender);
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {

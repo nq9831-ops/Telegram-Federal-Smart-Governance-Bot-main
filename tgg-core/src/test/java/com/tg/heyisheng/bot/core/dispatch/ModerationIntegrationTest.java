@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
@@ -8,6 +9,9 @@ import com.tg.heyisheng.bot.core.moderation.ModerationRule;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import org.junit.jupiter.api.Test;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.EntityType;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -15,7 +19,9 @@ import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -185,6 +191,53 @@ class ModerationIntegrationTest {
         dispatcherCapturing(new UpdateContext[1]).dispatch(update);
 
         assertThat(update.getEditedMessage().getText()).as("编辑消息的正文必须被清除").isNull();
+    }
+
+    /**
+     * 端到端：硬红线消息经 {@link UpdateDispatcher} 后，删除作为返回值、封禁经主动通道产生。
+     *
+     * <p>这是「只删不冻」的端到端护栏——单看返回值删了消息会以为处置已完成，
+     * 而真正的止损（封禁发布者）在主动通道上。
+     */
+    @Test
+    void hardLineProducesBothDeleteAndBan() throws Exception {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        MiddlewareChain capturing = new MiddlewareChain(List.of((ctx, chain) -> true));
+        UpdateDispatcher dispatcher = new UpdateDispatcher(
+                capturing, noopDispatcher, new MessageScrubber(), layer, IdHasher.fromEnvironment(), sent::add);
+
+        Optional<BotApiMethod<?>> action = dispatcher.dispatch(messageUpdateWithId("send me your private key", 77));
+
+        assertThat(action).as("删除作为返回值保底").isPresent();
+        assertThat(action.get()).isInstanceOf(DeleteMessage.class);
+        assertThat(((DeleteMessage) action.get()).getMessageId()).as("删除须定位到原消息").isEqualTo(77);
+        assertThat(sent).as("硬红线须经主动通道封禁发布者").hasSize(1);
+        assertThat(sent.get(0)).isInstanceOf(BanChatMember.class);
+        BanChatMember ban = (BanChatMember) sent.get(0);
+        assertThat(ban.getChatId()).isEqualTo(String.valueOf(CHAT_ID));
+        assertThat(ban.getUserId()).isEqualTo(42L);
+    }
+
+    /**
+     * 与 {@link #messageUpdate} 相同，但带 messageId——处置（删除）需要它定位目标。
+     * 真实 Telegram 消息必带 messageId，故此处更贴近现实。
+     */
+    private static Update messageUpdateWithId(String text, int messageId) {
+        MessageEntity entity = MessageEntity.builder()
+                .type(EntityType.BOTCOMMAND).offset(0).length(2).build();
+
+        Message message = Message.builder()
+                .messageId(messageId)
+                .text(text)
+                .entities(List.of(entity))
+                .chat(Chat.builder().id(CHAT_ID).type("supergroup").build())
+                .from(User.builder().id(42L).firstName("T").isBot(false).build())
+                .build();
+
+        Update update = new Update();
+        update.setUpdateId(1);
+        update.setMessage(message);
+        return update;
     }
 
     private UpdateDispatcher dispatcherCapturing(UpdateContext[] sink) {
