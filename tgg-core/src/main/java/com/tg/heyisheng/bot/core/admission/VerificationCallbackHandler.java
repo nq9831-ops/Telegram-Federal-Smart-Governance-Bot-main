@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.admission;
 
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.callback.CallbackHandler;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -24,9 +25,11 @@ public class VerificationCallbackHandler implements CallbackHandler {
     static final String EXPIRED = "验证已过期或已完成。";
 
     private final PendingVerificationRegistry registry;
+    private final IdHasher idHasher;
 
-    public VerificationCallbackHandler(PendingVerificationRegistry registry) {
+    public VerificationCallbackHandler(PendingVerificationRegistry registry, IdHasher idHasher) {
         this.registry = registry;
+        this.idHasher = idHasher;
     }
 
     @Override
@@ -37,20 +40,19 @@ public class VerificationCallbackHandler implements CallbackHandler {
     @Override
     public Optional<BotApiMethod<?>> handle(CallbackQuery query) {
         Long clickerId = query.getFrom() == null ? null : query.getFrom().getId();
-        Long[] target = parseData(query.getData());
+        ParsedData parsed = parseData(query.getData());
 
-        if (target == null || clickerId == null) {
+        if (parsed == null || clickerId == null) {
             return Optional.of(answer(query, EXPIRED));
         }
-        Long chatId = target[0];
-        Long targetUserId = target[1];
 
-        // 安全：按钮对全群可见，必须确认点击者就是被验证者本人
-        if (!clickerId.equals(targetUserId)) {
+        // 安全：按钮对全群可见，必须确认点击者就是被验证者本人。
+        // data 里存的是 userId 的哈希（不明文暴露），故用同样方式哈希后比对。
+        if (!idHasher.hash(clickerId).equals(parsed.userHash())) {
             return Optional.of(answer(query, NOT_YOURS));
         }
-        // markVerified 只在确有登记时返回 true——重复点击/已过期都落到这里
-        if (!registry.markVerified(chatId, targetUserId)) {
+        // markVerified 只在确有**未过期**的登记时返回 true
+        if (!registry.markVerified(parsed.chatId(), clickerId)) {
             return Optional.of(answer(query, EXPIRED));
         }
         return Optional.of(answer(query, PASSED));
@@ -63,8 +65,12 @@ public class VerificationCallbackHandler implements CallbackHandler {
                 .build();
     }
 
-    /** 解析 {@code verify:<chatId>:<userId>}；非法返回 null。 */
-    private static Long[] parseData(String data) {
+    /** {@code verify:<chatId>:<userHash>} 的解析结果。 */
+    private record ParsedData(Long chatId, String userHash) {
+    }
+
+    /** 解析 data；非法返回 null。 */
+    private static ParsedData parseData(String data) {
         if (data == null) {
             return null;
         }
@@ -73,7 +79,7 @@ public class VerificationCallbackHandler implements CallbackHandler {
             return null;
         }
         try {
-            return new Long[]{Long.valueOf(parts[1]), Long.valueOf(parts[2])};
+            return new ParsedData(Long.valueOf(parts[1]), parts[2]);
         } catch (NumberFormatException ex) {
             return null;
         }

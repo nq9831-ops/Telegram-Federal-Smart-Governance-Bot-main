@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.admission;
 
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -34,6 +35,7 @@ class JoinVerificationTest {
     private static final long CHAT = -100L;
     private static final long MEMBER = 42L;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final IdHasher HASHER = IdHasher.fromEnvironment();
 
     private static final class MutableClock extends Clock {
         private final AtomicReference<Instant> now = new AtomicReference<>(Instant.EPOCH);
@@ -78,7 +80,8 @@ class JoinVerificationTest {
         CallbackQuery q = new CallbackQuery();
         q.setId("cb-1");
         q.setFrom(human(clickerId));
-        q.setData("verify:" + chatId + ":" + targetUserId);
+        // data 里是被验证者 userId 的哈希（与生产一致）
+        q.setData("verify:" + chatId + ":" + HASHER.hash(targetUserId));
         return q;
     }
 
@@ -86,7 +89,7 @@ class JoinVerificationTest {
     void joiningMemberGetsVerificationPromptWithButton() {
         PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
         List<BotApiMethod<?>> sent = new ArrayList<>();
-        JoinVerificationService service = new JoinVerificationService(registry, sent::add, TIMEOUT);
+        JoinVerificationService service = new JoinVerificationService(registry, sent::add, HASHER, TIMEOUT);
 
         service.onMembersJoined(joinMessage(MEMBER));
 
@@ -102,7 +105,7 @@ class JoinVerificationTest {
     void eachJoiningMemberGetsOwnPrompt() {
         PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
         List<BotApiMethod<?>> sent = new ArrayList<>();
-        new JoinVerificationService(registry, sent::add, TIMEOUT).onMembersJoined(joinMessage(42L, 43L));
+        new JoinVerificationService(registry, sent::add, HASHER, TIMEOUT).onMembersJoined(joinMessage(42L, 43L));
 
         assertThat(sent).as("两名新成员应各收到一条").hasSize(2);
         assertThat(registry.isPending(CHAT, 42L)).isTrue();
@@ -119,7 +122,7 @@ class JoinVerificationTest {
                 .newChatMembers(List.of(User.builder().id(99L).firstName("Bot").isBot(true).build()))
                 .build();
 
-        new JoinVerificationService(registry, sent::add, TIMEOUT).onMembersJoined(message);
+        new JoinVerificationService(registry, sent::add, HASHER, TIMEOUT).onMembersJoined(message);
 
         assertThat(sent).as("机器人入群不应触发验证").isEmpty();
         assertThat(registry.size()).isZero();
@@ -129,7 +132,7 @@ class JoinVerificationTest {
     void memberCanVerifyThemselves() {
         PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
         registry.register(CHAT, MEMBER, TIMEOUT);
-        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry);
+        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER);
 
         Optional<BotApiMethod<?>> action = handler.handle(verifyClick(MEMBER, CHAT, MEMBER));
 
@@ -143,7 +146,7 @@ class JoinVerificationTest {
     void othersCannotVerifyOnBehalf() {
         PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
         registry.register(CHAT, MEMBER, TIMEOUT);
-        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry);
+        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER);
 
         Optional<BotApiMethod<?>> action = handler.handle(verifyClick(999L, CHAT, MEMBER));
 
@@ -158,7 +161,7 @@ class JoinVerificationTest {
         MutableClock clock = new MutableClock();
         PendingVerificationRegistry registry = new PendingVerificationRegistry(clock);
         registry.register(CHAT, MEMBER, TIMEOUT);
-        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry);
+        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER);
 
         clock.advance(TIMEOUT.plusSeconds(1));
 
@@ -171,7 +174,7 @@ class JoinVerificationTest {
     @Test
     void malformedDataIsRejectedWithoutThrowing() {
         VerificationCallbackHandler handler =
-                new VerificationCallbackHandler(new PendingVerificationRegistry(new MutableClock()));
+                new VerificationCallbackHandler(new PendingVerificationRegistry(new MutableClock()), HASHER);
 
         assertThat(handler.handle(verifyClick(MEMBER, CHAT, MEMBER)).get()).isInstanceOf(AnswerCallbackQuery.class);
         CallbackQuery bad = new CallbackQuery();

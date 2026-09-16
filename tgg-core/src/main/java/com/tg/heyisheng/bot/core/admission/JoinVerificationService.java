@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.admission;
 
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,13 +37,16 @@ public class JoinVerificationService {
 
     private final PendingVerificationRegistry registry;
     private final ModerationActionSender sender;
+    private final IdHasher idHasher;
     private final Duration timeout;
 
     public JoinVerificationService(PendingVerificationRegistry registry,
                                    ModerationActionSender sender,
+                                   IdHasher idHasher,
                                    Duration timeout) {
         this.registry = registry;
         this.sender = sender;
+        this.idHasher = idHasher;
         this.timeout = timeout;
     }
 
@@ -68,9 +72,11 @@ public class JoinVerificationService {
     }
 
     private SendMessage buildPrompt(Long chatId, Long userId) {
+        // callbackData 用 userId 的**哈希**而非明文：按钮对全群可见，点开即可读到 data。
+        // 项目在日志侧一律对 userId 做哈希（IdHasher），此处同一口径。
         InlineKeyboardButton button = InlineKeyboardButton.builder()
                 .text(BUTTON_TEXT)
-                .callbackData(CALLBACK_ACTION + ":" + chatId + ":" + userId)
+                .callbackData(CALLBACK_ACTION + ":" + chatId + ":" + idHasher.hash(userId))
                 .build();
 
         return SendMessage.builder()

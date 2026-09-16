@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
 
+import java.time.Instant;
+
 /**
  * 超时未验证者移出：定时扫描 {@link PendingVerificationRegistry} 中的过期登记。
  *
@@ -28,14 +30,21 @@ public class VerificationTimeoutSweeper {
         this.sender = sender;
     }
 
+    /** 暂时移出的时长：届时 Telegram 自动解禁，用户可重新入群并再次验证。 */
+    static final int KICK_SECONDS = 60;
+
     /** 周期性扫描过期登记并移出。 */
     @Scheduled(fixedDelayString = "${tgg.admission.sweep-interval-ms:15000}")
     public void sweep() {
         for (PendingVerificationRegistry.Member member : registry.drainExpired()) {
             log.info("验证超时，移出成员（chatId={}）", member.chatId());
+            // 必须设 untilDate：不设即**永久封禁**，用户再也进不来——那是"封禁"而不是"移出"，
+            // 与验证的语义（超时就请重来一次）不符。设了它会到时自动解禁。
+            int until = (int) (Instant.now().getEpochSecond() + KICK_SECONDS);
             sender.send(BanChatMember.builder()
                     .chatId(member.chatId())
                     .userId(member.userId())
+                    .untilDate(until)
                     .build());
         }
     }

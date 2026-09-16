@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.AdmissionProperties;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
 import com.tg.heyisheng.bot.core.admission.PendingVerificationRegistry;
@@ -69,10 +70,11 @@ public class AdmissionConfiguration {
     @Bean
     public JoinVerificationService joinVerificationService(PendingVerificationRegistry registry,
                                                            ObjectMapper objectMapper,
+                                                           IdHasher idHasher,
                                                            AdmissionProperties properties) {
         TelegramApiMethodExecutor executor = new TelegramApiMethodExecutor(
                 new OkHttpClient(), objectMapper, webhookProperties.getBotToken());
-        return new JoinVerificationService(registry, executor::execute,
+        return new JoinVerificationService(registry, executor::execute, idHasher,
                 Duration.ofSeconds(properties.getTimeoutSeconds()));
     }
 
@@ -84,8 +86,9 @@ public class AdmissionConfiguration {
 
     @Bean
     public CallbackRouter callbackRouter(PendingVerificationRegistry registry,
+                                         IdHasher idHasher,
                                          AdmissionProperties properties) {
-        List<CallbackHandler> handlers = List.of(new VerificationCallbackHandler(registry));
+        List<CallbackHandler> handlers = List.of(new VerificationCallbackHandler(registry, idHasher));
         log.info("准入验证已启用：回调处理器 {} 个，验证时限 {} 秒",
                 handlers.size(), properties.getTimeoutSeconds());
         return new CallbackRouter(handlers);
