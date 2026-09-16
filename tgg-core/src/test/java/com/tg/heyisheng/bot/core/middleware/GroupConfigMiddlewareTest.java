@@ -14,8 +14,9 @@ import static org.mockito.Mockito.when;
 /**
  * 群组配置中间件测试。
  *
- * <p>重点两条：配置<b>真的挂到了上下文</b>（handler 才读得到）、
- * 功能开关为关闭时<b>真的中断链路</b>。
+ * <p>重点：配置<b>真的挂到了上下文</b>（handler 才读得到），
+ * 且中间件<b>在功能关闭时也照常放行</b>——开关判断归 {@code CommandDispatcher}，
+ * 中间件若自行中断会让关闭态的群连恢复命令都进不来（见 doesNotInterruptEvenWhenGroupDisabled）。
  */
 class GroupConfigMiddlewareTest {
 

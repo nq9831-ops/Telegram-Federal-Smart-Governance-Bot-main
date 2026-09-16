@@ -25,3 +25,7 @@ tgg:
     path: /webhook
     secret: test-secret-value
     bot-token: test-bot-token
+  permission:
+    # 端到端测试需要真实授权才能执行 /enable 与 /disable（均需 MANAGE_CONFIG）。
+    # 格式：<chatId>:<userId>[:role]
+    admins: "-777003:42:ADMIN"
