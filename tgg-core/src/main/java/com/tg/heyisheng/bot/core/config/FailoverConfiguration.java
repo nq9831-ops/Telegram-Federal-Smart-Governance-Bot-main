@@ -1,7 +1,9 @@
 package com.tg.heyisheng.bot.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
+import jakarta.annotation.PostConstruct;
 import com.tg.heyisheng.bot.core.failover.DefaultTelegramModeController;
 import com.tg.heyisheng.bot.core.failover.HealthTracker;
 import com.tg.heyisheng.bot.core.failover.PollingFallbackCoordinator;
@@ -44,6 +46,25 @@ import java.time.Duration;
 public class FailoverConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(FailoverConfiguration.class);
+
+    private final WebhookProperties webhookProperties;
+
+    public FailoverConfiguration(WebhookProperties webhookProperties) {
+        this.webhookProperties = webhookProperties;
+    }
+
+    /**
+     * 启用降级即必须配置 bot token —— 否则探测用的 URL 非法（会恒判为不健康），
+     * {@code registerBot} 也必然失败。与其运行期反复报错，不如启动期直接失败。
+     */
+    @PostConstruct
+    void requireBotToken() {
+        String token = webhookProperties.getBotToken();
+        if (token == null || token.isBlank()) {
+            throw new TggConfigException(
+                    "启用 tgg.failover 时必须配置 TGG_BOT_TOKEN（降级链路依赖它拼接 Telegram API URL）");
+        }
+    }
 
     @Bean(destroyMethod = "close")
     public TelegramBotsLongPollingApplication telegramBotsLongPollingApplication() {
