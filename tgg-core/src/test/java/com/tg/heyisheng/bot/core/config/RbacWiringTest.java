@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
@@ -96,6 +97,16 @@ class RbacWiringTest {
 
             assertThat(dispatcher.dispatch(ctx(ADMIN_USER))).isEmpty();
         });
+    }
+
+    /**
+     * 哈希器 bean 必须由装配暴露——它承载「缺 TGG_HASH_SALT 时告警」这一环。
+     * 若装配缺失，生产漏配盐会重新变成静默（usingDevFallbackSalt 的契约要求显式检查）。
+     */
+    @Test
+    void idHasherBeanIsExposedByConfiguration() {
+        runner(CHAT + ":" + ADMIN_USER + ":MODERATOR").run(context ->
+                assertThat(context.getBean(IdHasher.class)).isNotNull());
     }
 
     private static UpdateContext ctx(long userId) {

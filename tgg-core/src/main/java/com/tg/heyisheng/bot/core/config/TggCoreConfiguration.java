@@ -137,15 +137,36 @@ public class TggCoreConfiguration {
         return executor::execute;
     }
 
+    /**
+     * 日志脱敏用的标识哈希器。
+     *
+     * <p><b>生产必须配置 {@code TGG_HASH_SALT}</b>：缺省时会退回开发兜底盐，
+     * 而 Telegram userId 空间小、固定盐哈希可被枚举反推（属合规缺口）。
+     * 这里显式告警——否则这类缺失会静默通过（本项目反复踩的「默认值掩盖配置遗漏」坑）。
+     *
+     * <p>注意：{@code IdHasher.usingDevFallbackSalt()} 的契约就是「供生产检查并告警」，
+     * 此前只在测试里被调用、生产装配从未检查——本 bean 补上这一环。
+     */
+    @Bean
+    public IdHasher idHasher() {
+        IdHasher hasher = IdHasher.fromEnvironment();
+        if (hasher.usingDevFallbackSalt()) {
+            log.warn("未配置 TGG_HASH_SALT：审核日志的标识哈希使用开发兜底盐，可被枚举反推。"
+                    + "生产必须配置该环境变量（见 docs/DEPLOYMENT-VERIFICATION.md C 段）。");
+        }
+        return hasher;
+    }
+
     @Bean
     public UpdateDispatcher updateDispatcher(MiddlewareChain middlewareChain,
                                              CommandDispatcher commandDispatcher,
                                              ModerationLayer moderationLayer,
-                                             ModerationActionSender moderationActionSender) {
+                                             ModerationActionSender moderationActionSender,
+                                             IdHasher idHasher) {
         // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文。
         // 注入主动处置通道：硬红线封禁走它（webhook 返回值只能执行一个方法，删除作返回值保底）。
         return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer,
-                IdHasher.fromEnvironment(), moderationActionSender);
+                idHasher, moderationActionSender);
     }
 
     @Bean
