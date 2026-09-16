@@ -47,4 +47,32 @@ class UpdateContextTest {
         assertThat(ctx.command()).isEmpty();
         assertThat(ctx.hasCommand()).isFalse();
     }
+
+    @Test
+    void attachesAndFindsEnrichedDataByType() {
+        UpdateContext ctx = new UpdateContext(1, 100L, -200L, "/echo");
+        String enriched = "middleware-enriched-data";
+
+        ctx.attach(enriched);
+
+        assertThat(ctx.has(String.class)).isTrue();
+        assertThat(ctx.find(String.class)).contains(enriched);
+    }
+
+    @Test
+    void findReturnsEmptyWhenNothingAttached() {
+        UpdateContext ctx = new UpdateContext(1, 100L, -200L, "/echo");
+
+        assertThat(ctx.has(String.class)).isFalse();
+        assertThat(ctx.find(String.class)).isEmpty();
+    }
+
+    @Test
+    void attachIgnoresNull() {
+        UpdateContext ctx = new UpdateContext(1, 100L, -200L, "/echo");
+
+        ctx.attach(null);
+
+        assertThat(ctx.has(String.class)).isFalse();
+    }
 }

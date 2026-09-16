@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
+import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
@@ -78,10 +79,10 @@ public class TggCoreConfiguration {
     }
 
     @Bean
-    public MiddlewareChain middlewareChain() {
+    public MiddlewareChain middlewareChain(GroupConfigService groupConfigService) {
         return new MiddlewareChain(List.of(
                 new AuthenticationMiddleware(),
-                new GroupConfigMiddleware(),
+                new GroupConfigMiddleware(groupConfigService),
                 new RateLimitMiddleware(
                         new InMemoryRateLimiter(USER_LIMIT, WINDOW),
                         new InMemoryRateLimiter(GROUP_LIMIT, WINDOW),

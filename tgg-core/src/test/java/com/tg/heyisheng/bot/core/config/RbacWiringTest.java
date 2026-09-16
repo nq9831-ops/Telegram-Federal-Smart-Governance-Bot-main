@@ -5,6 +5,7 @@ import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
+import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
@@ -44,6 +45,9 @@ class RbacWiringTest {
         return new ApplicationContextRunner()
                 .withUserConfiguration(TggCoreConfiguration.class)
                 .withBean(BanHandler.class, BanHandler::new)
+                // ApplicationContextRunner 不做组件扫描，中间件链依赖的 service 需手工提供
+                .withBean(GroupConfigService.class,
+                        () -> org.mockito.Mockito.mock(GroupConfigService.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(
