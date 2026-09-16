@@ -34,3 +34,9 @@ tgg:
     admins: ${TGG_PERMISSION_ADMINS:}
   failover:
     enabled: ${TGG_FAILOVER_ENABLED:false}
+  ai:
+    deepseek:
+      # L3 云端审核：默认关闭。启用后消息正文会发送至 DeepSeek（仅正文，不含身份）。
+      enabled: ${TGG_AI_DEEPSEEK_ENABLED:false}
+      # 显式映射：Spring 默认会找 TGG_AI_DEEPSEEK_API_KEY，这里保留更直观的短名
+      api-key: ${TGG_DEEPSEEK_API_KEY:}
