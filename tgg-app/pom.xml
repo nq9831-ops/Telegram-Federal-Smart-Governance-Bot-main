@@ -25,15 +25,6 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
-
-    <!-- Spring Boot 4 将 MockMvc 的测试自动配置拆为独立 artifact，
-         类路径由 org.springframework.boot.test.autoconfigure.web.servlet
-         改为 org.springframework.boot.webmvc.test.autoconfigure -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-webmvc-test</artifactId>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>

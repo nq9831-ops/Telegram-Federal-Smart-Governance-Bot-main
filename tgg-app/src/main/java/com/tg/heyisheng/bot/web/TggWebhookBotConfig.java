@@ -25,8 +25,15 @@ public class TggWebhookBotConfig {
     @Bean
     public SpringTelegramWebhookBot tggWebhookBot(WebhookProperties properties,
                                                   UpdateDispatcher updateDispatcher) {
+        // 关键：库把 botPath 同时用作「注册表 key」与「与 @PostMapping("/{botPath}") 路径段的比对值」，
+        // 而 Spring 的 @PathVariable 取到的路径段【不含前导斜杠】。
+        // 若此处直接传 "/webhook"，注册 key 是 "/webhook" 而请求查的是 "webhook"，
+        // 库会取不到 bot、直接返回 null —— 表现为「HTTP 200 但 handler 永不执行」的静默断链。
+        // 因此这里必须剥离前导斜杠；而 SecretTokenFilter 的 URL pattern 仍需含斜杠的完整路径。
+        String botPathSegment = properties.getPath().replaceFirst("^/+", "");
+
         return SpringTelegramWebhookBot.builder()
-                .botPath(properties.getPath())
+                .botPath(botPathSegment)
                 .updateHandler(update -> {
                     try {
                         return updateDispatcher.dispatch(update).orElse(null);

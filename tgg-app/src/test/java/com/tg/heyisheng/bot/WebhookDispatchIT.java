@@ -5,15 +5,17 @@ import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -49,12 +51,15 @@ class WebhookDispatchIT {
     }
 
     @Test
-    void validSecretAndKnownCommandReturns200() throws Exception {
+    void validSecretInvokesHandlerAndReturnsItsReply() throws Exception {
         mockMvc.perform(post("/webhook")
                         .header(SECRET_HEADER, SECRET)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson("/echo")))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                // 关键断言语义：只查状态码会掩盖「链路断了但库仍回 200」。
+                // 必须验证 handler 的回复真的出现在响应体里。
+                .andExpect(content().string(containsString("pong")));
     }
 
     @Test
@@ -84,12 +89,15 @@ class WebhookDispatchIT {
     }
 
     private static String updateJson(String command) {
+        // 必须带 from：链首 AuthenticationMiddleware 要求可识别的发送者，
+        // 缺 from 会让链路在中途中断（这正是本测试此前「假通过」的原因）。
         return """
                 {
                   "update_id": 1,
                   "message": {
                     "message_id": 10,
                     "date": 1700000000,
+                    "from": {"id": 42, "is_bot": false, "first_name": "Test"},
                     "text": "%s",
                     "chat": {"id": -100, "type": "supergroup"},
                     "entities": [{"type": "bot_command", "offset": 0, "length": %d}]

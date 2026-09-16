@@ -25,10 +25,12 @@ public class WebhookExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Void> swallowAndLog(Exception ex) {
-        // 只记录异常类型与已脱敏的消息，绝不记录请求体（可能含消息原文）
-        log.warn("处理 update 时发生异常，已吞掉并返回 200 以避免 Telegram 重试风暴：{}: {}",
-                ex.getClass().getSimpleName(),
-                MaskingUtil.maskText(ex.getMessage()));
+        // 用 ERROR 级别而非 WARN：这里捕获的多是配置/兼容类故障（例如 Update 反序列化失败），
+        // 而非可预期的业务异常。沉默地吞掉它们会造成「HTTP 全 200 但功能静默失效」——
+        // 本项目就因此让一个断链 bug 潜伏到端到端断言加强后才暴露。
+        // 只记异常与堆栈，不记录请求体（可能含消息原文）。
+        log.error("处理 update 时发生异常，已吞掉并返回 200 以避免 Telegram 重试风暴：",
+                ex);
         return ResponseEntity.ok().build();
     }
 }
