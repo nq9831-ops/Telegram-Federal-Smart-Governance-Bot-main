@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.dispatch;
 
+import com.tg.heyisheng.bot.core.permission.Permission;
 import org.springframework.stereotype.Component;
 
 import java.lang.annotation.ElementType;
@@ -29,4 +30,12 @@ public @interface BotCommand {
 
     /** 别名，例如 {@code {"ping"}}。 */
     String[] aliases() default {};
+
+    /**
+     * 执行本命令所需的权限。
+     *
+     * <p>默认 {@link Permission#NONE} —— 即未显式声明权限的命令对所有人开放，
+     * 保持既有命令（如 {@code /echo}）行为不变。
+     */
+    Permission requiredPermission() default Permission.NONE;
 }
