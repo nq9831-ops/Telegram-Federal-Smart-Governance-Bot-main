@@ -27,3 +27,7 @@ logs/
 
 # 天枢框架本地运行态目录
 .rivet/
+
+# 外部参考项目克隆（体积大，仅本地研读；保留索引）
+references/*
+!references/INDEX.md
