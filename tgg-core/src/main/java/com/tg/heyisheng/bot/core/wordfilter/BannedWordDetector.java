@@ -17,8 +17,10 @@ import java.util.Optional;
  * <p><b>匹配语义</b>：大小写不敏感的**子串**匹配（不做正则、不做分词）。
  * 中文无分词，短词（如单字）可能误伤——这是管理员的自治责任，规则需在文档写明。
  *
- * <p><b>风险等级</b>：命中一律记 {@link RiskLevel#MEDIUM}（非硬红线）——
- * 违禁词由群主自行定义，可能是"广告话术"这类中等风险；是否升级处置由群主自担。
+ * <p><b>风险等级与处置</b>：命中一律记 {@link RiskLevel#MEDIUM}（非硬红线）。
+ * 注意：当前处置链对 MEDIUM 是<b>命中即删除</b>——{@code ModerationEnforcer} 对任何
+ * {@code needsReview} 都返回 DeleteMessage，<b>没有"仅警告"这一档</b>，也没有按群的分级开关。
+ * 换言之，"删还是警告"目前不由群主逐条决定；分级处置属后续增量（见 docs/KNOWN-ISSUES.md）。
  */
 public class BannedWordDetector {
 

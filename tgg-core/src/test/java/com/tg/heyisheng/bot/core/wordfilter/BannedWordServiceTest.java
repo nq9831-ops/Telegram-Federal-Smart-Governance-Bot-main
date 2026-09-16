@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.core.wordfilter;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,6 +55,23 @@ class BannedWordServiceTest {
         BannedWordService service = new BannedWordService(repo);
 
         assertThat(service.addWord(CHAT, "  spam  ", 1L)).isTrue();
+    }
+
+    /**
+     * 并发下第二个请求会撞 (chat_id, word) 唯一约束——语义等同"已存在"，
+     * 必须返回 false 而不是把异常抛给命令层（那会让 /addword 直接失败，破坏幂等契约）。
+     */
+    @Test
+    void addTreatsUniqueConstraintViolationAsAlreadyExists() {
+        BannedWordRepository repo = mock(BannedWordRepository.class);
+        when(repo.existsByChatIdAndWord(CHAT, "spam")).thenReturn(false);
+        when(repo.save(any(BannedWord.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        BannedWordService service = new BannedWordService(repo);
+
+        assertThat(service.addWord(CHAT, "spam", 1L))
+                .as("撞唯一约束应按已存在处理，返回 false 而非抛异常").isFalse();
     }
 
     @Test

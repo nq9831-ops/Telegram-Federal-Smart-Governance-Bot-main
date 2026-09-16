@@ -76,6 +76,14 @@ public class TggCoreConfiguration {
      */
     @Bean
     public RoleSource roleSource(@Value("${tgg.permission.admins:}") String adminsSpec) {
+        // 默认空串是 fail-closed（安全），但**静默**：门控会表现为「只拒不放」，
+        // 所有管理命令（/addword、/enable 等，需 MANAGE_CONFIG）对任何人都不可用，
+        // 而运维者不会去设一个没文档、也不报错的配置。这里显式告警，避免功能形同虚设。
+        if (adminsSpec == null || adminsSpec.isBlank()) {
+            log.warn("未配置 tgg.permission.admins（TGG_PERMISSION_ADMINS）：所有管理命令将对任何人不可用"
+                    + "（门控只拒不放）。要启用，请注入该环境变量，格式 <chatId>:<userId>[:role]，"
+                    + "见 docs/DEPLOYMENT-VERIFICATION.md C 段。");
+        }
         InMemoryRoleSource source = new InMemoryRoleSource();
         RoleGrantParser.apply(source, adminsSpec);
         return source;

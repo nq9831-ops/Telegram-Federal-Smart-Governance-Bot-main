@@ -4,8 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.objects.EntityType;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.Venue;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.api.objects.polls.Poll;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOption;
 
 import java.util.List;
 
@@ -69,6 +72,28 @@ class MessageScrubberTest {
         assertThat(message.getChat().getId()).isEqualTo(-100L);
         assertThat(message.getFrom()).isNotNull();
         assertThat(message.getFrom().getId()).isEqualTo(42L);
+    }
+
+    /**
+     * 投票与地点同样承载用户文本（问题/选项、标题/地址），必须一并清除。
+     *
+     * <p>回归背景：初版只清 text/caption/entities 等六个字段，投票与地点被漏掉——
+     * 那些内容既不进审核（假 clean）也不被清除（泄露面）。
+     */
+    @Test
+    void clearsPollAndVenueAndStory() {
+        Message message = Message.builder()
+                .poll(Poll.builder()
+                        .question("投票问题")
+                        .options(List.of(PollOption.builder().text("选项一").build()))
+                        .build())
+                .venue(Venue.builder().title("某地点").address("某地址").build())
+                .build();
+
+        scrubber.scrub(message);
+
+        assertThat(message.getPoll()).as("投票问题与选项都是用户文本").isNull();
+        assertThat(message.getVenue()).as("地点标题与地址是用户文本").isNull();
     }
 
     @Test

@@ -82,6 +82,39 @@ class InMemoryRateLimiterTest {
         assertThat(limiter.tryAcquire("u:2")).as("不同维度键互不影响").isTrue();
     }
 
+    /**
+     * 陈旧键驱逐：窗口内已无活动的键必须被移除——否则"只出现一次的用户"会永久留下键，
+     * 长跑下 map 无界增长（内存泄漏）。
+     */
+    @Test
+    void purgeStaleEvictsKeysWithoutRecentActivity() {
+        MutableClock clock = new MutableClock(Instant.EPOCH);
+        InMemoryRateLimiter limiter = new InMemoryRateLimiter(5, WINDOW, clock);
+
+        assertThat(limiter.tryAcquire("u:1")).isTrue();
+        assertThat(limiter.tryAcquire("u:2")).isTrue();
+        assertThat(limiter.trackedKeys()).isEqualTo(2);
+
+        clock.advance(WINDOW.plusSeconds(1));
+
+        assertThat(limiter.purgeStale()).as("两个键都已过期，应全部移除").isEqualTo(2);
+        assertThat(limiter.trackedKeys()).as("长跑后键集合不应无界保留").isZero();
+    }
+
+    /** 驱逐不得误伤仍在窗口内活跃的键。 */
+    @Test
+    void purgeStaleKeepsActiveKeys() {
+        MutableClock clock = new MutableClock(Instant.EPOCH);
+        InMemoryRateLimiter limiter = new InMemoryRateLimiter(5, WINDOW, clock);
+
+        limiter.tryAcquire("u:1");
+        clock.advance(WINDOW.dividedBy(2));
+        limiter.tryAcquire("u:2");
+
+        assertThat(limiter.purgeStale()).as("两个键都还在窗口内").isZero();
+        assertThat(limiter.trackedKeys()).isEqualTo(2);
+    }
+
     @Test
     void rejectsNonPositiveLimit() {
         assertThatThrownBy(() -> new InMemoryRateLimiter(0, WINDOW))

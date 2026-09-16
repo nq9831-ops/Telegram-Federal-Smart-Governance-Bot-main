@@ -10,6 +10,8 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.api.objects.polls.Poll;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOption;
 
 import java.util.List;
 
@@ -139,6 +141,22 @@ class UpdateDispatcherTest {
                 .build();
 
         assertThat(UpdateDispatcher.extractCommandArgs(message)).isNull();
+    }
+
+    /**
+     * 审核口径必须覆盖投票文本——否则投票问题/选项里的违规内容
+     * 既不被审核（假 clean）也不被清除（隐私面）。
+     */
+    @Test
+    void contentOfIncludesPollText() {
+        Message message = Message.builder()
+                .poll(Poll.builder()
+                        .question("快来 888casino 玩")
+                        .options(List.of(PollOption.builder().text("正常选项").build()))
+                        .build())
+                .build();
+
+        assertThat(UpdateDispatcher.contentOf(message)).contains("888casino");
     }
 
     @BotCommand("capture")

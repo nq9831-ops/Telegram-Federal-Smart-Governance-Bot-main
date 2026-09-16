@@ -14,7 +14,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.Venue;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.api.objects.polls.Poll;
+import org.telegram.telegrambots.meta.api.objects.polls.PollOption;
 
 import java.util.List;
 import java.util.Optional;
@@ -267,21 +270,43 @@ public class UpdateDispatcher {
      *
      * <p>与 {@link MessageScrubber} 的口径保持一致：文本消息看 {@code text}，
      * 媒体消息看 {@code caption}，两者都有则拼接（图片带长文说明的情况真实存在）。
+     *
+     * <p><b>投票与地点也必须看</b>：清除端会把这几个字段一并清掉，
+     * 审核端若只看 text/caption，则"投票问题/选项"与"地点标题/地址"既不被审、也不被清——
+     * 那是**假 clean**（让下游以为已检查过），比不审更危险。
      */
     static String contentOf(Message message) {
-        String text = message.getText();
-        String caption = message.getCaption();
+        StringBuilder sb = new StringBuilder();
+        appendPart(sb, message.getText());
+        appendPart(sb, message.getCaption());
 
-        boolean hasText = text != null && !text.isEmpty();
-        boolean hasCaption = caption != null && !caption.isEmpty();
+        Poll poll = message.getPoll();
+        if (poll != null) {
+            appendPart(sb, poll.getQuestion());
+            if (poll.getOptions() != null) {
+                for (PollOption option : poll.getOptions()) {
+                    appendPart(sb, option == null ? null : option.getText());
+                }
+            }
+        }
 
-        if (hasText && hasCaption) {
-            return text + "\n" + caption;
+        Venue venue = message.getVenue();
+        if (venue != null) {
+            appendPart(sb, venue.getTitle());
+            appendPart(sb, venue.getAddress());
         }
-        if (hasText) {
-            return text;
+
+        return sb.isEmpty() ? null : sb.toString();
+    }
+
+    private static void appendPart(StringBuilder sb, String part) {
+        if (part == null || part.isEmpty()) {
+            return;
         }
-        return hasCaption ? caption : null;
+        if (!sb.isEmpty()) {
+            sb.append('\n');
+        }
+        sb.append(part);
     }
 
     /**

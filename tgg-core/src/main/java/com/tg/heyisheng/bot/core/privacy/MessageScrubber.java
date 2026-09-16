@@ -36,6 +36,16 @@ public class MessageScrubber {
         message.setQuote(null);
         // 回复链里嵌着另一条消息，同样可能含正文
         message.setReplyToMessage(null);
+        // 投票：question 与各选项文本都是用户内容
+        message.setPoll(null);
+        // 投票选项的增删事件（含 optionText）
+        message.setPollOptionAdded(null);
+        message.setPollOptionDeleted(null);
+        // 地点：标题与地址是用户文本
+        message.setVenue(null);
+        // 转发故事与「回复某故事」——可能嵌套媒体说明
+        message.setStory(null);
+        message.setReplyToStory(null);
         log.debug("已清除消息正文（messageId={}）", message.getMessageId());
     }
 }

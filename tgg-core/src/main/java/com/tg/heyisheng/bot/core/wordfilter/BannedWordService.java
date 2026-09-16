@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,8 +60,16 @@ public class BannedWordService {
         if (repository.existsByChatIdAndWord(chatId, normalized)) {
             return false;
         }
-        repository.save(new BannedWord(chatId, normalized, createdBy));
-        return true;
+        try {
+            repository.save(new BannedWord(chatId, normalized, createdBy));
+            return true;
+        } catch (DataIntegrityViolationException ex) {
+            // 并发下两个请求同时通过了上面的 exists 检查，第二个会撞 (chat_id, word) 唯一约束。
+            // 语义上等同"已存在"，因此返回 false，而不是把异常抛给命令层
+            // （那会让 /addword 直接失败，破坏本方法宣称的幂等契约）。
+            log.debug("并发添加违禁词撞唯一约束，按已存在处理（chatId={}）", chatId);
+            return false;
+        }
     }
 
     /**
