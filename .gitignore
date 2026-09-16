@@ -1,0 +1,29 @@
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# 环境与密钥（严禁提交）
+.env
+.env.*
+*.secret
+*credentials*
+*private*key*
+*private-key*
+
+# 日志
+*.log
+logs/
+
+# 天枢框架本地运行态目录
+.rivet/
