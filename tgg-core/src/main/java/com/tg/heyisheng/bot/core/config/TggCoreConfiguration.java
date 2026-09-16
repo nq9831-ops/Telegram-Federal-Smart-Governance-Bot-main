@@ -2,6 +2,8 @@ package com.tg.heyisheng.bot.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.util.IdHasher;
+import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
+import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
@@ -32,6 +34,7 @@ import com.tg.heyisheng.bot.core.wordfilter.BannedWordService;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -209,14 +212,24 @@ public class TggCoreConfiguration {
                                              ModerationReviewRecorder moderationReviewRecorder,
                                              BannedWordDetector bannedWordDetector,
                                              RepeatedMessageDetector repeatedMessageDetector,
-                                             IdHasher idHasher) {
-        // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文。
-        // 注入主动处置通道：硬红线封禁走它（webhook 返回值只能执行一个方法，删除作返回值保底）。
-        // 注入复核入队通道：中高风险命中入队待人工确认（fail-open，不阻断主链路）。
-        // 注入违禁词检测器与反刷屏检测器：与 L1 并列，取最严重。
-        return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer,
-                idHasher, moderationActionSender, moderationReviewRecorder, bannedWordDetector,
-                repeatedMessageDetector);
+                                             IdHasher idHasher,
+                                             ObjectProvider<CallbackRouter> callbackRouter,
+                                             ObjectProvider<JoinVerificationService> joinVerification) {
+        // 用 Builder 而非位置构造器：可选项已多到难以按位置阅读（见 Builder 的 javadoc）。
+        // 回调路由与入群验证属模块四，受 tgg.admission.enabled 门控——未启用时取不到，传 null 即关闭该分支。
+        return UpdateDispatcher.builder()
+                .middlewareChain(middlewareChain)
+                .commandDispatcher(commandDispatcher)
+                .scrubber(new MessageScrubber())
+                .moderationLayer(moderationLayer)
+                .idHasher(idHasher)
+                .actionSender(moderationActionSender)
+                .reviewRecorder(moderationReviewRecorder)
+                .bannedWordDetector(bannedWordDetector)
+                .repeatedMessageDetector(repeatedMessageDetector)
+                .callbackRouter(callbackRouter.getIfAvailable())
+                .joinVerificationService(joinVerification.getIfAvailable())
+                .build();
     }
 
     @Bean

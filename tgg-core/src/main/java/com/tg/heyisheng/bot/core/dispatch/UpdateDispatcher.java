@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
+import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
@@ -55,6 +56,7 @@ public class UpdateDispatcher {
     private final BannedWordDetector bannedWordDetector;
     private final RepeatedMessageDetector repeatedMessageDetector;
     private final CallbackRouter callbackRouter;
+    private final JoinVerificationService joinVerificationService;
 
     /**
      * 构造器已增至 9 个参数，继续叠加会难以维护——新增装配一律走 {@link #builder()}；
@@ -76,6 +78,7 @@ public class UpdateDispatcher {
         private BannedWordDetector bannedWordDetector;
         private RepeatedMessageDetector repeatedMessageDetector;
         private CallbackRouter callbackRouter;
+        private JoinVerificationService joinVerificationService;
 
         public Builder middlewareChain(MiddlewareChain value) {
             this.middlewareChain = value;
@@ -127,6 +130,11 @@ public class UpdateDispatcher {
             return this;
         }
 
+        public Builder joinVerificationService(JoinVerificationService value) {
+            this.joinVerificationService = value;
+            return this;
+        }
+
         public UpdateDispatcher build() {
             return new UpdateDispatcher(this);
         }
@@ -143,6 +151,7 @@ public class UpdateDispatcher {
         this.bannedWordDetector = b.bannedWordDetector;
         this.repeatedMessageDetector = b.repeatedMessageDetector;
         this.callbackRouter = b.callbackRouter;
+        this.joinVerificationService = b.joinVerificationService;
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
@@ -259,6 +268,14 @@ public class UpdateDispatcher {
             }
 
             Message message = relevantMessage(update);
+
+            // 入群事件（模块四）：新成员需先通过验证才能留群。
+            // 验证消息由主动通道逐条发出（一次入群可能带多名成员），故此分支不返回方法。
+            if (joinVerificationService != null && message != null
+                    && message.getNewChatMembers() != null && !message.getNewChatMembers().isEmpty()) {
+                joinVerificationService.onMembersJoined(message);
+                return Optional.empty();
+            }
             UpdateContext ctx = toContext(update, message);
             moderateInto(ctx, message);
 
