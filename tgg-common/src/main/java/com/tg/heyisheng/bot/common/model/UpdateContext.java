@@ -14,6 +14,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>本类只承载路由元数据，外加一个供中间件 enrich 用的<b>属性袋</b>。
  * 属性袋以<b>类型为键</b>：中间件把查到的数据放进来，handler 从<b>同一个实例</b>取出——
  * 这正是「上下文单实例贯通」的用途（若分发器自行重建上下文，挂载的数据会丢失）。
+ *
+ * <p><b>唯一的受限例外——{@link #commandArgs()}</b>：命令的「操作数」（命令名之后的文本，
+ * 如 {@code /addword 广告词} 里的 {@code 广告词}）必须送达 handler 才能工作。
+ * 它与「消息正文」的区别是明确的：它是用户<b>主动提交的管理输入</b>，不是被监听的对话内容；
+ * 处理管道仍会照常清除消息正文（{@code MessageScrubber}），args <b>不进日志、不进审核判定、
+ * 不进复核队列</b>，只在命令 handler 内被消费。
+ * 不要把被审核的消息正文塞进这里——那会绕过「消息原文零存储」。
  */
 public final class UpdateContext {
 
@@ -23,6 +30,8 @@ public final class UpdateContext {
     /** 触发本次更新的消息 id。删除消息等处置动作需要它。 */
     private final Integer messageId;
     private final String command;
+    /** 命令操作数（命令名之后的文本）；仅命令消息可能非空。见类 javadoc 的受限例外说明。 */
+    private final String commandArgs;
 
     /**
      * 中间件 enrich 用的属性袋。
@@ -34,15 +43,21 @@ public final class UpdateContext {
 
     /** 兼容构造器：不含消息 id（不需要处置动作的场景）。 */
     public UpdateContext(Integer updateId, Long userId, Long chatId, String command) {
-        this(updateId, userId, chatId, null, command);
+        this(updateId, userId, chatId, null, command, null);
     }
 
     public UpdateContext(Integer updateId, Long userId, Long chatId, Integer messageId, String command) {
+        this(updateId, userId, chatId, messageId, command, null);
+    }
+
+    public UpdateContext(Integer updateId, Long userId, Long chatId, Integer messageId,
+                         String command, String commandArgs) {
         this.updateId = updateId;
         this.userId = userId;
         this.chatId = chatId;
         this.messageId = messageId;
         this.command = command;
+        this.commandArgs = commandArgs;
     }
 
     public Integer updateId() {
@@ -67,6 +82,16 @@ public final class UpdateContext {
 
     public boolean hasCommand() {
         return command != null && !command.isEmpty();
+    }
+
+    /**
+     * 命令操作数（命令名之后的文本）。仅命令消息可能非空。
+     *
+     * <p>见类 javadoc 的「受限例外」说明——它<b>不是</b>消息正文，
+     * 不得把它当作被审核内容的载体。
+     */
+    public Optional<String> commandArgs() {
+        return Optional.ofNullable(commandArgs);
     }
 
     /**

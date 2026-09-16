@@ -285,7 +285,41 @@ public class UpdateDispatcher {
         Long userId = message.getFrom() == null ? null : message.getFrom().getId();
         Long chatId = message.getChat() == null ? null : message.getChat().getId();
         // messageId 供处置动作定位目标（如删除违规消息）
+        // commandArgs 供管理命令接收操作数（见 UpdateContext 的「受限例外」说明）
         return new UpdateContext(update.getUpdateId(), userId, chatId, message.getMessageId(),
-                message.getCommand());
+                message.getCommand(), extractCommandArgs(message));
+    }
+
+    /**
+     * 提取命令操作数（命令名之后的文本）。
+     *
+     * <p>只在<b>命令消息</b>上返回值：非命令消息一律 {@code null}——
+     * 这样 {@link UpdateContext#commandArgs()} 就不会成为"消息正文"的侧路。
+     * 命令名可能带 {@code @BotName} 后缀（{@code /addword@MyBot 词}），
+     * 故按第一个空白切分、取其后全部内容。
+     */
+    static String extractCommandArgs(Message message) {
+        if (message == null || !message.isCommand()) {
+            return null;
+        }
+        String text = message.getText();
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
+        int sep = indexOfWhitespace(text);
+        if (sep < 0) {
+            return null;
+        }
+        String args = text.substring(sep + 1).trim();
+        return args.isEmpty() ? null : args;
+    }
+
+    private static int indexOfWhitespace(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            if (Character.isWhitespace(text.charAt(i))) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

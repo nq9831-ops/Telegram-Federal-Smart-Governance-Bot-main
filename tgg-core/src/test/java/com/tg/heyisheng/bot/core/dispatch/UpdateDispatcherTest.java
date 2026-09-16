@@ -94,6 +94,53 @@ class UpdateDispatcherTest {
         assertThat(update.getMessage().getText()).as("中断路径也不得残留消息原文").isNull();
     }
 
+    /** 命令操作数提取：命令名之后的全部文本。 */
+    @Test
+    void extractCommandArgsReturnsTextAfterFirstWhitespace() {
+        Message message = Message.builder()
+                .messageId(1)
+                .text("/addword 广告 话术")
+                .entities(List.of(MessageEntity.builder()
+                        .type(EntityType.BOTCOMMAND).offset(0).length(8).build()))
+                .build();
+
+        assertThat(UpdateDispatcher.extractCommandArgs(message)).isEqualTo("广告 话术");
+    }
+
+    /** 带 {@code @BotName} 后缀的命令同样正确剥离。 */
+    @Test
+    void extractCommandArgsHandlesBotNameSuffix() {
+        Message message = Message.builder()
+                .messageId(1)
+                .text("/addword@MyBot 广告")
+                .entities(List.of(MessageEntity.builder()
+                        .type(EntityType.BOTCOMMAND).offset(0).length(14).build()))
+                .build();
+
+        assertThat(UpdateDispatcher.extractCommandArgs(message)).isEqualTo("广告");
+    }
+
+    /** 非命令消息不得产出 args——否则它就成了「消息正文」的侧路，破坏隐私约束。 */
+    @Test
+    void extractCommandArgsIsNullForNonCommandMessage() {
+        Message message = Message.builder().messageId(1).text("这是普通聊天内容").build();
+
+        assertThat(UpdateDispatcher.extractCommandArgs(message)).isNull();
+    }
+
+    /** 只有命令名、没有参数时为空。 */
+    @Test
+    void extractCommandArgsIsNullWhenNoArgs() {
+        Message message = Message.builder()
+                .messageId(1)
+                .text("/echo")
+                .entities(List.of(MessageEntity.builder()
+                        .type(EntityType.BOTCOMMAND).offset(0).length(5).build()))
+                .build();
+
+        assertThat(UpdateDispatcher.extractCommandArgs(message)).isNull();
+    }
+
     @BotCommand("capture")
     static class CapturingBean implements CommandHandler {
         private final CommandHandler delegate;
