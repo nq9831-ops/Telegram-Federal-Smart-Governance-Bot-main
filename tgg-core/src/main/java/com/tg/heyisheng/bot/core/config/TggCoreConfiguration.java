@@ -26,6 +26,8 @@ import com.tg.heyisheng.bot.core.ratelimit.RateLimitMiddleware;
 import com.tg.heyisheng.bot.core.webhook.SecretTokenFilter;
 import com.tg.heyisheng.bot.core.webhook.SecretTokenVerifier;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
+import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
+import com.tg.heyisheng.bot.core.wordfilter.BannedWordService;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,18 +160,31 @@ public class TggCoreConfiguration {
         return hasher;
     }
 
+    /**
+     * 按群违禁词检测器（模块三 · 群组管理）。
+     *
+     * <p>与 L1 正则层<b>并列</b>，不实现 {@code ModerationLayer}——后者签名无 chatId，
+     * 而违禁词是按群配置。
+     */
+    @Bean
+    public BannedWordDetector bannedWordDetector(BannedWordService bannedWordService) {
+        return new BannedWordDetector(bannedWordService);
+    }
+
     @Bean
     public UpdateDispatcher updateDispatcher(MiddlewareChain middlewareChain,
                                              CommandDispatcher commandDispatcher,
                                              ModerationLayer moderationLayer,
                                              ModerationActionSender moderationActionSender,
                                              ModerationReviewRecorder moderationReviewRecorder,
+                                             BannedWordDetector bannedWordDetector,
                                              IdHasher idHasher) {
         // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文。
         // 注入主动处置通道：硬红线封禁走它（webhook 返回值只能执行一个方法，删除作返回值保底）。
         // 注入复核入队通道：中高风险命中入队待人工确认（fail-open，不阻断主链路）。
+        // 注入违禁词检测器：按群词表拦截（与 L1 并列，取最严重）。
         return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer,
-                idHasher, moderationActionSender, moderationReviewRecorder);
+                idHasher, moderationActionSender, moderationReviewRecorder, bannedWordDetector);
     }
 
     @Bean

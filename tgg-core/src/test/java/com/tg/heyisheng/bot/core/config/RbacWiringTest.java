@@ -13,6 +13,7 @@ import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
+import com.tg.heyisheng.bot.core.wordfilter.BannedWordService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -55,6 +56,9 @@ class RbacWiringTest {
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 // 复核入队通道是 @Service（组件扫描），ApplicationContextRunner 不扫描，需手工提供
                 .withBean(ModerationReviewRecorder.class, ModerationReviewRecorder::noop)
+                // 违禁词服务同样是 @Service；其 detector bean 由 TggCoreConfiguration 创建
+                .withBean(BannedWordService.class,
+                        () -> org.mockito.Mockito.mock(BannedWordService.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(

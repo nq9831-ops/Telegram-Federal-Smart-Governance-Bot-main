@@ -9,6 +9,7 @@ import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
+import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -43,17 +44,18 @@ public class UpdateDispatcher {
     private final IdHasher idHasher;
     private final ModerationEnforcer enforcer;
     private final ModerationReviewRecorder reviewRecorder;
+    private final BannedWordDetector bannedWordDetector;
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
         this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain,
                             CommandDispatcher commandDispatcher,
                             MessageScrubber scrubber) {
         this(middlewareChain, commandDispatcher, scrubber, null, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
     }
 
     /**
@@ -64,7 +66,7 @@ public class UpdateDispatcher {
                             MessageScrubber scrubber,
                             ModerationLayer moderationLayer) {
         this(middlewareChain, commandDispatcher, scrubber, moderationLayer, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
     }
 
     /**
@@ -76,7 +78,7 @@ public class UpdateDispatcher {
                             ModerationLayer moderationLayer,
                             IdHasher idHasher) {
         this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher,
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop());
+                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
     }
 
     /**
@@ -89,7 +91,7 @@ public class UpdateDispatcher {
                             IdHasher idHasher,
                             ModerationActionSender actionSender) {
         this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
-                ModerationReviewRecorder.noop());
+                ModerationReviewRecorder.noop(), null);
     }
 
     /**
@@ -102,6 +104,21 @@ public class UpdateDispatcher {
                             IdHasher idHasher,
                             ModerationActionSender actionSender,
                             ModerationReviewRecorder reviewRecorder) {
+        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
+                reviewRecorder, null);
+    }
+
+    /**
+     * @param bannedWordDetector 按群违禁词检测器；为 null 表示该能力未装配
+     */
+    public UpdateDispatcher(MiddlewareChain middlewareChain,
+                            CommandDispatcher commandDispatcher,
+                            MessageScrubber scrubber,
+                            ModerationLayer moderationLayer,
+                            IdHasher idHasher,
+                            ModerationActionSender actionSender,
+                            ModerationReviewRecorder reviewRecorder,
+                            BannedWordDetector bannedWordDetector) {
         this.middlewareChain = middlewareChain;
         this.commandDispatcher = commandDispatcher;
         this.scrubber = scrubber;
@@ -109,6 +126,7 @@ public class UpdateDispatcher {
         this.idHasher = idHasher;
         this.enforcer = new ModerationEnforcer(actionSender);
         this.reviewRecorder = reviewRecorder == null ? ModerationReviewRecorder.noop() : reviewRecorder;
+        this.bannedWordDetector = bannedWordDetector;
     }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
@@ -172,21 +190,33 @@ public class UpdateDispatcher {
      * 「审过且干净」与「压根没审」，避免把"没审核"误当成"审核通过"。
      */
     private void moderateInto(UpdateContext ctx, Message message) {
-        if (moderationLayer == null || message == null) {
+        if (message == null || (moderationLayer == null && bannedWordDetector == null)) {
             return;
         }
 
         String content = contentOf(message);
-        ModerationVerdict verdict = moderationLayer.inspect(content)
-                .map(hit -> new ModerationVerdict(hit.riskLevel(), hit.hardLine(), List.of(hit.ruleId())))
-                .orElseGet(ModerationVerdict::clean);
+
+        ModerationVerdict l1 = moderationLayer == null
+                ? null
+                : moderationLayer.inspect(content)
+                        .map(hit -> new ModerationVerdict(hit.riskLevel(), hit.hardLine(), List.of(hit.ruleId())))
+                        .orElse(null);
+        ModerationVerdict bannedWord = bannedWordDetector == null
+                ? null
+                : bannedWordDetector.inspect(ctx.chatId(), content).orElse(null);
+
+        ModerationVerdict verdict = worseOf(l1, bannedWord);
+        if (verdict == null) {
+            // 有审核能力但都没命中：仍挂 clean，让下游能区分「审过且干净」与「压根没审」。
+            verdict = ModerationVerdict.clean();
+        }
 
         ctx.attach(verdict);
 
         if (verdict.needsReview()) {
             // 审计日志：不记正文、不记命中片段（避免经日志这条侧路泄露原文）。
             // 用户/群标识**必须哈希化**——V5.0 明确要求，明文 id 属个人数据处理。
-            log.info("L1 审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
+            log.info("审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
                     verdict.matchedRuleIds(), verdict.riskLevel(), verdict.hardLine(),
                     idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
         }
@@ -196,6 +226,28 @@ public class UpdateDispatcher {
         if (verdict.needsReview() && !verdict.shouldFreezeImmediately()) {
             reviewRecorder.record(ctx, verdict);
         }
+    }
+
+    /**
+     * 取两个判定中更严重的一个：硬红线优先，其次比较风险等级；都为 null 返回 null。
+     *
+     * <p>L1 正则层与按群词库是<b>并列</b>的两类检测，谁更严重谁生效——
+     * 不能因为词库命中就掩盖 L1 的高风险命中（反之亦然）。
+     */
+    private static ModerationVerdict worseOf(ModerationVerdict a, ModerationVerdict b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        if (a.hardLine()) {
+            return a;
+        }
+        if (b.hardLine()) {
+            return b;
+        }
+        return a.riskLevel().severity() >= b.riskLevel().severity() ? a : b;
     }
 
     /**
