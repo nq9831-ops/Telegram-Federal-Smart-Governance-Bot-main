@@ -194,6 +194,15 @@ public class UpdateDispatcher {
             return;
         }
 
+        // 命令消息豁免内容审核——它是**控制面**（管理操作），不是群聊内容。
+        // 典型缺陷：`/delword <词>` 的命令文本里含该词本身，若照常送审会被先判违规而删除、
+        // dispatch 提前返回，命令永不执行（`/delword` 对它唯一的用途 100% 失效）。
+        // 命令的安全性由权限门控（@BotCommand.requiredPermission）保障，不依赖内容审核。
+        // 注意：豁免的只是「审核」，消息正文仍会被 finally 里的 scrub 照常清除。
+        if (message.isCommand()) {
+            return;
+        }
+
         String content = contentOf(message);
 
         ModerationVerdict l1 = moderationLayer == null

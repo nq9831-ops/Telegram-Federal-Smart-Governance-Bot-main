@@ -7,10 +7,13 @@ import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
+import com.tg.heyisheng.bot.core.permission.PermissionChecker;
+import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -79,6 +82,34 @@ class BannedWordDispatchTest {
         assertThat(action).as("大小写不敏感匹配").isPresent();
     }
 
+    /**
+     * 命令消息必须豁免内容审核——它是**控制面**（管理操作），不是群聊内容。
+     *
+     * <p>回归背景（P0）：`/delword <词>` 的命令文本里含该词本身，若照常送审，
+     * 会先被判违禁而删除、`dispatch` 提前返回，命令永不执行——`/delword` 对它唯一的
+     * 用途（删掉词表里已有的词）100% 失效。
+     */
+    @Test
+    void commandMessageIsNotBlockedByModeration() throws Exception {
+        Optional<BotApiMethod<?>> action = dispatcherWithCommands()
+                .dispatch(commandUpdate("/delword 广告话术", 8));
+
+        assertThat(action).as("命令消息不得被内容审核拦掉").isPresent();
+        assertThat(action.get())
+                .as("应当执行命令（回复），而不是被当作违规消息删除")
+                .isInstanceOf(SendMessage.class);
+    }
+
+    /** 回归：豁免不能过宽——普通（非命令）消息命中词表时仍必须删除。 */
+    @Test
+    void plainMessageWithSameTextIsStillBlocked() throws Exception {
+        Optional<BotApiMethod<?>> action = dispatcherWithCommands()
+                .dispatch(messageUpdate(CHAT_A, "广告话术", 10));
+
+        assertThat(action).isPresent();
+        assertThat(action.get()).isInstanceOf(DeleteMessage.class);
+    }
+
     private UpdateDispatcher dispatcher() {
         return new UpdateDispatcher(
                 new MiddlewareChain(List.of()),
@@ -89,6 +120,38 @@ class BannedWordDispatchTest {
                 ModerationActionSender.noop(),
                 ModerationReviewRecorder.noop(),
                 detector);
+    }
+
+    /** 带真实 /delword 命令的 dispatcher——用于验证命令消息能否穿过审核链到达命令层。 */
+    private UpdateDispatcher dispatcherWithCommands() {
+        // /delword 需要 MANAGE_CONFIG，故此处放行权限——本测试聚焦"审核是否拦截命令"，不是权限门控
+        PermissionChecker allowAll = new PermissionChecker((chatId, userId) -> Role.OWNER);
+        return new UpdateDispatcher(
+                new MiddlewareChain(List.of()),
+                new CommandDispatcher(new CommandRegistry(List.of(new DelWordCommandHandler(service))), allowAll),
+                new MessageScrubber(),
+                null,
+                IdHasher.fromEnvironment(),
+                ModerationActionSender.noop(),
+                ModerationReviewRecorder.noop(),
+                detector);
+    }
+
+    private static Update commandUpdate(String text, int commandLength) {
+        Message message = Message.builder()
+                .messageId(11)
+                .text(text)
+                .entities(List.of(org.telegram.telegrambots.meta.api.objects.MessageEntity.builder()
+                        .type(org.telegram.telegrambots.meta.api.objects.EntityType.BOTCOMMAND)
+                        .offset(0).length(commandLength).build()))
+                .chat(Chat.builder().id(CHAT_A).type("supergroup").build())
+                .from(User.builder().id(42L).firstName("Admin").isBot(false).build())
+                .build();
+
+        Update update = new Update();
+        update.setUpdateId(2);
+        update.setMessage(message);
+        return update;
     }
 
     private static Update messageUpdate(long chatId, String text, int messageId) {

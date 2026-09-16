@@ -243,14 +243,11 @@ class ModerationIntegrationTest {
      * 与 {@link #messageUpdate} 相同，但带 messageId——处置（删除）需要它定位目标。
      * 真实 Telegram 消息必带 messageId，故此处更贴近现实。
      */
+    /** 与 {@link #messageUpdate} 相同，但带 messageId——处置（删除）需要它定位目标。 */
     private static Update messageUpdateWithId(String text, int messageId) {
-        MessageEntity entity = MessageEntity.builder()
-                .type(EntityType.BOTCOMMAND).offset(0).length(2).build();
-
         Message message = Message.builder()
                 .messageId(messageId)
                 .text(text)
-                .entities(List.of(entity))
                 .chat(Chat.builder().id(CHAT_ID).type("supergroup").build())
                 .from(User.builder().id(42L).firstName("T").isBot(false).build())
                 .build();
@@ -303,13 +300,14 @@ class ModerationIntegrationTest {
         return update;
     }
 
+    /**
+     * 构造一条**普通（非命令）消息**：刻意不带 bot_command entity——
+     * 真实群聊消息本就没有这种标注，带了会让 {@code Message.isCommand()} 为真、
+     * 从而被"命令消息豁免审核"跳过（这正是本 helper 早先不真实之处）。
+     */
     private static Update messageUpdate(String text) {
-        MessageEntity entity = MessageEntity.builder()
-                .type(EntityType.BOTCOMMAND).offset(0).length(2).build();
-
         Message message = Message.builder()
                 .text(text)
-                .entities(List.of(entity))
                 .chat(Chat.builder().id(CHAT_ID).type("supergroup").build())
                 .from(User.builder().id(42L).firstName("T").isBot(false).build())
                 .build();
