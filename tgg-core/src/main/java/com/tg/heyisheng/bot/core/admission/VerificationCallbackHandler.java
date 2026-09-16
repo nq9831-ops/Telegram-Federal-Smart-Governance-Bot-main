@@ -26,10 +26,14 @@ public class VerificationCallbackHandler implements CallbackHandler {
 
     private final PendingVerificationRegistry registry;
     private final IdHasher idHasher;
+    private final ObservationPeriodService observationPeriod;
 
-    public VerificationCallbackHandler(PendingVerificationRegistry registry, IdHasher idHasher) {
+    public VerificationCallbackHandler(PendingVerificationRegistry registry,
+                                       IdHasher idHasher,
+                                       ObservationPeriodService observationPeriod) {
         this.registry = registry;
         this.idHasher = idHasher;
+        this.observationPeriod = observationPeriod;
     }
 
     @Override
@@ -55,6 +59,9 @@ public class VerificationCallbackHandler implements CallbackHandler {
         if (!registry.markVerified(parsed.chatId(), clickerId)) {
             return Optional.of(answer(query, EXPIRED));
         }
+        // 通过验证 → 进入观察期（限时限制发言），期满由 Telegram 自动解禁。
+        // 只在通过路径施加：失败路径（他人冒点/已过期）不得限制任何人。
+        observationPeriod.apply(parsed.chatId(), clickerId);
         return Optional.of(answer(query, PASSED));
     }
 

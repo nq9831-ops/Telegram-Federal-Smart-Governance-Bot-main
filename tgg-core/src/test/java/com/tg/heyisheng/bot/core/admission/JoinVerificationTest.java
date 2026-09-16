@@ -6,6 +6,7 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.RestrictChatMember;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
@@ -36,6 +37,11 @@ class JoinVerificationTest {
     private static final long MEMBER = 42L;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
     private static final IdHasher HASHER = IdHasher.fromEnvironment();
+
+    /** 观察期服务，产出收集到 sent 里——用于断言"通过验证后确实施加了限制"。 */
+    private static ObservationPeriodService observationInto(List<BotApiMethod<?>> sent) {
+        return new ObservationPeriodService(sent::add, Duration.ofDays(7));
+    }
 
     private static final class MutableClock extends Clock {
         private final AtomicReference<Instant> now = new AtomicReference<>(Instant.EPOCH);
@@ -132,7 +138,7 @@ class JoinVerificationTest {
     void memberCanVerifyThemselves() {
         PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
         registry.register(CHAT, MEMBER, TIMEOUT);
-        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER);
+        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER, observationInto(new ArrayList<>()));
 
         Optional<BotApiMethod<?>> action = handler.handle(verifyClick(MEMBER, CHAT, MEMBER));
 
@@ -146,7 +152,7 @@ class JoinVerificationTest {
     void othersCannotVerifyOnBehalf() {
         PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
         registry.register(CHAT, MEMBER, TIMEOUT);
-        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER);
+        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER, observationInto(new ArrayList<>()));
 
         Optional<BotApiMethod<?>> action = handler.handle(verifyClick(999L, CHAT, MEMBER));
 
@@ -161,7 +167,7 @@ class JoinVerificationTest {
         MutableClock clock = new MutableClock();
         PendingVerificationRegistry registry = new PendingVerificationRegistry(clock);
         registry.register(CHAT, MEMBER, TIMEOUT);
-        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER);
+        VerificationCallbackHandler handler = new VerificationCallbackHandler(registry, HASHER, observationInto(new ArrayList<>()));
 
         clock.advance(TIMEOUT.plusSeconds(1));
 
@@ -174,7 +180,7 @@ class JoinVerificationTest {
     @Test
     void malformedDataIsRejectedWithoutThrowing() {
         VerificationCallbackHandler handler =
-                new VerificationCallbackHandler(new PendingVerificationRegistry(new MutableClock()), HASHER);
+                new VerificationCallbackHandler(new PendingVerificationRegistry(new MutableClock()), HASHER, observationInto(new ArrayList<>()));
 
         assertThat(handler.handle(verifyClick(MEMBER, CHAT, MEMBER)).get()).isInstanceOf(AnswerCallbackQuery.class);
         CallbackQuery bad = new CallbackQuery();
@@ -182,6 +188,35 @@ class JoinVerificationTest {
         bad.setFrom(human(MEMBER));
         bad.setData("verify:notanumber:42");
         assertThat(handler.handle(bad)).isPresent();
+    }
+
+    /** 通过验证后必须进入观察期——否则"验证通过"就等于完全放行。 */
+    @Test
+    void successfulVerificationAppliesObservationPeriod() {
+        PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
+        registry.register(CHAT, MEMBER, TIMEOUT);
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        VerificationCallbackHandler handler =
+                new VerificationCallbackHandler(registry, HASHER, observationInto(sent));
+
+        handler.handle(verifyClick(MEMBER, CHAT, MEMBER));
+
+        assertThat(sent).as("通过验证应施加观察期限制").hasSize(1);
+        assertThat(sent.get(0)).isInstanceOf(RestrictChatMember.class);
+    }
+
+    /** 失败路径（他人冒点）不得对任何人施加限制——限制只属于通过验证的人。 */
+    @Test
+    void failedVerificationAppliesNoObservationPeriod() {
+        PendingVerificationRegistry registry = new PendingVerificationRegistry(new MutableClock());
+        registry.register(CHAT, MEMBER, TIMEOUT);
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        VerificationCallbackHandler handler =
+                new VerificationCallbackHandler(registry, HASHER, observationInto(sent));
+
+        handler.handle(verifyClick(999L, CHAT, MEMBER));
+
+        assertThat(sent).as("他人冒点不得限制任何人").isEmpty();
     }
 
     /** 超时未验证者必须被移出——否则"验证"只是句空话。 */

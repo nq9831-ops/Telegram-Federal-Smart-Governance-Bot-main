@@ -20,6 +20,21 @@ public class AdmissionProperties {
     /** 验证时限（秒）：新成员须在此时间内点击验证，否则被移出。 */
     private int timeoutSeconds = 120;
 
+    /**
+     * 观察期（秒）：通过验证后受限的时长（默认 7 天）。**设 0 表示不启用观察期**。
+     *
+     * <p>期内允许发文字，但禁媒体/贴纸/投票/网页预览/邀请——期满由 Telegram 自动解禁。
+     */
+    private int observationSeconds = 604800;
+
+    public int getObservationSeconds() {
+        return observationSeconds;
+    }
+
+    public void setObservationSeconds(int observationSeconds) {
+        this.observationSeconds = observationSeconds;
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
