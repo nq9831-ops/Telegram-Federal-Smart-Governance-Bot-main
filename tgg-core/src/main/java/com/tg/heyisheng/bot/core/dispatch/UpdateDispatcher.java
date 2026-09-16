@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
+import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
@@ -50,6 +51,7 @@ public class UpdateDispatcher {
     private final CommandDispatcher commandDispatcher;
     private final MessageScrubber scrubber;
     private final ModerationLayer moderationLayer;
+    private final ModerationPipeline moderationPipeline;
     private final IdHasher idHasher;
     private final ModerationEnforcer enforcer;
     private final ModerationReviewRecorder reviewRecorder;
@@ -72,6 +74,7 @@ public class UpdateDispatcher {
         private CommandDispatcher commandDispatcher;
         private MessageScrubber scrubber = new MessageScrubber();
         private ModerationLayer moderationLayer;
+        private ModerationPipeline moderationPipeline;
         private IdHasher idHasher = IdHasher.fromEnvironment();
         private ModerationActionSender actionSender = ModerationActionSender.noop();
         private ModerationReviewRecorder reviewRecorder = ModerationReviewRecorder.noop();
@@ -97,6 +100,17 @@ public class UpdateDispatcher {
 
         public Builder moderationLayer(ModerationLayer value) {
             this.moderationLayer = value;
+            return this;
+        }
+
+        /**
+         * 用四层流水线替代单层审核（模块九）。
+         *
+         * <p>两者取其一：给了 pipeline 就用它（L1..L4 按序、命中即短路），
+         * 否则回落到单层 {@link #moderationLayer}——保持既有调用方与测试不变。
+         */
+        public Builder moderationPipeline(ModerationPipeline value) {
+            this.moderationPipeline = value;
             return this;
         }
 
@@ -145,6 +159,7 @@ public class UpdateDispatcher {
         this.commandDispatcher = b.commandDispatcher;
         this.scrubber = b.scrubber;
         this.moderationLayer = b.moderationLayer;
+        this.moderationPipeline = b.moderationPipeline;
         this.idHasher = b.idHasher;
         this.enforcer = new ModerationEnforcer(b.actionSender);
         this.reviewRecorder = b.reviewRecorder == null ? ModerationReviewRecorder.noop() : b.reviewRecorder;
@@ -330,8 +345,8 @@ public class UpdateDispatcher {
      * 「审过且干净」与「压根没审」，避免把"没审核"误当成"审核通过"。
      */
     private void moderateInto(UpdateContext ctx, Message message) {
-        if (message == null || (moderationLayer == null && bannedWordDetector == null
-                && repeatedMessageDetector == null)) {
+        if (message == null || (moderationLayer == null && moderationPipeline == null
+                && bannedWordDetector == null && repeatedMessageDetector == null)) {
             return;
         }
 
@@ -349,11 +364,14 @@ public class UpdateDispatcher {
 
         String content = contentOf(message);
 
-        ModerationVerdict l1 = moderationLayer == null
-                ? null
-                : moderationLayer.inspect(content)
-                        .map(hit -> new ModerationVerdict(hit.riskLevel(), hit.hardLine(), List.of(hit.ruleId())))
-                        .orElse(null);
+        // 四层审核（模块九）：优先用流水线（L1→L2→L3→L4 按序、命中即短路）；
+        // 未装配流水线时回落到单层——保持既有调用方行为逐字不变。
+        Optional<ModerationLayer.LayerHit> layerHit = moderationPipeline != null
+                ? moderationPipeline.inspect(content)
+                : (moderationLayer == null ? Optional.empty() : moderationLayer.inspect(content));
+        ModerationVerdict l1 = layerHit
+                .map(h -> new ModerationVerdict(h.riskLevel(), h.hardLine(), List.of(h.ruleId())))
+                .orElse(null);
         ModerationVerdict bannedWord = bannedWordDetector == null
                 ? null
                 : bannedWordDetector.inspect(ctx.chatId(), content).orElse(null);
