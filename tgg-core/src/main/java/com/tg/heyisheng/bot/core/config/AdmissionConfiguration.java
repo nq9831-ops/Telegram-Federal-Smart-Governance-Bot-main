@@ -6,9 +6,11 @@ import com.tg.heyisheng.bot.core.admission.AdmissionProperties;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
 import com.tg.heyisheng.bot.core.admission.PendingVerificationRegistry;
 import com.tg.heyisheng.bot.core.admission.VerificationCallbackHandler;
+import com.tg.heyisheng.bot.core.admission.VerificationTimeoutSweeper;
 import com.tg.heyisheng.bot.core.callback.CallbackHandler;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
+import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import jakarta.annotation.PostConstruct;
 import okhttp3.OkHttpClient;
@@ -18,6 +20,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -32,6 +35,7 @@ import java.util.List;
  */
 @Configuration
 @EnableConfigurationProperties(AdmissionProperties.class)
+@EnableScheduling
 @ConditionalOnProperty(prefix = "tgg.admission", name = "enabled", havingValue = "true")
 public class AdmissionConfiguration {
 
@@ -70,6 +74,12 @@ public class AdmissionConfiguration {
                 new OkHttpClient(), objectMapper, webhookProperties.getBotToken());
         return new JoinVerificationService(registry, executor::execute,
                 Duration.ofSeconds(properties.getTimeoutSeconds()));
+    }
+
+    @Bean
+    public VerificationTimeoutSweeper verificationTimeoutSweeper(PendingVerificationRegistry registry,
+                                                                 ModerationActionSender sender) {
+        return new VerificationTimeoutSweeper(registry, sender);
     }
 
     @Bean

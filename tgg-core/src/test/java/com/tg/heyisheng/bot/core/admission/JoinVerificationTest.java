@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
@@ -178,5 +179,39 @@ class JoinVerificationTest {
         bad.setFrom(human(MEMBER));
         bad.setData("verify:notanumber:42");
         assertThat(handler.handle(bad)).isPresent();
+    }
+
+    /** 超时未验证者必须被移出——否则"验证"只是句空话。 */
+    @Test
+    void sweeperBansExpiredPendingMembers() {
+        MutableClock clock = new MutableClock();
+        PendingVerificationRegistry registry = new PendingVerificationRegistry(clock);
+        registry.register(CHAT, MEMBER, TIMEOUT);
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        VerificationTimeoutSweeper sweeper = new VerificationTimeoutSweeper(registry, sent::add);
+
+        clock.advance(TIMEOUT.plusSeconds(1));
+        sweeper.sweep();
+
+        assertThat(sent).hasSize(1);
+        assertThat(sent.get(0)).isInstanceOf(BanChatMember.class);
+        BanChatMember ban = (BanChatMember) sent.get(0);
+        assertThat(ban.getChatId()).isEqualTo(String.valueOf(CHAT));
+        assertThat(ban.getUserId()).isEqualTo(MEMBER);
+        assertThat(registry.size()).as("移出后登记应清空").isZero();
+    }
+
+    /** 扫多了会误踢：尚未超时的待验证成员不能被移出。 */
+    @Test
+    void sweeperLeavesMembersWithinDeadline() {
+        MutableClock clock = new MutableClock();
+        PendingVerificationRegistry registry = new PendingVerificationRegistry(clock);
+        registry.register(CHAT, MEMBER, TIMEOUT);
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+
+        new VerificationTimeoutSweeper(registry, sent::add).sweep();
+
+        assertThat(sent).as("未超时不应移出").isEmpty();
+        assertThat(registry.isPending(CHAT, MEMBER)).isTrue();
     }
 }
