@@ -8,7 +8,11 @@ import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
+import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
+import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
+import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import com.tg.heyisheng.bot.core.permission.RoleGrantParser;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
@@ -89,10 +93,23 @@ public class TggCoreConfiguration {
                         new InMemoryRateLimiter(GLOBAL_LIMIT, WINDOW))));
     }
 
+    /**
+     * L1 审核层（正则）。
+     *
+     * <p>当前装载内置规则集；后续应改为按群从数据库加载并支持热更新，
+     * 届时替换本 bean 的构造来源即可，流水线不受影响。
+     */
+    @Bean
+    public ModerationLayer moderationLayer() {
+        return new RegexLayer(BuiltInRules.all());
+    }
+
     @Bean
     public UpdateDispatcher updateDispatcher(MiddlewareChain middlewareChain,
-                                             CommandDispatcher commandDispatcher) {
-        return new UpdateDispatcher(middlewareChain, commandDispatcher);
+                                             CommandDispatcher commandDispatcher,
+                                             ModerationLayer moderationLayer) {
+        // 注入审核层：它必须在 scrub 之前拿到正文，产出的判定结果（不含原文）挂到上下文
+        return new UpdateDispatcher(middlewareChain, commandDispatcher, new MessageScrubber(), moderationLayer);
     }
 
     @Bean
