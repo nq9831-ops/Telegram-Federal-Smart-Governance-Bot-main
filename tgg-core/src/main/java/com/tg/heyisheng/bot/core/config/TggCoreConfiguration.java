@@ -14,7 +14,11 @@ import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.notify.DeferredNotificationFlusher;
+import com.tg.heyisheng.bot.core.notify.DeferredNotificationJob;
+import com.tg.heyisheng.bot.core.notify.DeferredNotificationRepository;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
+import com.tg.heyisheng.bot.core.notify.NotificationPreferenceService;
 import com.tg.heyisheng.bot.core.notify.NotificationRateLimiter;
 import com.tg.heyisheng.bot.core.notify.NotificationSender;
 import com.tg.heyisheng.bot.core.notify.TelegramNotificationSender;
@@ -56,6 +60,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Duration;
 import java.util.List;
@@ -70,6 +75,7 @@ import java.util.List;
  */
 @Configuration
 @EnableConfigurationProperties(WebhookProperties.class)
+@EnableScheduling
 public class TggCoreConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(TggCoreConfiguration.class);
@@ -236,6 +242,8 @@ public class TggCoreConfiguration {
      */
     @Bean
     public NotificationDispatcher notificationDispatcher(ModerationActionSender moderationActionSender,
+                                                         NotificationPreferenceService notificationPreferences,
+                                                         DeferredNotificationRepository deferredNotifications,
                                                          @Value("${tgg.webhook.bot-token:}") String botToken) {
         NotificationSender sender;
         if (botToken == null || botToken.isBlank()) {
@@ -245,7 +253,28 @@ public class TggCoreConfiguration {
         } else {
             sender = new TelegramNotificationSender(moderationActionSender);
         }
-        return new NotificationDispatcher(sender, new NotificationRateLimiter(Clock.systemUTC()));
+        // 免打扰（§11.1）：非紧急通知暂存到时段结束；紧急（封禁/解封）不受影响。
+        return new NotificationDispatcher(sender, new NotificationRateLimiter(Clock.systemUTC()),
+                notificationPreferences, deferredNotifications, Clock.systemUTC());
+    }
+
+    /**
+     * 延迟通知冲刷器 + 每分钟一次的调度任务（§11.1：免打扰结束即发）。
+     *
+     * <p>用 {@code @Scheduled} 而非 Kafka——本项目明确不引消息队列（见 HANDOFF 非目标）。
+     */
+    @Bean
+    public DeferredNotificationFlusher deferredNotificationFlusher(
+            DeferredNotificationRepository deferredNotifications,
+            NotificationPreferenceService notificationPreferences,
+            NotificationDispatcher notificationDispatcher) {
+        return new DeferredNotificationFlusher(deferredNotifications, notificationPreferences,
+                notificationDispatcher, Clock.systemUTC());
+    }
+
+    @Bean
+    public DeferredNotificationJob deferredNotificationJob(DeferredNotificationFlusher flusher) {
+        return new DeferredNotificationJob(flusher);
     }
 
     /**

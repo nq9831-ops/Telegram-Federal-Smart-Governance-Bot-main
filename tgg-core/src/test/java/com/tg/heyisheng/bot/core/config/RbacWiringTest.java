@@ -70,6 +70,14 @@ class RbacWiringTest {
                 // 而 updateDispatcher 依赖后者——缺它整个上下文起不来（本测试不加载 JPA，须手工补）
                 .withBean(TaughtRuleRepository.class,
                         () -> org.mockito.Mockito.mock(TaughtRuleRepository.class))
+                // 模块十（通知）：装配依赖偏好服务与延迟队列仓库，二者都是 JPA 侧——
+                // ApplicationContextRunner 不加载 JPA，须手工补替身（同 TaughtRuleRepository）。
+                .withBean(com.tg.heyisheng.bot.core.notify.NotificationPreferenceService.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.notify.NotificationPreferenceService.class))
+                .withBean(com.tg.heyisheng.bot.core.notify.DeferredNotificationRepository.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.notify.DeferredNotificationRepository.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(
