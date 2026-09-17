@@ -37,7 +37,10 @@ flowchart LR
 
 ## 快速开始
 
-**前置**：JDK 21、Maven 3.9+、MySQL（库 `tgg`，`utf8mb4`）。
+**前置**：JDK 21、Maven 3.9+、MySQL。运行时用库 `tgg`（`utf8mb4`）；**测试连独立库 `tgg_test`**——
+`mvn verify` 的集成测试会用 `deleteAll()` 重置数据，必须与运行库隔离（测试 URL 带 `createDatabaseIfNotExist=true`；
+若用户无建库权限，需由管理员 `CREATE DATABASE tgg_test` 并 `GRANT ALL ON tgg_test.* TO 'tgg'@'localhost'`）。
+详见 `docs/LESSONS.md` 坑 9。
 
 ```bash
 # 构建与全量测试（*IT 由 failsafe 在 verify 阶段执行）

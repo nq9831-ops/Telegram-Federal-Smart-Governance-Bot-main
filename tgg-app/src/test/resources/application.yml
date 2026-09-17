@@ -1,9 +1,11 @@
 spring:
   datasource:
-    # 测试直连本机 MySQL —— 刻意不用 H2：H2 的 MySQL 兼容模式不等于 MySQL，
+    # 测试直连本机 MySQL 的【独立测试库 tgg_test】——刻意不用 H2：H2 的 MySQL 兼容模式不等于 MySQL，
     # 用它会掩盖方言差异（utf8mb4、时间戳默认值、负数 bigint 主键等）。
-    # 隔离手段：测试类加 @Transactional，每个用例结束自动回滚。
-    url: jdbc:mysql://localhost:3306/tgg?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai
+    # 隔离靠【独立库】而非事务回滚：多个 IT 会跑真实分发链与 @Scheduled 作业（各自开事务），
+    # @Transactional 回滚对它们无效，故这些 IT 用 deleteAll() 重置——那必须只作用在独立库上，
+    # 否则一次 mvn verify 会清空同库的业务表（曾发生，见 docs/LESSONS.md）。createDatabaseIfNotExist 让权限足够时自动建库。
+    url: jdbc:mysql://localhost:3306/tgg_test?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai&createDatabaseIfNotExist=true
     username: tgg
     password: tggdev
     driver-class-name: com.mysql.cj.jdbc.Driver
