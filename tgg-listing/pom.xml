@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tg.heyisheng.bot</groupId>
+    <artifactId>tgg-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tgg-listing</artifactId>
+  <name>tgg-listing</name>
+  <description>模块五/模块六：收录（群组收录 / 商家收录）——收录库、链接验证、商家入驻与保证金</description>
+
+  <dependencies>
+    <!-- 命令 / 权限 / 群配置等既有契约定义在 tgg-core；依赖单向，
+         tgg-core 不反向依赖本模块（否则成环）。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-core</artifactId>
+    </dependency>
+
+    <!-- 商家信用分走 tgg-credit 的既有记账链路（依赖方向：tgg-listing → tgg-credit → tgg-core → tgg-common）。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-credit</artifactId>
+    </dependency>
+
+    <!-- 收录库 / 商家 / 保证金账本持久化：与模块七/八同款，版本由 Spring Boot 统一管理 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-mysql</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -32,6 +32,12 @@
       <artifactId>tgg-federation</artifactId>
     </dependency>
 
+    <!-- 模块五/六：收录（群组收录 / 商家收录）。放启动器 classpath 上，其 @Configuration 才被组件扫描到 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-listing</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
