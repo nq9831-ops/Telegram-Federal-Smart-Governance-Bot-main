@@ -39,6 +39,19 @@ public record ModerationRule(String id,
         return new ModerationRule(id, name, Pattern.compile(regex), riskLevel, false);
     }
 
+    /**
+     * 便捷构造：显式指定硬红线标记。
+     *
+     * <p><b>为什么单独开一个工厂</b>：动态来源的规则（按群教学规则等）的硬红线标记存在数据里，
+     * 不是代码里写死的常量。少了这个工厂，调用方只能自己去调 5 参构造器，
+     * 而「顺手用 4 参的 {@link #of} 然后忘掉 hardLine」正是本项目刚踩过的坑
+     * （{@code TaughtRule.toRule()} 曾把库里的 hard_line 静默丢弃，使该列写完即无人消费）。
+     */
+    public static ModerationRule of(String id, String name, String regex, RiskLevel riskLevel,
+                                    boolean hardLine) {
+        return new ModerationRule(id, name, Pattern.compile(regex), riskLevel, hardLine);
+    }
+
     /** 便捷构造：硬红线。 */
     public static ModerationRule hardLine(String id, String name, String regex) {
         return new ModerationRule(id, name, Pattern.compile(regex), RiskLevel.HIGH, true);

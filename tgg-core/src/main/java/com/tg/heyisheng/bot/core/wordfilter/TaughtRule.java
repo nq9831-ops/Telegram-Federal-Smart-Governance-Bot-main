@@ -103,7 +103,7 @@ public class TaughtRule {
      * 宁可让它在上层被记录并按「该规则不可用」跳过，也不要静默造出一个永不命中的规则。
      */
     public ModerationRule toRule() {
-        return ModerationRule.of(ruleId, name, regex, RiskLevel.valueOf(riskLevel));
+        return ModerationRule.of(ruleId, name, regex, RiskLevel.valueOf(riskLevel), hardLine);
     }
 
     public Long getId() {

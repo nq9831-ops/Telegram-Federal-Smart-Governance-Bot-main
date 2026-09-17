@@ -2,8 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.core.moderation.ModerationRule;
-import com.tg.heyisheng.bot.core.moderation.RiskLevel;
-import org.slf4j.Logger;
+import com.tg.heyisheng.bot.core.moderation.RiskLevel;import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,7 +85,7 @@ public class TaughtRuleService {
     public TaughtRule teach(long chatId, String ruleId, String name, String regex,
                             RiskLevel riskLevel, boolean hardLine, Long operator) {
         String cleanRuleId = requireToken(ruleId, MAX_RULE_ID_LENGTH, "规则 id");
-        String cleanName = requireToken(name, MAX_NAME_LENGTH, "规则描述");
+        String cleanName = requireText(name, MAX_NAME_LENGTH, "规则描述");
         String cleanRegex = validateRegex(regex);
         if (riskLevel == null) {
             throw new TggException("风险等级不得为空（LOW / MEDIUM / HIGH）");
@@ -178,6 +177,25 @@ public class TaughtRuleService {
         if (NESTED_QUANTIFIER.matcher(clean).find()) {
             throw new TggException("正则含嵌套量词（如 (a+)+ ），在长文本上会灾难性回溯、拖垮机器人；"
                     + "请改写为等价但不嵌套的形式");
+        }
+        return clean;
+    }
+
+    /**
+     * 校验「可含空白的自由文本」（规则描述）。
+     *
+     * <p><b>与 {@link #requireToken} 的分工</b>：tokens（规则 id）是命令参数，含空白会破坏参数切分，
+     * 必须拒；而描述是命令尾部的<b>整体剩余文本</b>（{@code /teach id regex 一句带空格的话}），
+     * 放行内部空白才符合命令层的契约。曾因两者混用导致「命令层说可含空格、服务层必拒」
+     * 的矛盾（提交后审查抓出，此前无测试覆盖），故拆成两个方法并在各自 javadoc 写明分工。
+     */
+    private static String requireText(String value, int maxLength, String field) {
+        if (value == null || value.isBlank()) {
+            throw new TggException(field + "不得为空");
+        }
+        String clean = value.trim();
+        if (clean.length() > maxLength) {
+            throw new TggException(field + "过长（上限 " + maxLength + " 字符）");
         }
         return clean;
     }

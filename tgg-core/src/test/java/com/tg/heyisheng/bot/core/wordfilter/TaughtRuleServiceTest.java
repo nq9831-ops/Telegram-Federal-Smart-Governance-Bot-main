@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.core.moderation.ModerationRule;
+import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -214,5 +215,51 @@ class TaughtRuleServiceTest {
         ArgumentCaptor<TaughtRule> captor = ArgumentCaptor.forClass(TaughtRule.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getChatId()).isEqualTo(CHAT);
+    }
+
+    // ---------- 提交后审查抓到的两条契约断裂（回归护栏）----------
+
+    /** 反例一回归：描述是自由文本，含空格必须被接受（命令层就是把剩余参数整体当描述）。 */
+    @Test
+    void acceptsMultiWordDescription() {
+        when(repository.findByChatIdAndRuleId(CHAT, "R1")).thenReturn(Optional.empty());
+        when(repository.save(any(TaughtRule.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TaughtRule saved = service.teach(CHAT, "R1", "假空投 骗局 描述含空格", "a+",
+                RiskLevel.MEDIUM, false, 42L);
+
+        assertThat(saved.getName()).isEqualTo("假空投 骗局 描述含空格");
+    }
+
+    /** 反例二回归：库里的 hard_line 必须传导进热路径值对象（该列曾被静默丢弃、写完即无人消费）。 */
+    @Test
+    void hardLineFlagReachesHotPathRule() {
+        when(repository.findByChatIdAndEnabledTrueOrderByIdAsc(CHAT))
+                .thenReturn(List.of(saved("HARD", "红线", RiskLevel.HIGH, true)));
+
+        List<ModerationRule> rules = service.rulesFor(CHAT);
+
+        assertThat(rules).hasSize(1);
+        assertThat(rules.get(0).hardLine())
+                .as("库里 hard_line=true 的规则在热路径上必须仍是硬红线")
+                .isTrue();
+    }
+
+    /**
+     * 贯通护栏：教一条硬红线规则 → 检测器命中时报 hardLine。
+     *
+     * <p>加它的理由正是审查的第三条发现——上面两条契约断裂都能在「全绿的单测」下存活，
+     * 因为此前没有任何用例把「库里的规则」一路走到「检测结果」。
+     */
+    @Test
+    void taughtHardLineRuleIsDetectedAsHardLineEndToEnd() {
+        when(repository.findByChatIdAndEnabledTrueOrderByIdAsc(CHAT))
+                .thenReturn(List.of(saved("HARD", "红线", RiskLevel.HIGH, true)));
+        TaughtRuleDetector detector = new TaughtRuleDetector(service);
+
+        ModerationVerdict verdict = detector.inspect(CHAT, "红线内容").orElseThrow();
+
+        assertThat(verdict.hardLine()).isTrue();
+        assertThat(verdict.matchedRuleIds()).containsExactly("HARD");
     }
 }
