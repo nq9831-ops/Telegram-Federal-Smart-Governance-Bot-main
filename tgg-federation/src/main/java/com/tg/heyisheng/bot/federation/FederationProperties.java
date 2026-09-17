@@ -11,25 +11,28 @@ import java.util.List;
  * 模块八配置（前缀 {@code tgg.federation}）。
  *
  * <pre>
- * tgg.federation.enabled      = TGG_FEDERATION_ENABLED（默认 false）
- * tgg.federation.nodes        = TGG_FEDERATION_NODES（对端清单：url|公钥Base64，逗号分隔）
- * tgg.federation.private-key  = TGG_FEDERATION_PRIVATE_KEY（本节点 Ed25519 私钥，PKCS#8 Base64）
- * tgg.federation.admins       = TGG_FEDERATION_ADMINS（联邦管理员 userId 列表，逗号分隔）
+ * tgg.federation.enabled  = TGG_FEDERATION_ENABLED（默认 false）
+ * tgg.federation.nodes    = TGG_FEDERATION_NODES（对端清单：url|公钥Base64，逗号分隔）
+ * tgg.federation.admins   = TGG_FEDERATION_ADMINS（联邦管理员 userId 列表，逗号分隔）
  * </pre>
+ *
+ * <p><b>为什么没有"本节点私钥"配置</b>：处罚令由**模块七**用自己的
+ * {@code TGG_CREDIT_PRIVATE_KEY}（Ed25519）签名，联邦只**转发已签名的令**；
+ * 接收方用**签发节点的公钥**（即本清单里对应节点的公钥）验签。
+ * 故 {@code TGG_CREDIT_PRIVATE_KEY} 就是"节点签名密钥"，无需第二把。
  */
 @ConfigurationProperties(prefix = "tgg.federation")
 public class FederationProperties {
 
     private boolean enabled;
     private String nodes;
-    private String privateKey;
     private String admins;
 
     /**
      * 解析对端节点清单。
      *
      * <p>格式 {@code url|公钥Base64}，多项以逗号分隔。格式错误或公钥非法即抛
-     * {@link TggConfigException}（配置错误应拦在启动期，而不是运行时静默跳过某个节点）。
+     * {@link TggConfigException}（配置错误应拦在启动期，而非运行时静默跳过某个节点）。
      */
     public List<FederationNode> parsedNodes() {
         if (nodes == null || nodes.isBlank()) {
@@ -42,7 +45,7 @@ public class FederationProperties {
                 .toList();
     }
 
-    /** 解析联邦管理员 id 列表（全局白名单，与群内角色无关）。 */
+    /** 解析联邦管理员 id 列表（**全局白名单**，与群内角色无关）。 */
     public List<Long> parsedAdmins() {
         if (admins == null || admins.isBlank()) {
             return List.of();
@@ -89,14 +92,6 @@ public class FederationProperties {
 
     public void setNodes(String nodes) {
         this.nodes = nodes;
-    }
-
-    public String getPrivateKey() {
-        return privateKey;
-    }
-
-    public void setPrivateKey(String privateKey) {
-        this.privateKey = privateKey;
     }
 
     public String getAdmins() {
