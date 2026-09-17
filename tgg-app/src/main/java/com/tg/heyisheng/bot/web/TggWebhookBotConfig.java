@@ -14,8 +14,6 @@ import org.telegram.telegrambots.webhook.starter.SpringTelegramWebhookBot;
  * <p>库的 {@code TelegramBotInitializer}（实现 {@code InitializingBean}）在启动时会
  * <b>自动收集容器内所有</b> {@code SpringTelegramWebhookBot} bean 并注册进库的
  * {@code @RestController}——所以这里只需声明 bean，无需手动注册。
- *
- * <p>（依据：references/TelegramBots/…/starter/TelegramBotInitializer.java:26）
  */
 @Configuration
 public class TggWebhookBotConfig {

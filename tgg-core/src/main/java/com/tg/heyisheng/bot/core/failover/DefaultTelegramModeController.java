@@ -13,7 +13,7 @@ import org.telegram.telegrambots.webhook.starter.TelegramBotsSpringWebhookApplic
  *
  * <p><b>关键细节</b>：{@code botPathSegment} 必须是不含前导斜杠的形式——
  * 库用它作为注册表的 key，而请求侧 {@code @PathVariable} 取到的路径段也不含斜杠。
- * 带斜杠会导致注销不到、出现"僵尸注册"（切片 1 踩过这个坑，见 docs/LESSONS.md 坑 3）。
+ * 带斜杠会导致注销不到、出现"僵尸注册"。
  *
  * <p><b>无需手动 DeleteWebhook</b>：库的 {@code BotSession.createPollerTask()} 在启动轮询前
  * 会自行调用 DeleteWebhook（已核源码）。若将来换实现，这一点需重新确认。

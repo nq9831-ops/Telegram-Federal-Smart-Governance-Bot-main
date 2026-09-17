@@ -94,12 +94,7 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 
 | 文件 | 内容 |
 |---|---|
-| `docs/LESSONS.md` | 用真实代价换来的踩坑记录与交付自检清单（**动手前必读**） |
-| `docs/DEPLOYMENT-VERIFICATION.md` | **必须公网部署后才能验的清单**（A–M 段）；每次报告"完成"时对照核销 |
-| `docs/KNOWN-ISSUES.md` | 已开发模块的问题台账（逐条带 file:line 与处理记录） |
 | `PRIVACY.md` | 隐私说明：消息原文零存储、日志脱敏、**第三方 AI 送什么/不送什么** |
-| `docs/superpowers/specs/` | 各模块设计文档 |
-| `AGENTS.md` | AI agent 在本仓库的行为纪律 |
 
 ## 许可
 

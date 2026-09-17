@@ -24,7 +24,7 @@ import java.util.Objects;
  * <p><b>任何异常（网络不可达、响应非法）都计为不健康</b>——降级本该在通信出问题时触发。
  *
  * <p><b>未验证声明</b>：本类依赖真实 Telegram API 与有效 bot token，
- * 本机无法验证；须在公网部署后确认（见 docs/DEPLOYMENT-VERIFICATION.md）。
+ * 本机无法验证；须在公网部署后确认。
  */
 public class TelegramApiWebhookHealthProbe implements WebhookHealthProbe {
 

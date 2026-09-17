@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS federation_penalties
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='接收的联邦处罚令';
 
--- federation_appeals：申诉队列（照 references/Fedbot 的 appeals 语义）。
+-- federation_appeals：申诉队列（用户提交 → 待审 → 联邦管理员裁定）。
 -- appeal_text 是用户【主动提交】的申诉正文，不是被监听的对话内容——与「消息原文零存储」不冲突。
 CREATE TABLE IF NOT EXISTS federation_appeals
 (

@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 入群验证会改变群里每个新成员的体验，不该在没人显式开启时自动生效。
  *
  * <p>⚠️ **部署时必须显式设置**，否则该能力完全不装配且不报错——这类"看起来正常但从不生效"
- * 的静默降级只能靠部署文档提醒（见 docs/DEPLOYMENT-VERIFICATION.md）。
+ * 的静默降级只能靠部署文档提醒。
  */
 @ConfigurationProperties(prefix = "tgg.admission")
 public class AdmissionProperties {

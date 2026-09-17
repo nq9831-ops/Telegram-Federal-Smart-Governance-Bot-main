@@ -93,7 +93,7 @@ public class TggCoreConfiguration {
         if (adminsSpec == null || adminsSpec.isBlank()) {
             log.warn("未配置 tgg.permission.admins（TGG_PERMISSION_ADMINS）：所有管理命令将对任何人不可用"
                     + "（门控只拒不放）。要启用，请注入该环境变量，格式 <chatId>:<userId>[:role]，"
-                    + "见 docs/DEPLOYMENT-VERIFICATION.md C 段。");
+                    + "请见 README 的配置表。");
         }
         InMemoryRoleSource source = new InMemoryRoleSource();
         RoleGrantParser.apply(source, adminsSpec);
@@ -143,7 +143,7 @@ public class TggCoreConfiguration {
      *
      * <p><b>token 缺失处理</b>：主动调用 Telegram API 需 bot token。若未配置 {@code TGG_BOT_TOKEN}，
      * 退化为空通道并<b>显式告警</b>——违规消息仍会被删除，只是封禁不可用；不静默降级。
-     * 要启用硬红线封禁，请注入 TGG_BOT_TOKEN（见 docs/DEPLOYMENT-VERIFICATION.md）。
+     * 要启用硬红线封禁，请注入 TGG_BOT_TOKEN（见 README 配置表）。
      */
     @Bean
     public ModerationActionSender moderationActionSender(ObjectMapper objectMapper,
@@ -174,7 +174,7 @@ public class TggCoreConfiguration {
         IdHasher hasher = IdHasher.fromEnvironment();
         if (hasher.usingDevFallbackSalt()) {
             log.warn("未配置 TGG_HASH_SALT：审核日志的标识哈希使用开发兜底盐，可被枚举反推。"
-                    + "生产必须配置该环境变量（见 docs/DEPLOYMENT-VERIFICATION.md C 段）。");
+                    + "生产必须配置该环境变量（见 README 配置表）。");
         }
         return hasher;
     }

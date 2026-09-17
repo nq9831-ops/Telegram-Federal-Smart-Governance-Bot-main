@@ -25,7 +25,7 @@ import java.util.Objects;
  * method 取自 {@code BotApiMethod.getMethod()}。
  *
  * <p><b>未验证声明</b>：真实发送需有效 token 与 Telegram 网络，本机不可验，
- * 须公网部署后确认（见 docs/DEPLOYMENT-VERIFICATION.md）。
+ * 须公网部署后确认。
  */
 public class TelegramApiMethodExecutor {
 

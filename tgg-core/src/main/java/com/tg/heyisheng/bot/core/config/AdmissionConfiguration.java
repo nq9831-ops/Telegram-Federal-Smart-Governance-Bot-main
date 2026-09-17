@@ -33,7 +33,7 @@ import java.util.List;
  *
  * <p><b>默认关闭</b>（{@code tgg.admission.enabled=true} 才启用）——入群验证会改变每个新成员的
  * 体验，不该在没人显式开启时自动生效。⚠️ 不设该值则本类完全不装配且**不报任何错**，
- * 故必须写进部署清单（见 docs/DEPLOYMENT-VERIFICATION.md）。
+ * 故部署时必须显式设置该开关（默认关闭且不报错）。
  */
 @Configuration
 @EnableConfigurationProperties(AdmissionProperties.class)

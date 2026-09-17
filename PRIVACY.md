@@ -61,4 +61,4 @@
 ## 六、数据清理
 
 开发期测试数据（`group_configs`、`moderation_review_queue`、`banned_words` 中的测试记录）
-应在正式运营前清理——见 `docs/DEPLOYMENT-VERIFICATION.md` E 段。
+应在正式运营前清理。

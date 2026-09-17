@@ -3,7 +3,7 @@ package com.tg.heyisheng.bot.common.util;
 /**
  * 日志脱敏工具。
  *
- * <p>硬约束（V5.0 文档 + 项目 AGENTS.md）：日志中禁止出现 Bot Token 与消息原文。
+ * <p>硬约束：日志中禁止出现 Bot Token 与消息原文。
  * 本类是全项目日志出口的集中脱敏入口，任何要打印敏感值的日志都应先经此处。
  */
 public final class MaskingUtil {

@@ -20,7 +20,7 @@ import java.util.Optional;
  * <p><b>风险等级与处置</b>：命中一律记 {@link RiskLevel#MEDIUM}（非硬红线）。
  * 注意：当前处置链对 MEDIUM 是<b>命中即删除</b>——{@code ModerationEnforcer} 对任何
  * {@code needsReview} 都返回 DeleteMessage，<b>没有"仅警告"这一档</b>，也没有按群的分级开关。
- * 换言之，"删还是警告"目前不由群主逐条决定；分级处置属后续增量（见 docs/KNOWN-ISSUES.md）。
+ * 换言之，"删还是警告"目前不由群主逐条决定；分级处置属后续增量。
  */
 public class BannedWordDetector {
 

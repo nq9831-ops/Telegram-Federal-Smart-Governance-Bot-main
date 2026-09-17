@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * 联邦申诉（表 {@code federation_appeals}）——照 {@code references/Fedbot} 的 appeals 语义。
+ * 联邦申诉（表 {@code federation_appeals}）：用户提交 → 入待审队列 → 联邦管理员裁定。
  *
  * <p>{@code appealText} 是用户**主动提交**的申诉正文，不是被监听的对话内容，
  * 与「消息原文零存储」不冲突。

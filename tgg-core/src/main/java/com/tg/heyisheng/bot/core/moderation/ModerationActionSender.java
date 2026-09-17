@@ -12,7 +12,7 @@ import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
  * <p><b>为什么不复用 failover 的 {@code TelegramApiMethodExecutor}</b>：
  * 那个 bean 挂在 {@code tgg.failover.enabled=true} 下，默认不存在；
  * 硬红线冻结是安全关键功能，不能因一个默认关闭的开关而静默失效
- * （本项目已多次因「默认关闭即静默降级」吃亏，见 .rivet.md 与 docs/DEPLOYMENT-VERIFICATION.md）。
+ * （本项目已多次因「默认关闭即静默降级」吃亏）。
  *
  * <p><b>契约</b>：实现必须自行吞掉异常（失败只记日志）——单条处置动作失败
  * 不应中断整条 update 的处理，更不应影响作为响应体的删除动作。

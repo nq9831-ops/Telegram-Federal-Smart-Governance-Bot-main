@@ -86,7 +86,7 @@ public class FailoverConfiguration {
             OkHttpClient failoverOkHttpClient,
             ObjectMapper objectMapper) {
 
-        // 与 webhook 注册键保持一致：不含前导斜杠（切片 1 的教训，见 docs/LESSONS.md 坑 3）
+        // 与 webhook 注册键保持一致：不含前导斜杠（带斜杠会导致注册表 key 落空、注销不到）
         String botPathSegment = properties.getPath().replaceFirst("^/+", "");
 
         // 长轮询模式下库【不会】执行 handler 的返回值（consume 返回 void），

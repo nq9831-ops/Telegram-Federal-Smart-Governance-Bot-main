@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 而验证是短暂状态（默认 2 分钟），重启丢失的代价是"用户重新入群/重新触发"，可接受。
  *
  * <p><b>为什么用 record 而非 "chat:user" 字符串 key</b>：字符串 key 取出时得再解析回来，
- * 而本项目已有 {@code split(":")} 丢尾部空串的踩坑史（见 docs/LESSONS.md 坑 7）。
+ * 而 {@code split(":")} 会丢尾部空串（须用 {@code split(":", -1)} 才保真）。
  * 用类型化的 key 从根上避免这类解析。
  *
  * <p><b>时钟可注入</b>：超时判定必须能在测试里推进，而不是靠 sleep。
