@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -76,6 +77,41 @@ class TaughtRuleServiceTest {
                 .hasMessageContaining("嵌套量词");
         assertThatThrownBy(() -> service.teach(CHAT, "R2", "n", "(a*)*$", RiskLevel.MEDIUM, false, 42L))
                 .isInstanceOf(TggException.class);
+    }
+
+    /**
+     * 卡点 1 复现（HANDOFF「下一步」第 1 项）：旧闸门用单条正则
+     * {@code \([^()]*[+*][^()]*\)…}，其「组内不含括号」的前提使<b>两层及以上</b>嵌套
+     * （{@code ((a+))+}）漏判——可经 {@code /teach} 入库并在热路径灾难性回溯（DoS）。
+     * 本用例先红后绿。
+     */
+    @Test
+    void rejectsDeeplyNestedQuantifier() {
+        for (String regex : new String[]{
+                "((a+))+$", "(((a+)))+", "((a*)*)+", "((a+)?)+", "((\\d+))+", "((a+){2,})+"}) {
+            assertThatThrownBy(() -> service.teach(CHAT, "RN", "n", regex, RiskLevel.MEDIUM, false, 42L))
+                    .as("多层嵌套量词必须被拒（ReDoS）：%s", regex)
+                    .isInstanceOf(TggException.class)
+                    .hasMessageContaining("嵌套量词");
+        }
+    }
+
+    /**
+     * 闸门必须「保守」而非「滥杀」：以下都是安全写法，不能被误拒——误拒会让管理员无法使用正常规则。
+     * 旧实现对 {@code ([+*])+}（字符类内的 {@code +} 被当成量词）与 {@code \(a\+\)+}（转义括号被当成组）
+     * 会误拒。修闸门时以此为护栏。
+     */
+    @Test
+    void acceptsSafeForms() {
+        when(repository.findByChatIdAndRuleId(anyLong(), anyString())).thenReturn(Optional.empty());
+        when(repository.save(any(TaughtRule.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        for (String regex : new String[]{
+                "(ab)+", "(a|b)+", "(a+)(b+)", "([+*])+", "(\\d{2,4})-\\d+", "(a+)?", "\\(a\\+\\)+"}) {
+            assertThatCode(() -> service.teach(CHAT, "SAFE", "n", regex, RiskLevel.MEDIUM, false, 42L))
+                    .as("安全写法不应被误拒：%s", regex)
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Test

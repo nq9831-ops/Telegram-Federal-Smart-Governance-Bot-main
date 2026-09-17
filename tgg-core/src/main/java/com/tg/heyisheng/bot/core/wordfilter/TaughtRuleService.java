@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,7 +34,7 @@ import java.util.regex.PatternSyntaxException;
  * 为单一缓存引入一个基础设施依赖不划算；多实例部署时的一致性属部署侧课题（记入 KNOWN-ISSUES）。
  *
  * <p><b>安全：正则来自管理员，但热路径要吃它</b>——因此入库前必须过三道闸：
- * ① 能编译；② 长度受限（{@link #MAX_REGEX_LENGTH}）；③ 拒绝灾难性回溯形态（{@link #NESTED_QUANTIFIER}）。
+ * ① 能编译；② 长度受限（{@link #MAX_REGEX_LENGTH}）；③ 拒绝灾难性回溯形态（{@link #containsNestedQuantifier(String)}）。
  * 少了第三道，一条 {@code (a+)+$} 就能让机器人卡死在一条消息上——那是 DoS，不只是"规则写错了"。
  */
 public class TaughtRuleService {
@@ -50,14 +52,117 @@ public class TaughtRuleService {
     public static final Duration CACHE_TTL = Duration.ofSeconds(10);
 
     /**
-     * 灾难性回溯（ReDoS）启发式：拒绝「量词套量词」——如 {@code (a+)+}、{@code (a*)*}、{@code (a+){2,}}。
+     * 灾难性回溯（ReDoS）闸门：检出「组被量词修饰 <b>且</b> 组内含被量词修饰元素」的嵌套形态。
      *
-     * <p><b>宁可误拒，不可放过</b>：热路径被打爆的代价（机器人整体失能）远高于管理员换种写法的代价。
-     * 它不覆盖所有 ReDoS 形态（如 {@code (a|aa)+}），属**保守闸门**而非完备证明；
-     * 完备方案要正则引擎支持超时（Java 的 {@code Pattern} 不支持），记入 KNOWN-ISSUES。
+     * <p><b>为什么不用单条正则</b>：旧实现 {@code \([^()]*[+*][^()]*\)…} 的「组内不含括号」前提，
+     * 使<b>两层及以上</b>嵌套（{@code ((a+))+}）漏判——一条即可让热路径灾难性回溯（DoS）；
+     * 它还会把字符类内的 {@code +}（{@code ([+*])+}）与转义括号（{@code \(a\+\)+}）误判为嵌套。
+     * 故改为括号栈逐字符解析：跳过转义与字符类，关闭子组时把「组内含被量词修饰元素」
+     * 向上传播给父组，父组若同时被量词修饰即为嵌套。
+     *
+     * <p><b>保守而非完备</b>：不覆盖 {@code (a|aa)+} 这类「歧义分支」型 ReDoS，
+     * 且刻意放行安全形态（{@code (ab)+}、{@code (a|b)+}、{@code (a+)(b+)}、{@code ([+*])+}、
+     * {@code (\d{2,4})-\d+}、{@code (a+)?}、{@code \(a\+\)+}）。闸门是防 DoS 的最小拦截，
+     * 不是正则审查——完备方案需引擎超时（Java {@code Pattern} 不支持），记入 KNOWN-ISSUES。
+     *
+     * @return true 表示含嵌套量词，应拒绝入库
      */
-    private static final Pattern NESTED_QUANTIFIER =
-            Pattern.compile("\\([^()]*[+*][^()]*\\)\\s*(?:[+*]|\\{\\d+,?\\d*\\})");
+    static boolean containsNestedQuantifier(String regex) {
+        Deque<Boolean> stack = new ArrayDeque<>();
+        stack.push(Boolean.FALSE); // 最外层（非组）是否含「被量词修饰元素」
+        int i = 0;
+        int n = regex.length();
+        while (i < n) {
+            char c = regex.charAt(i);
+            if (c == '\\') {
+                i += (i + 1 < n) ? 2 : 1; // 转义：连同被转义字符一起跳过
+                continue;
+            }
+            if (c == '[') {
+                i = skipCharClass(regex, i); // 字符类整体是一个 atom，内部量词字符不算
+                continue;
+            }
+            if (c == '(') {
+                stack.push(Boolean.FALSE);
+                i++;
+                continue;
+            }
+            if (c == ')') {
+                boolean innerQuantified = stack.pop();
+                boolean groupQuantified = isQuantifierAt(regex, i + 1);
+                if (groupQuantified && innerQuantified) {
+                    return true; // 组被量词修饰，且组内含被量词修饰元素 → 嵌套
+                }
+                if (innerQuantified || groupQuantified) {
+                    // 向上传播：父组此刻「含一个内含量词的组 / 被量词修饰的组」
+                    stack.push(stack.pop() | Boolean.TRUE);
+                }
+                i++;
+                continue;
+            }
+            if (isQuantifierAt(regex, i)) {
+                // 量词修饰其左侧 atom（普通字符 / 字符类 / 已闭合组）
+                stack.push(stack.pop() | Boolean.TRUE);
+                i = skipQuantifier(regex, i);
+                continue;
+            }
+            i++;
+        }
+        return false;
+    }
+
+    /** {@code pos} 处是否为重复量词 {@code +}/{@code *}/{@code {n}}/{@code {n,}}/{@code {n,m}}（{@code ?} 除外）。 */
+    private static boolean isQuantifierAt(String regex, int pos) {
+        if (pos < 0 || pos >= regex.length()) {
+            return false;
+        }
+        char c = regex.charAt(pos);
+        if (c == '+' || c == '*') {
+            return true;
+        }
+        if (c == '{') {
+            int close = regex.indexOf('}', pos);
+            if (close < 0) {
+                return false;
+            }
+            return regex.substring(pos + 1, close).matches("\\d+(,\\d*)?");
+        }
+        return false;
+    }
+
+    /** 跳过 {@code pos} 处的量词（含其后的懒惰修饰符 {@code ?}）。调用前须已确认 {@code isQuantifierAt}。 */
+    private static int skipQuantifier(String regex, int pos) {
+        int next;
+        if (regex.charAt(pos) == '{') {
+            int close = regex.indexOf('}', pos);
+            next = (close < 0) ? pos + 1 : close + 1;
+        } else {
+            next = pos + 1;
+        }
+        if (next < regex.length() && regex.charAt(next) == '?') {
+            next++; // 懒惰量词 a+? / a*?
+        }
+        return next;
+    }
+
+    /** 跳过从 {@code start}（指向 {@code [}）开始的字符类，返回 {@code ]} 之后的位置。 */
+    private static int skipCharClass(String regex, int start) {
+        int i = start + 1;
+        int n = regex.length();
+        if (i < n && regex.charAt(i) == '^') {
+            i++; // 取反
+        }
+        if (i < n && regex.charAt(i) == ']') {
+            i++; // 首字符位置的 ']' 是字面量
+        }
+        while (i < n && regex.charAt(i) != ']') {
+            if (regex.charAt(i) == '\\') {
+                i++; // 跳过转义
+            }
+            i++;
+        }
+        return i + 1; // 跳过 ']'
+    }
 
     private final TaughtRuleRepository repository;
     private final Clock clock;
@@ -174,7 +279,7 @@ public class TaughtRuleService {
         } catch (PatternSyntaxException ex) {
             throw new TggException("正则无法编译：" + ex.getDescription());
         }
-        if (NESTED_QUANTIFIER.matcher(clean).find()) {
+        if (containsNestedQuantifier(clean)) {
             throw new TggException("正则含嵌套量词（如 (a+)+ ），在长文本上会灾难性回溯、拖垮机器人；"
                     + "请改写为等价但不嵌套的形式");
         }
