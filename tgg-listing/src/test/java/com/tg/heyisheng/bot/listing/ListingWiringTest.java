@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.listing.merchant.MerchantDepositRecordRepository;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDepositRepository;
 import com.tg.heyisheng.bot.listing.merchant.MerchantProperties;
 import com.tg.heyisheng.bot.listing.merchant.MerchantRepository;
+import com.tg.heyisheng.bot.listing.notify.LoggingSubmitterNotifier;
 import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerificationJob;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerifier;
@@ -128,6 +129,29 @@ class ListingWiringTest {
             assertThat(context).hasSingleBean(ListingAppealCommandHandler.class);
             assertThat(context.getBean(ListingProperties.class).getFailThreshold()).isEqualTo(3);
         });
+    }
+
+    /**
+     * 配了 bot token 时，下架通知必须走<b>真实投递</b>而不是日志实现。
+     *
+     * <p>断言用 {@code isNotInstanceOf}（而不是 {@code isInstanceOf(TelegramSubmitterNotifier.class)}）
+     * 是刻意的：后者会让本测试在实现类存在之前就编译失败，红的原因变成"编译错误"而不是
+     * "装配错了"——那样就失去了它作为装配层 RED 的价值。
+     */
+    @Test
+    void submitterNotifierBecomesRealDeliveryWhenBotTokenPresent() {
+        listingRunner.withPropertyValues("tgg.listing.enabled=true", "tgg.webhook.bot-token=probe-token")
+                .run(context -> assertThat(context.getBean(SubmitterNotifier.class))
+                        .as("配了 TGG_BOT_TOKEN 就该真投递——否则提交者永远收不到下架告知")
+                        .isNotInstanceOf(LoggingSubmitterNotifier.class));
+    }
+
+    /** 反向：没 token 时退化为日志实现（显式降级，不是静默失败）。 */
+    @Test
+    void submitterNotifierFallsBackToLoggingWithoutBotToken() {
+        listingRunner.withPropertyValues("tgg.listing.enabled=true")
+                .run(context -> assertThat(context.getBean(SubmitterNotifier.class))
+                        .isInstanceOf(LoggingSubmitterNotifier.class));
     }
 
     @Test

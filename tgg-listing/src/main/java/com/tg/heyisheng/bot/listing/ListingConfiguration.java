@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.listing;
 
 import com.tg.heyisheng.bot.listing.notify.LoggingSubmitterNotifier;
 import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
+import com.tg.heyisheng.bot.listing.notify.TelegramSubmitterNotifier;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerificationJob;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerifier;
 import com.tg.heyisheng.bot.listing.verification.Sleeper;
@@ -98,15 +99,28 @@ public class ListingConfiguration {
     }
 
     /**
-     * 下架通知通道（设计文档 §6.4）。
+     * 下架通知通道（设计文档 §6.4）：<b>按 bot token 是否存在分流</b>。
      *
-     * <p>默认装配 {@link LoggingSubmitterNotifier}——它<b>只记日志、不真实投递</b>，
-     * 并在每次调用打 WARN 说明这一点（避免运维误以为提交者已收到告知）。
-     * 真实投递由部署方替换本 bean（生产配置类给一个 {@code @Primary} 实现即可）。
+     * <p>有 token → {@link TelegramSubmitterNotifier}（Bot API {@code sendMessage} 私聊提交者，附申诉指引）；
+     * 无 token → {@link LoggingSubmitterNotifier}（只记日志）并打 <b>WARN</b>。
+     *
+     * <p><b>为什么不干脆只留日志实现</b>：那样等于「不论怎么配，提交者都收不到告知」
+     * ——同一项目里硬红线封禁能真发、而通知永远发不出，这个不对称本身就是缺口。
+     * 真投递在此落地后，部署方只需按 README 注入 {@code TGG_BOT_TOKEN} 即可获得完整闭环
+     * （下架 → 告知 → 申诉入口）。走自建网关/代理时替换本 bean 即可（接口不变，
+     * 契约仍是「实现必须自行吞异常」）。
+     *
+     * <p><b>降级是显式的</b>：无 token 时不是静默退回日志，而是启动期就 WARN 说明
+     * 「提交者不会收到任何告知」，避免运维误以为通知已生效。
      */
     @Bean
-    public SubmitterNotifier submitterNotifier() {
-        return new LoggingSubmitterNotifier();
+    public SubmitterNotifier submitterNotifier(@Value("${tgg.webhook.bot-token:}") String botToken) {
+        if (botToken == null || botToken.isBlank()) {
+            log.warn("未配置 TGG_BOT_TOKEN：下架通知退化为日志实现——提交者不会收到任何告知；"
+                    + "注入 token 后自动切换为 Bot API 真实投递（需提交者曾与 bot 私聊过）。");
+            return new LoggingSubmitterNotifier();
+        }
+        return new TelegramSubmitterNotifier(botToken);
     }
 
     /** 每日凌晨的链接验证任务（判失效时经 {@link SubmitterNotifier} 通知提交者）。 */
