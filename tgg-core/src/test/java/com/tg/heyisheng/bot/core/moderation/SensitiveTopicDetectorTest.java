@@ -11,8 +11,10 @@ import static org.mockito.Mockito.when;
 /**
  * 敏感话题分级检测器测试（模块九 §10.5）。
  *
- * <p><b>守两件事</b>：① 分级**不是红线**（{@code hardLine=false}，绝不触发封禁）；
- * ② 群标签豁免是**按话题**的，不是「有标签就全豁免」。
+ * <p><b>话题集必须以 V5.0 原文为准</b>：分类定义 = 恐怖活动 / 宗教主义 / 国际政治 / 政治；
+ * 不可豁免 = 恐怖活动 / 极端主义 / 煽动战争。此前天枢的推测稿把它写成了
+ * gambling / adult / finance… 并让「标签一豁免就全免」——本类即这两条的护栏
+ * （冲突清单见 `.rivet/HANDOFF.md` 关键产物段）。
  */
 class SensitiveTopicDetectorTest {
 
@@ -25,45 +27,47 @@ class SensitiveTopicDetectorTest {
         when(tags.tagsOf(CHAT)).thenReturn(Set.of(values));
     }
 
+    private static String ruleIds(ModerationVerdict verdict) {
+        return String.join("|", verdict.matchedRuleIds());
+    }
+
     @Test
-    void flagsSensitiveTopicAtItsLevel() {
+    void flagsTheFourDocumentedTopics() {
         groupTags();
 
-        ModerationVerdict verdict = detector.inspect(CHAT, "快来博彩下注，稳赚不赔").orElseThrow();
-
-        assertThat(verdict.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
-        assertThat(verdict.hardLine()).as("敏感话题是分级、不是红线——绝不触发封禁").isFalse();
-        assertThat(verdict.matchedRuleIds()).containsExactly("SENSITIVE_GAMBLING");
+        assertThat(ruleIds(detector.inspect(CHAT, "招募圣战分子，教做炸弹").orElseThrow()))
+                .as("恐怖活动").contains("SENSITIVE_TERRORISM");
+        assertThat(ruleIds(detector.inspect(CHAT, "宣传宗教极端主义").orElseThrow()))
+                .as("宗教主义").contains("SENSITIVE_RELIGIONISM");
+        assertThat(ruleIds(detector.inspect(CHAT, "聊聊国际政治与制裁").orElseThrow()))
+                .as("国际政治").contains("SENSITIVE_INTL_POLITICS");
+        assertThat(ruleIds(detector.inspect(CHAT, "组织游行抗议选举结果").orElseThrow()))
+                .as("政治").contains("SENSITIVE_POLITICS");
     }
 
     @Test
-    void groupTagExemptsThatTopic() {
-        groupTags("gambling");
-
-        assertThat(detector.inspect(CHAT, "博彩下注"))
-                .as("本群已声明 gambling → 该话题豁免").isEmpty();
-    }
-
-    @Test
-    void exemptionIsPerTopicNotGlobal() {
-        groupTags("gambling");
-
-        ModerationVerdict verdict = detector.inspect(CHAT, "荐股带单，内部消息").orElseThrow();
-
-        assertThat(verdict.matchedRuleIds())
-                .as("豁免只对声明的话题生效——声明 gambling 不该顺带豁免 finance")
-                .containsExactly("SENSITIVE_FINANCE");
-    }
-
-    @Test
-    void takesHighestLevelAcrossTopics() {
+    void sensitiveTopicsAreNeverHardLine() {
         groupTags();
 
-        ModerationVerdict verdict = detector.inspect(CHAT, "博彩下注，另外聊聊政治选举").orElseThrow();
+        assertThat(detector.inspect(CHAT, "组织游行抗议").orElseThrow().hardLine())
+                .as("敏感话题是分级、不是红线——绝不触发封禁").isFalse();
+    }
 
-        assertThat(verdict.riskLevel()).as("取命中话题的最高等级").isEqualTo(RiskLevel.MEDIUM);
-        assertThat(verdict.matchedRuleIds())
-                .containsExactlyInAnyOrder("SENSITIVE_GAMBLING", "SENSITIVE_POLITICS");
+    @Test
+    void groupTagExemptsExemptableTopics() {
+        groupTags("politics");
+
+        assertThat(detector.inspect(CHAT, "组织游行抗议"))
+                .as("本群声明 politics → 该话题豁免").isEmpty();
+    }
+
+    @Test
+    void nonExemptableTopicsIgnoreGroupTags() {
+        groupTags("terrorism", "religionism", "intl_politics", "politics");
+
+        assertThat(detector.inspect(CHAT, "招募圣战分子，教做炸弹"))
+                .as("恐怖活动 / 极端主义 / 煽动战争 —— **不可豁免**，声明标签也不行")
+                .isPresent();
     }
 
     @Test

@@ -103,22 +103,25 @@ class GroupTopicTagServiceTest {
         verify(repository, times(2)).findByChatIdOrderByIdAsc(CHAT);
     }
 
-    @Test
-    void hasTagIsCaseInsensitiveAndNullSafe() {
-        when(repository.findByChatIdOrderByIdAsc(CHAT)).thenReturn(List.of(tag("gambling")));
-
-        assertThat(service.hasTag(CHAT, "Gambling")).isTrue();
-        assertThat(service.hasTag(CHAT, null)).isFalse();
-    }
-
     // ---------- 命令层 ----------
 
     @Test
-    void commandAddsAndReports() {
+    void commandAddsExemptableTopicAndReports() {
+        when(repository.findByChatIdAndTag(CHAT, "politics")).thenReturn(Optional.empty());
+
+        assertThat(text(new GroupTagCommandHandler(service).handle(ctx("add politics"))))
+                .contains("已声明").contains("politics");
+    }
+
+    /** 审查抓到的 HIGH：对**非已定义话题**的标签必须诚实说明「不会产生豁免」，不得谎报已生效。 */
+    @Test
+    void commandWarnsWhenTagIsNotAnExemptableTopic() {
         when(repository.findByChatIdAndTag(CHAT, "gambling")).thenReturn(Optional.empty());
 
-        assertThat(text(new GroupTagCommandHandler(service).handle(ctx("add gambling"))))
-                .contains("已声明").contains("gambling");
+        String reply = text(new GroupTagCommandHandler(service).handle(ctx("add gambling")));
+
+        assertThat(reply).contains("不会产生任何豁免");
+        assertThat(reply).as("应告知可豁免话题，便于群管自行发现合法标签名").contains("politics");
     }
 
     @Test

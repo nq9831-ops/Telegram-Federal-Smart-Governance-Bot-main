@@ -102,11 +102,6 @@ public class GroupTopicTagService {
         return tags;
     }
 
-    /** 该群是否声明了某标签（敏感话题豁免的判据）。 */
-    public boolean hasTag(long chatId, String tag) {
-        return tag != null && tagsOf(chatId).contains(tag.toLowerCase(Locale.ROOT));
-    }
-
     /** 管理命令用的展示列表（含审计字段）。 */
     public List<GroupTopicTag> listOf(long chatId) {
         return repository.findByChatIdOrderByIdAsc(chatId);
