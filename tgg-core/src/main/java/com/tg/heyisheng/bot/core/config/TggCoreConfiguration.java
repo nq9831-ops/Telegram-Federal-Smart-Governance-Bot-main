@@ -14,6 +14,12 @@ import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
+import com.tg.heyisheng.bot.core.notify.NotificationRateLimiter;
+import com.tg.heyisheng.bot.core.notify.NotificationSender;
+import com.tg.heyisheng.bot.core.notify.TelegramNotificationSender;
+
+import java.time.Clock;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
 import com.tg.heyisheng.bot.core.moderation.GroupTopicTagService;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
@@ -222,18 +228,38 @@ public class TggCoreConfiguration {
     }
 
     /**
-     * 敏感话题分级检测器（模块九 §10.5）——<b>默认关闭</b>：不设
-     * {@code tgg.moderation.sensitive-grading-enabled=true} 时本类不产生该 bean，
-     * {@code UpdateDispatcher} 走 null 分支，审核主链路与既有行为逐字不变。
+     * 通知出口（模块十 §11.1）。
+     *
+     * <p><b>按 bot token 分流</b>（照 listing 的 {@code SubmitterNotifier} 范式）：有 token →
+     * 经主动通道私聊真投递；无 token → 日志实现并打 <b>WARN</b>，不做静默。
+     * 频率门用内存窗口（本项目未引 Redis，理由同 {@code InMemoryRateLimiter}）。
+     */
+    @Bean
+    public NotificationDispatcher notificationDispatcher(ModerationActionSender moderationActionSender,
+                                                         @Value("${tgg.webhook.bot-token:}") String botToken) {
+        NotificationSender sender;
+        if (botToken == null || botToken.isBlank()) {
+            log.warn("未配置 TGG_BOT_TOKEN：通知退化为日志实现——用户不会在自己的私聊里收到任何通知"
+                    + "（含「你被禁言了」这类权益变动）。注入 token 后自动切换为真实投递。");
+            sender = NotificationSender.logging();
+        } else {
+            sender = new TelegramNotificationSender(moderationActionSender);
+        }
+        return new NotificationDispatcher(sender, new NotificationRateLimiter(Clock.systemUTC()));
+    }
+
+    /**
+     * 敏感话题分级与递进处置（模块九 §10.5）；不设置即关闭该能力。
      */
     @Bean
     @ConditionalOnProperty(prefix = "tgg.moderation", name = "sensitive-grading-enabled",
             havingValue = "true")
     public SensitiveTopicGuard sensitiveTopicGuard(GroupTopicTagService groupTopicTagService,
                                                    SensitiveTopicStrikeService strikeService,
-                                                   ModerationActionSender actionSender) {
+                                                   ModerationActionSender actionSender,
+                                                   NotificationDispatcher notificationDispatcher) {
         return new SensitiveTopicGuard(new SensitiveTopicDetector(groupTopicTagService),
-                strikeService, actionSender);
+                strikeService, actionSender, notificationDispatcher);
     }
 
     /**

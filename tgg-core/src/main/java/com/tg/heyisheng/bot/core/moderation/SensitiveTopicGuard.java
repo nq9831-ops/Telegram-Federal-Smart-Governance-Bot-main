@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.RestrictChatMember;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.ChatPermissions;
+import com.tg.heyisheng.bot.core.notify.Notification;
+import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
+import com.tg.heyisheng.bot.core.notify.NotificationLevel;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -41,21 +44,26 @@ public class SensitiveTopicGuard {
     private final SensitiveTopicDetector detector;
     private final SensitiveTopicStrikeService strikes;
     private final ModerationActionSender actionSender;
+    /** 模块十的通知出口；为 null 表示未装配（此时不通知，但处置照常）。 */
+    private final NotificationDispatcher notifications;
     private final Clock clock;
 
     public SensitiveTopicGuard(SensitiveTopicDetector detector,
                                SensitiveTopicStrikeService strikes,
-                               ModerationActionSender actionSender) {
-        this(detector, strikes, actionSender, Clock.systemUTC());
+                               ModerationActionSender actionSender,
+                               NotificationDispatcher notifications) {
+        this(detector, strikes, actionSender, notifications, Clock.systemUTC());
     }
 
     SensitiveTopicGuard(SensitiveTopicDetector detector,
                         SensitiveTopicStrikeService strikes,
                         ModerationActionSender actionSender,
+                        NotificationDispatcher notifications,
                         Clock clock) {
         this.detector = detector;
         this.strikes = strikes;
         this.actionSender = actionSender == null ? ModerationActionSender.noop() : actionSender;
+        this.notifications = notifications;
         this.clock = clock;
     }
 
@@ -125,6 +133,13 @@ public class SensitiveTopicGuard {
         if (strike >= FEDERATION_STRIKE) {
             // 模块九侧到此为止：联邦广播需模块七/八联动（见类 javadoc）。留痕以便运维与后续接线核对。
             log.warn("敏感话题累计 {} 次（已达联邦标记档）——实际广播待模块七/八联动接入", strike);
+        }
+
+        // 模块十：把「你被禁言了」告诉本人——权益变动必须让当事人知情，
+        // 否则冤处置会在无人知晓的情况下持续生效。通知只带结论与次数，**不含消息正文**。
+        if (notifications != null) {
+            notifications.notify(new Notification(NotificationLevel.IMPORTANT, userId,
+                    "你在本群因敏感话题被禁言 24 小时（累计第 " + strike + " 次）。"));
         }
         return true;
     }

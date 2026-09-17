@@ -36,8 +36,15 @@ class SensitiveTopicGuardTest {
     private final GroupTopicTagService tags = mock(GroupTopicTagService.class);
     private final SensitiveTopicStrikeService strikes = mock(SensitiveTopicStrikeService.class);
     private final List<BotApiMethod<?>> sent = new ArrayList<>();
+    private final List<com.tg.heyisheng.bot.core.notify.Notification> notified = new ArrayList<>();
     private final SensitiveTopicGuard guard = new SensitiveTopicGuard(
-            new SensitiveTopicDetector(tags), strikes, sent::add, Clock.fixed(NOW, ZoneOffset.UTC));
+            new SensitiveTopicDetector(tags), strikes, sent::add,
+            new com.tg.heyisheng.bot.core.notify.NotificationDispatcher(
+                    (id, text) -> notified.add(new com.tg.heyisheng.bot.core.notify.Notification(
+                            com.tg.heyisheng.bot.core.notify.NotificationLevel.IMPORTANT, id, text)),
+                    new com.tg.heyisheng.bot.core.notify.NotificationRateLimiter(
+                            Clock.fixed(NOW, ZoneOffset.UTC))),
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     @BeforeEach
     void noDeclaredTags() {
@@ -54,6 +61,7 @@ class SensitiveTopicGuardTest {
         assertThat(outcome.muted()).as("首次不该禁言").isFalse();
         assertThat(sent).hasSize(1);
         assertThat(sent.get(0)).isInstanceOf(SendMessage.class);
+        assertThat(notified).as("首次只有群内警告，没有「被禁言」的通知").isEmpty();
     }
 
     @Test
@@ -68,6 +76,8 @@ class SensitiveTopicGuardTest {
         assertThat(((RestrictChatMember) sent.get(0)).getUntilDate())
                 .as("禁言 24h")
                 .isEqualTo((int) NOW.plus(Duration.ofHours(24)).getEpochSecond());
+        assertThat(notified).as("禁言是权益变动——必须通知当事人（模块十）").hasSize(1);
+        assertThat(notified.get(0).text()).contains("禁言");
     }
 
     @Test
