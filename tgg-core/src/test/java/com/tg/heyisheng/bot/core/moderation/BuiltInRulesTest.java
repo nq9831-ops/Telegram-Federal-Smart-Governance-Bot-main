@@ -56,8 +56,8 @@ class BuiltInRulesTest {
 
     @Test
     void flagsHumanTrafficking() {
-        assertThat(hitsHard("HARD_TRAFFICKING", "包吃住包机票，月入三万，出境务工")).isTrue();
-        assertThat(hitsHard("HARD_TRAFFICKING", "缅北科技园大量招人")).isTrue();
+        assertThat(hitsHard("HARD_TRAFFICKING", "包机票，月入5万，出境务工")).isTrue();
+        assertThat(hitsHard("HARD_TRAFFICKING", "无需经验不要学历，境外务工包吃住")).isTrue();
     }
 
     @Test
@@ -66,5 +66,26 @@ class BuiltInRulesTest {
                 .as("境内正常招聘不得被误伤").isFalse();
         assertThat(hits("海外高薪岗位，正规工作签证"))
                 .as("裸「高薪 + 海外」不得进红线——那会误伤正规海外招聘").isFalse();
+    }
+
+    /** 审查抓到的误封（HIGH）：`\d{1,2}岁` 覆盖 1–99 岁，成年人内容会被当「未成年」封禁。 */
+    @Test
+    void doesNotFlagAdultAgeAsMinor() {
+        assertThat(hits("35岁 开房")).as("两位数年龄不是「未成年」代理——成年人内容不得被封").isFalse();
+        assertThat(hits("45岁 裸聊")).isFalse();
+    }
+
+    /** 审查抓到的误封（HIGH）：裸地名分支零共现，反诈 / 新闻讨论会被误封。 */
+    @Test
+    void doesNotFlagAntiFraudPublicity() {
+        assertThat(hits("反诈宣传：警惕缅北园区的招工骗局"))
+                .as("反诈宣传提及地名不得被封").isFalse();
+        assertThat(hits("新闻报道：警方捣毁缅北诈骗窝点")).isFalse();
+    }
+
+    /** 审查抓到的漏判（MEDIUM）：共现是有序的——性话题词在前、「未成年」在后同样该拦。 */
+    @Test
+    void flagsReversedOrderGrooming() {
+        assertThat(hitsHard("HARD_GROOMING", "求裸照，未成年也可以")).isTrue();
     }
 }
