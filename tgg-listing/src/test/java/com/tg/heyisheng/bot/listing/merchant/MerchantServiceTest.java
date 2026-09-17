@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -58,6 +59,12 @@ class MerchantServiceTest {
         merchant.beginReview(NOW);
         merchant.decide(Merchant.Status.APPROVED, NOW);
         merchant.markDepositPending(NOW);
+        return merchant;
+    }
+
+    private static Merchant active() {
+        Merchant merchant = depositPending();
+        merchant.markActive(NOW);
         return merchant;
     }
 
@@ -205,5 +212,35 @@ class MerchantServiceTest {
         assertThat(serviceWith(null).decide(99L, Merchant.Status.APPROVED)).isEmpty();
         assertThat(serviceWith(null).markDepositPending(99L)).isEmpty();
         assertThat(serviceWith(null).markActive(99L)).isEmpty();
+        assertThat(serviceWith(null).evaluateTier(99L, BigDecimal.TEN, 0L)).isEmpty();
+    }
+
+    // ---------- 等级评定 ----------
+
+    @Test
+    void evaluateTierUsesLedgerScoreAndDeposit() {
+        Merchant merchant = active();
+        repositoryReturns(merchant);
+        when(creditService.scoreOf(CreditSubjectType.MERCHANT, MERCHANT_ID)).thenReturn(120);
+
+        assertThat(serviceWith(creditService)
+                .evaluateTier(MERCHANT_ID, new BigDecimal("1000"), 100L)).isPresent();
+
+        assertThat(merchant.getTier())
+                .as("分 120 + 保证金 1000 + 流水 100 = GOLD")
+                .isEqualTo("GOLD");
+    }
+
+    @Test
+    void evaluateTierFallsBackToConfiguredScoreWhenCreditModuleAbsent() {
+        Merchant merchant = active();
+        repositoryReturns(merchant);
+        properties.setInitialScore(500);
+
+        serviceWith(null).evaluateTier(MERCHANT_ID, new BigDecimal("100"), 0L);
+
+        assertThat(merchant.getTier())
+                .as("模块七未启用时用配置初值代表「未受损的默认声誉」，而不是把商家评为 NONE")
+                .isEqualTo("BRONZE");
     }
 }

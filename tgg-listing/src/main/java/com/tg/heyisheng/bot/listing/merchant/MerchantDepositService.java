@@ -137,6 +137,9 @@ public class MerchantDepositService {
         deposits.save(deposit);
 
         merchants.markActive(merchantId);
+        // 入驻成功即评定等级（设计文档 §2 数据流：…→ 保证金 → 等级评定 → ACTIVE）。
+        // 流水量本阶段无数据源（交易属模块十二），故传 0——没有数据就不虚升等级。
+        merchants.evaluateTier(merchantId, deposit.getAmount(), 0L);
         log.info("保证金已锁仓，商家入驻完成：商家 #{} ref={}。", merchantId, ref);
         return Optional.of(deposit);
     }

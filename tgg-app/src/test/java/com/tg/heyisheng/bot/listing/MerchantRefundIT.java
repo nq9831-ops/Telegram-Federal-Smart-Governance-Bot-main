@@ -186,6 +186,11 @@ class MerchantRefundIT {
                 "SELECT score FROM credit_scores WHERE subject_type = 'MERCHANT' AND subject_id = ?",
                 Integer.class, merchantId);
         assertThat(score).as("入驻成功同时初始化了商家信用分").isEqualTo(500);
+
+        assertThat(merchantRepository.findById(merchantId).orElseThrow().getTier())
+                .as("锁仓成功即完成等级评定（设计文档 §2 数据流末段）；"
+                        + "交易流水本阶段无数据源（传 0），故最高只到 BRONZE")
+                .isEqualTo("BRONZE");
     }
 
     @Test

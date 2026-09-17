@@ -54,3 +54,20 @@ tgg:
     nodes: ${TGG_FEDERATION_NODES:}
     # 联邦管理员 userId（全局白名单，逗号分隔）；为空时 /pending /approve /reject 对任何人不可用。
     admins: ${TGG_FEDERATION_ADMINS:}
+  listing:
+    # 模块五 · 群组收录：默认关闭。不启用则收录库、链接验证任务、/listing_* 命令均不装配。
+    enabled: ${TGG_LISTING_ENABLED:false}
+    # 显式映射多词键：Spring 默认会把 verifyCron 推导成 TGG_LISTING_VERIFYCRON（去连字符），
+    # 与文档惯用的下划线写法不符，故逐个显式映射（同 tgg.credit.private-key 的处理）。
+    verify-cron: ${TGG_LISTING_VERIFY_CRON:0 0 3 * * *}
+    fail-threshold: ${TGG_LISTING_FAIL_THRESHOLD:3}
+    retry-times: ${TGG_LISTING_RETRY_TIMES:2}
+    retry-interval-minutes: ${TGG_LISTING_RETRY_INTERVAL_MINUTES:5}
+    dispute-window-days: ${TGG_LISTING_DISPUTE_WINDOW_DAYS:7}
+  merchant:
+    # 模块六 · 商家收录：默认关闭。不启用则入驻、复核、保证金、/merchant_* 命令均不装配。
+    enabled: ${TGG_MERCHANT_ENABLED:false}
+    # 显式映射多词键（同上理由）：Spring 默认推导为 TGG_MERCHANT_INITIALSCORE。
+    initial-score: ${TGG_MERCHANT_INITIAL_SCORE:500}
+    # 资质复核人 userId（全局白名单，逗号分隔）；为空则启动 WARN，且 /merchant_review 对任何人不可用。
+    reviewers: ${TGG_MERCHANT_REVIEWERS:}

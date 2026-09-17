@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -138,10 +139,42 @@ public class MerchantService {
         return activated;
     }
 
-    /** 记录等级评定结果（等级由 Wave 6 的 {@code MerchantTierEvaluator} 产出）。 */
+    /** 记录等级评定结果（等级由 {@link MerchantTierEvaluator} 产出）。 */
     @Transactional
     public Optional<Merchant> assignTier(long merchantId, String tier) {
         return transition(merchantId, merchant -> merchant.assignTier(tier, clock.instant()));
+    }
+
+    /**
+     * 按「信用分 + 保证金 + 流水量」评定等级并写入（设计文档 §3.4）。
+     *
+     * <p><b>信用分从账本读</b>（{@code CreditSubjectType.MERCHANT}）。模块七未启用时退回
+     * {@code tgg.merchant.initial-score}——那时账本里本来就没有商家分，用配置初值代表
+     * 「未受损的默认声誉」比用 0 更贴近事实（用 0 会让所有商家都评成 {@code NONE}，
+     * 把「没开信用模块」伪装成「商家声誉差」）。
+     *
+     * @param depositAmount     保证金金额（判定输入之一）
+     * @param transactionVolume 交易流水量；本阶段无数据源，调用方传 0
+     */
+    @Transactional
+    public Optional<Merchant> evaluateTier(long merchantId, BigDecimal depositAmount, long transactionVolume) {
+        Optional<Merchant> found = merchants.findById(merchantId);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        Merchant merchant = found.get();
+        MerchantTierEvaluator.Tier tier =
+                MerchantTierEvaluator.evaluate(currentCreditScore(merchantId), depositAmount, transactionVolume);
+        merchant.assignTier(tier.name(), clock.instant());
+        return Optional.of(merchants.save(merchant));
+    }
+
+    /** 商家当前信用分（模块七未启用时用配置初值，理由见 {@link #evaluateTier}）。 */
+    private int currentCreditScore(long merchantId) {
+        if (creditService == null) {
+            return properties.getInitialScore();
+        }
+        return creditService.scoreOf(CreditSubjectType.MERCHANT, merchantId);
     }
 
     /**
