@@ -77,6 +77,13 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | `TGG_CREDIT_ENABLED` | `false` | 模块七信用分；启用时缺 `TGG_CREDIT_PRIVATE_KEY`（Ed25519 PKCS#8 Base64 私钥）即启动失败 |
 | `TGG_FEDERATION_ENABLED` | `false` | 模块八联邦；启用时 `TGG_FEDERATION_NODES`（`url\|公钥Base64`，逗号分隔）**为空即启动失败** |
 | `TGG_FEDERATION_ADMINS` | 空 | 联邦管理员 userId（**全局**白名单，逗号分隔）；为空则 `/pending`·`/approve`·`/reject` 不可用 |
+| `TGG_LISTING_ENABLED` | `false` | 模块五 · 群组收录；启用后 `/listing_add`·`/listing_list`·`/listing_appeal` 与每日链接验证任务才装配 |
+| `TGG_LISTING_VERIFY_CRON` | `0 0 3 * * *` | 收录链接的定时验证 cron（到点扫描全库、连续 3 次失败转软删下架） |
+| `TGG_MERCHANT_ENABLED` | `false` | 模块六 · 商家收录；启用后 `/merchant_*` 四个命令与保证金账本才装配 |
+| `TGG_MERCHANT_REVIEWERS` | 空 | 资质复核人与保证金操作人 userId（**全局**白名单，逗号分隔）；为空则 `/merchant_review`·`/merchant_deposit` 对任何人不可用 |
+| `TGG_MERCHANT_INITIAL_SCORE` | `500` | 商家入驻成功时写入的初始信用分（需同时 `TGG_CREDIT_ENABLED=true`，否则信用分不初始化） |
+
+> 📘 **模块五/六 的部署验证步骤**见 `docs/DEPLOYMENT-VERIFICATION.md` N 段与配套的 `docs/DEPLOYMENT-RUNBOOK.md`（后者含可照抄的命令、预期输出与失败排查表）。
 
 ## 已实现 / 未实现
 
@@ -88,7 +95,8 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | 七 · 信用分体系（三套信用分、规则引擎、处罚令） | 已完成（默认关闭） |
 | 八 · 联邦治理（对等广播、入站验签、跨群封禁、申诉） | 已完成（默认关闭） |
 | 九 · AI 审核（L1 正则 + 四层流水线 + 复核队列 + L3 云端 / L2·L4 接入位） | 已完成（L2/L3/L4 默认关闭） |
-| 五/六（收录）、十（通知审计）、十一（Web 后台）、十二（TON 担保） | **未开始** |
+| **五/六 · 收录（群组收录、商家收录与保证金）** | **已完成（默认关闭）** |
+| 十（通知审计）、十一（Web 后台）、十二（TON 担保） | **未开始** |
 
 ## 文档
 

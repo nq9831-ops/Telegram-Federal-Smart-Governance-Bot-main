@@ -34,6 +34,12 @@ tgg:
     admins: ${TGG_PERMISSION_ADMINS:}
   failover:
     enabled: ${TGG_FAILOVER_ENABLED:false}
+  admission:
+    # 模块四 · 准入与验证：默认关闭。多词键必须显式映射——Spring 默认会把 timeoutSeconds
+    # 推导成 TGG_ADMISSION_TIMEOUTSECONDS（去连字符），与文档惯用的下划线写法不符。
+    enabled: ${TGG_ADMISSION_ENABLED:false}
+    timeout-seconds: ${TGG_ADMISSION_TIMEOUT_SECONDS:120}
+    observation-seconds: ${TGG_ADMISSION_OBSERVATION_SECONDS:604800}
   ai:
     deepseek:
       # L3 云端审核：默认关闭。启用后消息正文会发送至 DeepSeek（仅正文，不含身份）。

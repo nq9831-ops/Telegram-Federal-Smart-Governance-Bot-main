@@ -76,6 +76,19 @@ class ConfigurationMappingTest {
         assertThat(yml.getProperty("tgg.merchant.reviewers")).isEqualTo("${TGG_MERCHANT_REVIEWERS:}");
     }
 
+    /** 模块四：准入与验证的两个多词键也要显式映射（本波次补齐，此前 yml 里没有 admission 段）。 */
+    @Test
+    void admissionKeysAreExplicitlyMapped() throws Exception {
+        PropertySource<?> yml = yaml();
+
+        assertThat(yml.getProperty("tgg.admission.enabled")).isEqualTo("${TGG_ADMISSION_ENABLED:false}");
+        assertThat(yml.getProperty("tgg.admission.timeout-seconds"))
+                .as("多词键必须显式映射（否则按 TGG_ADMISSION_TIMEOUT_SECONDS 设的值会静默落空）")
+                .isEqualTo("${TGG_ADMISSION_TIMEOUT_SECONDS:120}");
+        assertThat(yml.getProperty("tgg.admission.observation-seconds"))
+                .isEqualTo("${TGG_ADMISSION_OBSERVATION_SECONDS:604800}");
+    }
+
     /** 主开关默认必须为 false——「默认关闭」是本项目的装配契约，不该被 yml 悄悄改写。 */
     @Test
     void moduleSwitchesDefaultToDisabled() throws Exception {
