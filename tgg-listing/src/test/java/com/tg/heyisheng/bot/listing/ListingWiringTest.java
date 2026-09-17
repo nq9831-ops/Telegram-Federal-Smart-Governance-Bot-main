@@ -5,6 +5,7 @@ import com.tg.heyisheng.bot.listing.command.ListingAppealCommandHandler;
 import com.tg.heyisheng.bot.listing.command.ListingListCommandHandler;
 import com.tg.heyisheng.bot.listing.merchant.MerchantConfiguration;
 import com.tg.heyisheng.bot.listing.merchant.MerchantProperties;
+import com.tg.heyisheng.bot.listing.merchant.MerchantRepository;
 import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerificationJob;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerifier;
@@ -69,7 +70,10 @@ class ListingWiringTest {
                     ListingAppealCommandHandler.class);
 
     private final ApplicationContextRunner merchantRunner = new ApplicationContextRunner()
-            .withUserConfiguration(MerchantConfiguration.class);
+            .withUserConfiguration(MerchantConfiguration.class)
+            // MerchantConfiguration 的 merchantService 需要一个仓库 bean；ApplicationContextRunner
+            // 不加载 JPA，故手工补替身（与上面的 RepositoryStub 同款理由）。
+            .withBean(MerchantRepository.class, () -> mock(MerchantRepository.class));
 
     @Test
     void listingDisabledByDefaultProducesNoListingBeans() {

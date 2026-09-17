@@ -81,6 +81,37 @@ public class CreditService {
     }
 
     /**
+     * 显式初始化某主体的账本分值（幂等）。
+     *
+     * <p><b>为什么需要它</b>：{@link #apply} 首次记账时用的是本类硬编码的 {@link #INITIAL_SCORE}，
+     * 而模块六（商家收录）要求商家初值为 V5.0 规格的 500 —— 一个共用常量在此处不够用。
+     * 本方法把「初值」交还给调用方：商家入驻成功时以 {@code tgg.merchant.initial-score} 建行，
+     * <b>不改</b> {@link #INITIAL_SCORE}（那是三套分共用的既有契约，改它会波及个人/群组分）。
+     *
+     * <p><b>幂等</b>：账本行已存在时静默跳过（{@code INSERT IGNORE}），<b>不覆盖</b>既有分值
+     * ——「初始化」只能在无行时发生，绝不把一个已有分值的商家打回初值。
+     *
+     * <p><b>不做上下界夹取</b>：夹取只作用于增量路径 {@code CreditScoreRepository#applyDelta}；
+     * 本方法的 {@code initialScore} 原样写入。商家初值 500 高于 {@link #MAX_SCORE}（150）这一
+     * 模型落差属模块七的已知缺口（见 {@code docs/KNOWN-ISSUES.md}），不在本方法内「顺手修正」。
+     *
+     * @return {@code true} = 本次真的新建了账本行；{@code false} = 已有行（分值保持不变）
+     */
+    @Transactional
+    public boolean ensureInitialized(CreditSubjectType subjectType, long subjectId, int initialScore) {
+        if (subjectType == null) {
+            return false;
+        }
+        boolean created = repository.insertIfAbsent(subjectType.name(), subjectId, initialScore,
+                Instant.now()) > 0;
+        if (created) {
+            log.info("初始化信用账本：subjectType={} subjectHash={} initialScore={}",
+                    subjectType, idHasher.hash(subjectId), initialScore);
+        }
+        return created;
+    }
+
+    /**
      * 读取某主体当前分值（不存在时返回初始分）。
      *
      * <p>只读路径，供查询/展示与测试使用。

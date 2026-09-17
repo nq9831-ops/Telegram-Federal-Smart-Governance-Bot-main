@@ -1,11 +1,16 @@
 package com.tg.heyisheng.bot.listing.merchant;
 
+import com.tg.heyisheng.bot.credit.CreditService;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Clock;
 
 /**
  * 模块六 · 商家收录装配。
@@ -14,8 +19,8 @@ import org.springframework.context.annotation.Configuration;
  * bean，既有链路零影响。装配纪律同 {@code ListingConfiguration}——受门控的组件一律用
  * {@code @Bean} 集中收敛到本类，<b>不要</b>加 {@code @Component}。
  *
- * <p>本波（Wave 1）只落骨架：配置 + 迁移。入驻 / 复核 / 保证金等受门控服务在后续波以
- * {@code @Bean} 形式补入。
+ * <p>Waves 1–3 只落骨架：配置 + 迁移（V6 已建 {@code merchants} 等表）。Wave 4 起补入驻服务
+ * 与复核人判定；保证金（Wave 5）与等级评定（Wave 6）在后续波以 {@code @Bean} 形式补入。
  */
 @Configuration
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
@@ -39,4 +44,40 @@ public class MerchantConfiguration {
             log.info("模块六 · 商家收录已启用：初始信用分={}。", properties.getInitialScore());
         }
     }
+
+    /**
+     * 资质复核人判定（全局白名单，{@code tgg.merchant.reviewers}）。
+     *
+     * <p>非数字条目会在 {@code parsedReviewers()} 里于<b>装配期</b>抛出——配置错误应在启动时
+     * 暴露，而非运行期把某个复核人静默漏掉。
+     */
+    @Bean
+    public MerchantReviewGuard merchantReviewGuard() {
+        return new MerchantReviewGuard(properties.parsedReviewers());
+    }
+
+    /**
+     * 商家入驻服务（状态机）。
+     *
+     * <p>{@link CreditService} 经 {@link ObjectProvider} 取：模块六与模块七是两个<b>独立开关</b>，
+     * 信用模块未启用时返回 {@code null}，入驻照常可完成、信用分初始化记 WARN 跳过
+     * （降级可观测，而非静默漏写，也不会让上下文起不来）。
+     *
+     * <p>时钟用系统 UTC，<b>不</b>额外注册 {@code Clock} bean——与 {@code ListingConfiguration} 同款，
+     * 避免按类型注入歧义；测试的可注入性由构造参数保证。
+     */
+    @Bean
+    public MerchantService merchantService(MerchantRepository merchants,
+                                           ObjectProvider<CreditService> creditService) {
+        return new MerchantService(merchants, properties, creditService.getIfAvailable(),
+                Clock.systemUTC());
+    }
+
+    /*
+     * 命令处理器（/merchant_apply、/merchant_review、/merchant_status）**刻意不在这里 @Bean 装配**：
+     * 注册命令所需的 @BotCommand 注解本身元注解了 @Component，标注它的类必然进入组件扫描，
+     * 因此再在此处 @Bean 一次就会产生两个同类型实例 → CommandRegistry 会以「命令名冲突」
+     * 直接让上下文档启动失败。解法与 ListingAddCommandHandler / 模块八 AppealCommandHandler 一致：
+     * 命令类自持 @ConditionalOnProperty(tgg.merchant.enabled) 门控，门开才装配、门关一个都不产生。
+     */
 }

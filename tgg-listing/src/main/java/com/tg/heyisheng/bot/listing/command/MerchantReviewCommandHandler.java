@@ -1,0 +1,111 @@
+package com.tg.heyisheng.bot.listing.command;
+
+import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.listing.merchant.Merchant;
+import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
+import com.tg.heyisheng.bot.listing.merchant.MerchantService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * {@code /merchant_review <商家编号> approve|reject|need-more} —— 商家资质人工复核（设计文档 §6.1）。
+ *
+ * <p><b>权限载体是全局白名单，不是 {@code @BotCommand.requiredPermission}</b>：
+ * 复核人由 {@code tgg.merchant.reviewers} 配置（{@link MerchantReviewGuard}），
+ * 因为资质复核是<b>平台层</b>动作，而 {@code Permission}/{@code Role} 是群内权能模型
+ * ——理由同 {@code FederationAdminGuard}（模块八）。故本命令不声明权限点，
+ * 门控在 handler 内完成。
+ *
+ * <p><b>非复核人返回 {@code null}（静默）</b>：与 {@code CommandDispatcher} 的「权限不足即静默」
+ * 语义一致——回复「权限不足」等于向无权者确认了命令存在。
+ *
+ * <p><b>状态机两条通道</b>：{@code SUBMITTED}/{@code NEED_MORE} 先经
+ * {@link MerchantService#beginReview} 进入 {@code UNDER_REVIEW}，再由
+ * {@link MerchantService#decide} 写入结论；已是 {@code UNDER_REVIEW} 的直接落结论。
+ * 其余状态（{@code APPROVED}/{@code DEPOSIT_PENDING}/{@code ACTIVE}/{@code REJECTED}）
+ * 不可复核——给出明确提示，而不是让实体的非法迁移异常穿透到分发层。
+ */
+@BotCommand(value = "merchant_review", description = "商家资质复核（复核人）")
+@ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
+public class MerchantReviewCommandHandler implements CommandHandler {
+
+    static final String USAGE = "用法：/merchant_review <商家编号> approve|reject|need-more";
+
+    private final MerchantService service;
+    private final MerchantReviewGuard guard;
+
+    public MerchantReviewCommandHandler(MerchantService service, MerchantReviewGuard guard) {
+        this.service = service;
+        this.guard = guard;
+    }
+
+    @Override
+    public BotApiMethod<?> handle(UpdateContext ctx) {
+        if (!guard.isReviewer(ctx.userId())) {
+            return null;
+        }
+
+        Parsed parsed = Parsed.of(ctx.commandArgs().orElse(null));
+        if (parsed == null) {
+            return reply(ctx, USAGE);
+        }
+
+        Optional<Merchant> found = service.find(parsed.merchantId());
+        if (found.isEmpty()) {
+            return reply(ctx, "未找到商家编号 " + parsed.merchantId() + "。");
+        }
+
+        Merchant.Status current = Merchant.Status.valueOf(found.get().getStatus());
+        if (current != Merchant.Status.SUBMITTED && current != Merchant.Status.UNDER_REVIEW
+                && current != Merchant.Status.NEED_MORE) {
+            return reply(ctx, "该申请当前状态为 " + current + "，不可复核。");
+        }
+        if (current != Merchant.Status.UNDER_REVIEW) {
+            service.beginReview(parsed.merchantId());
+        }
+        service.decide(parsed.merchantId(), parsed.decision());
+        return reply(ctx, "商家 #" + parsed.merchantId() + " 复核结论已写入：" + parsed.decision() + "。");
+    }
+
+    /** 命令操作数解析结果：目标商家编号 + 复核结论。 */
+    private record Parsed(long merchantId, Merchant.Status decision) {
+
+        /** 解析失败（缺参数 / 编号非数字 / 结论词不认识）返回 {@code null}。 */
+        static Parsed of(String args) {
+            if (args == null || args.isBlank()) {
+                return null;
+            }
+            String[] parts = args.trim().split("\\s+", 2);
+            if (parts.length < 2) {
+                return null;
+            }
+            long merchantId;
+            try {
+                merchantId = Long.parseLong(parts[0]);
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+            Merchant.Status decision = decisionOf(parts[1].trim().toLowerCase(Locale.ROOT));
+            return decision == null ? null : new Parsed(merchantId, decision);
+        }
+
+        private static Merchant.Status decisionOf(String word) {
+            return switch (word) {
+                case "approve", "approved" -> Merchant.Status.APPROVED;
+                case "reject", "rejected" -> Merchant.Status.REJECTED;
+                case "need-more", "need_more", "needmore" -> Merchant.Status.NEED_MORE;
+                default -> null;
+            };
+        }
+    }
+
+    private static SendMessage reply(UpdateContext ctx, String text) {
+        return SendMessage.builder().chatId(String.valueOf(ctx.chatId())).text(text).build();
+    }
+}
