@@ -46,3 +46,11 @@ tgg:
     # 显式映射：Spring 默认会把 privateKey 推导为 TGG_CREDIT_PRIVATEKEY（无下划线），与文档不符；
     # 启用模块七时必须注入 Ed25519 私钥（PKCS#8 Base64），缺失即启动失败（否则处罚令无法签名）。
     private-key: ${TGG_CREDIT_PRIVATE_KEY:}
+  federation:
+    # 模块八 · 联邦治理：默认关闭。不启用则对端广播、入站端点（POST /federation/penalty）均不装配。
+    enabled: ${TGG_FEDERATION_ENABLED:false}
+    # 对端节点清单：url|公钥Base64（逗号分隔）。启用时必填且非空，否则启动失败。
+    # 每个节点用自己的 TGG_CREDIT_PRIVATE_KEY 签名，其公钥须配到对端的本清单里。
+    nodes: ${TGG_FEDERATION_NODES:}
+    # 联邦管理员 userId（全局白名单，逗号分隔）；为空时 /pending /approve /reject 对任何人不可用。
+    admins: ${TGG_FEDERATION_ADMINS:}
