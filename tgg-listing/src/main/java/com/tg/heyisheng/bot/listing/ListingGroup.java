@@ -78,6 +78,37 @@ public class ListingGroup {
         this.updatedAt = createdAt;
     }
 
+    /**
+     * 验证成功：刷新最后验证时间并清零失败计数。
+     *
+     * <p>刻意<b>不</b>顺手把状态改回 ACTIVE——本方法只服务于「仍在 ACTIVE 的条目」，
+     * 让已被判失效的条目复活必须走申诉流程，不能由一次探测结果代劳。
+     */
+    public void markVerifiedOk(Instant now) {
+        this.failCount = 0;
+        this.lastVerifiedAt = now;
+        this.updatedAt = now;
+    }
+
+    /**
+     * 记录一次「真失效」：累加失败计数；达到阈值则置 {@link Status#SUSPENDED}（软删）。
+     *
+     * <p><b>只有 FAIL 能走到这里</b>——探测失败（ERROR）由服务层拦截，不得调用本方法，
+     * 否则一次网络抖动就会把好群推向失效（本模块最危险的失败模式）。
+     *
+     * @return {@code true} = 本次到达阈值、已软删
+     */
+    public boolean registerFailure(Instant now, int failThreshold) {
+        this.failCount++;
+        this.updatedAt = now;
+        if (this.failCount >= failThreshold) {
+            this.status = Status.SUSPENDED.name();
+            this.suspendedAt = now;
+            return true;
+        }
+        return false;
+    }
+
     public Long getId() {
         return id;
     }
