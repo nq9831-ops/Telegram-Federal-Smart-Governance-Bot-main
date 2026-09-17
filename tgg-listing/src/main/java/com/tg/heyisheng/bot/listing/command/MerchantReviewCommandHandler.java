@@ -61,7 +61,7 @@ public class MerchantReviewCommandHandler implements CommandHandler {
             return reply(ctx, "未找到商家编号 " + parsed.merchantId() + "。");
         }
 
-        Merchant.Status current = Merchant.Status.valueOf(found.get().getStatus());
+        Merchant.Status current = Merchant.parse(found.get().getStatus());
         if (current != Merchant.Status.SUBMITTED && current != Merchant.Status.UNDER_REVIEW
                 && current != Merchant.Status.NEED_MORE) {
             return reply(ctx, "该申请当前状态为 " + current + "，不可复核。");

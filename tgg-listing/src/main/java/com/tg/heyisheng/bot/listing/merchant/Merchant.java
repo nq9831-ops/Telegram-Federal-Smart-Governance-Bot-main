@@ -170,7 +170,7 @@ public class Merchant {
     }
 
     private void requireStatus(Status... allowed) {
-        Status current = Status.valueOf(this.status);
+        Status current = parse(this.status);
         for (Status candidate : allowed) {
             if (current == candidate) {
                 return;
@@ -178,6 +178,26 @@ public class Merchant {
         }
         throw new TggException("商家状态迁移非法：当前 " + current + "，本操作只允许 "
                 + Arrays.toString(allowed) + (id == null ? "" : "（商家 #" + id + "）"));
+    }
+
+    /**
+     * 解析状态字符串。
+     *
+     * <p><b>为什么不直接用 {@code Status.valueOf}</b>：状态值来自数据库列，一旦出现未知串
+     * （手工改库、未来迁移、脏数据），{@code valueOf} 抛的是 {@code IllegalArgumentException}
+     * ——它的语义是「调用方传了非法参数」，会一路穿透到命令分发层，被当成编程错误处理。
+     * 而真实语义是「数据不可信」。这里统一折成 {@link TggException} 并带上原值，
+     * 让上层能按业务异常处置。
+     */
+    public static Status parse(String raw) {
+        if (raw == null) {
+            throw new TggException("商家状态为空（数据异常）");
+        }
+        try {
+            return Status.valueOf(raw);
+        } catch (IllegalArgumentException ex) {
+            throw new TggException("无法识别的商家状态：" + raw + "（数据异常）");
+        }
     }
 
     public Long getId() {

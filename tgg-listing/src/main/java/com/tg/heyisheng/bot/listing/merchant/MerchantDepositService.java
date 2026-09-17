@@ -132,6 +132,14 @@ public class MerchantDepositService {
             throw new TggException("保证金锁仓只适用于 PENDING 状态，当前为 " + deposit.getState()
                     + "（商家 #" + merchantId + "）");
         }
+        // 商家侧的守卫也必须前置：markActive 在网关之后才调用，若那时才失败，
+        // 链上已锁仓而本地事务回滚——与上面的裂缝是同一条。
+        Merchant merchant = merchants.find(merchantId).orElseThrow(
+                () -> new TggException("商家 #" + merchantId + " 不存在，无法锁仓"));
+        if (!Merchant.Status.DEPOSIT_PENDING.name().equals(merchant.getStatus())) {
+            throw new TggException("商家 #" + merchantId + " 当前状态为 " + merchant.getStatus()
+                    + "，不可锁仓（需先开通保证金）");
+        }
         String ref = gateway.lock(merchantId, deposit.getAmount(), deposit.getCurrency());
         deposit.markLocked(ref, clock.instant());
         deposits.save(deposit);
@@ -198,6 +206,9 @@ public class MerchantDepositService {
             return Optional.empty();
         }
         MerchantDeposit deposit = found.get();
+        if (dispute == null) {
+            throw new TggException("结算分支不得为空（须为 NONE / UNRESOLVED / WITH_COMPENSATION）");
+        }
         if (!MerchantDeposit.State.FROZEN.name().equals(deposit.getState())) {
             throw new TggException("保证金结算只适用于 FROZEN 状态，当前为 " + deposit.getState()
                     + "（商家 #" + merchantId + "）");

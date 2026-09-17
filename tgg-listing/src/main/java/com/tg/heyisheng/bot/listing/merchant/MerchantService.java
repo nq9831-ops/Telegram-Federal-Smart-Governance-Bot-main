@@ -88,7 +88,7 @@ public class MerchantService {
     /** 该用户当前<b>在办</b>的申请（无则空）。用于抑制重复提交。 */
     public Optional<Merchant> findOpenByOwner(long ownerUserId) {
         return merchants.findByOwnerUserIdOrderByIdAsc(ownerUserId).stream()
-                .filter(merchant -> OPEN_STATUSES.contains(Merchant.Status.valueOf(merchant.getStatus())))
+                .filter(merchant -> OPEN_STATUSES.contains(Merchant.parse(merchant.getStatus())))
                 .findFirst();
     }
 

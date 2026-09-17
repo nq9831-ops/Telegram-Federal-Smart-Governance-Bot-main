@@ -330,6 +330,45 @@ class MerchantRefundIT {
                 .contains("尚未缴纳保证金");
     }
 
+    // ---------- /merchant_deposit 命令链路 ----------
+
+    @Test
+    void depositCommandActivatesMerchantAndInitializesCreditAndTier() throws Exception {
+        long merchantId = approvedMerchant();
+
+        assertThat(replyTo("/merchant_deposit " + merchantId + " 100.00000000", REVIEWER_USER))
+                .as("平台侧确认缴纳后应完成入驻")
+                .contains("保证金已确认");
+
+        assertThat(merchantStatusOf(merchantId)).isEqualTo(Merchant.Status.ACTIVE.name());
+        assertThat(stateOf(merchantId)).isEqualTo(MerchantDeposit.State.LOCKED.name());
+        assertThat(merchantRepository.findById(merchantId).orElseThrow().getTier())
+                .as("入驻即定级（无流水数据 → BRONZE）")
+                .isEqualTo("BRONZE");
+
+        Integer score = jdbcTemplate.queryForObject(
+                "SELECT score FROM credit_scores WHERE subject_type = 'MERCHANT' AND subject_id = ?",
+                Integer.class, merchantId);
+        assertThat(score).as("入驻成功同时初始化商家信用分").isEqualTo(500);
+    }
+
+    @Test
+    void depositCommandIsRestrictedToReviewersAndIsIdempotent() throws Exception {
+        long merchantId = approvedMerchant();
+
+        assertThat(updateDispatcher.dispatch(update("/merchant_deposit " + merchantId + " 100", OUTSIDER_USER)))
+                .as("非复核人应被静默拒绝")
+                .isEmpty();
+        assertThat(merchantStatusOf(merchantId))
+                .as("越权请求不得改动商家状态")
+                .isEqualTo(Merchant.Status.APPROVED.name());
+
+        replyTo("/merchant_deposit " + merchantId + " 100.00000000", REVIEWER_USER);
+        assertThat(replyTo("/merchant_deposit " + merchantId + " 100.00000000", REVIEWER_USER))
+                .as("已缴过的商家再缴一次应给明确提示，而不是重复开通")
+                .contains("无需重复");
+    }
+
     /** 经真实分发链发送命令，取回回复正文。 */
     private String replyTo(String commandText, long userId) throws Exception {
         Optional<BotApiMethod<?>> reply = updateDispatcher.dispatch(update(commandText, userId));

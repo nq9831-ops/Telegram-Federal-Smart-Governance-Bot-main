@@ -86,6 +86,20 @@ class MerchantDepositServiceTest {
         return deposit;
     }
 
+    /**
+     * 让 {@code lock} 的<b>商家侧预检</b>通过：商家处于 {@code DEPOSIT_PENDING}。
+     *
+     * <p>预检必须发生在 {@code gateway.lock} 之前（链上动作不可回滚），因此每个走 lock 的
+     * 用例都要先把它摆好，否则会在网关之前就被拒。
+     */
+    private void merchantAwaitingDeposit() {
+        Merchant merchant = new Merchant(1L, "店", null, null, null, NOW);
+        merchant.beginReview(NOW);
+        merchant.decide(Merchant.Status.APPROVED, NOW);
+        merchant.markDepositPending(NOW);
+        when(merchants.find(MERCHANT_ID)).thenReturn(Optional.of(merchant));
+    }
+
     // ---------- open ----------
 
     @Test
@@ -135,6 +149,7 @@ class MerchantDepositServiceTest {
     void lockAdvancesMerchantToActive() {
         MerchantDeposit deposit = pending();
         repositoryReturns(deposit);
+        merchantAwaitingDeposit();
         when(gateway.lock(MERCHANT_ID, AMOUNT, "USDT")).thenReturn(GATEWAY_REF);
 
         assertThat(service.lock(MERCHANT_ID)).isPresent();
@@ -148,6 +163,7 @@ class MerchantDepositServiceTest {
     void lockKeepsStateWhenGatewayFails() {
         MerchantDeposit deposit = pending();
         repositoryReturns(deposit);
+        merchantAwaitingDeposit();
         when(gateway.lock(anyLong(), any(), anyString()))
                 .thenThrow(new IllegalStateException("chain down"));
 
@@ -318,6 +334,38 @@ class MerchantDepositServiceTest {
         assertThat(service.freeze(99L, "退出", OPERATOR)).isEmpty();
         assertThat(service.settle(99L, MerchantDepositService.Dispute.NONE, null, null, OPERATOR)).isEmpty();
         assertThat(service.open(99L, AMOUNT, "USDT")).isEmpty();
+    }
+
+    /** 商家状态不满足时，链上零动作——审查 MED 的回归护栏。 */
+    @Test
+    void lockRejectsMerchantNotAwaitingDepositWithoutCallingGateway() {
+        MerchantDeposit deposit = pending();
+        repositoryReturns(deposit);
+        // 商家还停在 SUBMITTED（既没复核通过、也没开通缴纳）
+        when(merchants.find(MERCHANT_ID))
+                .thenReturn(Optional.of(new Merchant(1L, "店", null, null, null, NOW)));
+
+        assertThatThrownBy(() -> service.lock(MERCHANT_ID))
+                .as("商家不在 DEPOSIT_PENDING 时锁仓应被拒")
+                .isInstanceOf(TggException.class);
+
+        // 关键：链上动作在守卫之后——校验必须发生在 gateway.lock 之前
+        verify(gateway, never()).lock(anyLong(), any(), anyString());
+    }
+
+    /** 审查 LOW-1 的回归护栏：null 分支要给项目异常，不能是 NPE。 */
+    @Test
+    void settleRejectsNullDispute() {
+        MerchantDeposit deposit = frozen();
+        repositoryReturns(deposit);
+
+        assertThatThrownBy(() -> service.settle(MERCHANT_ID, null, null, null, OPERATOR))
+                .as("null 结算分支应被显式拒绝（TggException），而不是 NPE")
+                .isInstanceOf(TggException.class);
+
+        verify(gateway, never()).refund(anyLong(), anyString(), any());
+        verify(gateway, never()).deduct(anyLong(), anyString(), any(), anyString());
+        verify(deposits, never()).save(any());
     }
 
     /** 捕获 {@code records.save} 收到的全部动作类型（按调用顺序）。 */
