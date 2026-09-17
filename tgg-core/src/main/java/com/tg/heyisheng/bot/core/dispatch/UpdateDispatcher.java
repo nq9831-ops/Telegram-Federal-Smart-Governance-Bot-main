@@ -16,7 +16,7 @@ import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
-import com.tg.heyisheng.bot.core.moderation.SensitiveTopicDetector;
+import com.tg.heyisheng.bot.core.moderation.SensitiveTopicGuard;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
 import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleDetector;
@@ -65,8 +65,8 @@ public class UpdateDispatcher {
     private final RepeatedMessageDetector repeatedMessageDetector;
     /** 按群教学规则检测器（模块九 §10.3）；为 null 表示该能力未装配。 */
     private final TaughtRuleDetector taughtRuleDetector;
-    /** 敏感话题分级检测器（模块九 §10.5，按群 + 群标签豁免）；为 null 表示未启用。 */
-    private final SensitiveTopicDetector sensitiveTopicDetector;
+    /** 敏感话题的分级与<b>递进处置</b>编排（模块九 §10.5，按群 + 群标签豁免）；为 null 表示未启用。 */
+    private final SensitiveTopicGuard sensitiveTopicGuard;
     private final CallbackRouter callbackRouter;
     private final JoinVerificationService joinVerificationService;
     /** 信用事件发布通道（模块七）；默认 noop——未装配信用分时主链路零影响。 */
@@ -93,7 +93,7 @@ public class UpdateDispatcher {
         private BannedWordDetector bannedWordDetector;
         private RepeatedMessageDetector repeatedMessageDetector;
         private TaughtRuleDetector taughtRuleDetector;
-        private SensitiveTopicDetector sensitiveTopicDetector;
+        private SensitiveTopicGuard sensitiveTopicGuard;
         private CallbackRouter callbackRouter;
         private JoinVerificationService joinVerificationService;
         private CreditEventSink creditEventSink = CreditEventSink.noop();
@@ -159,9 +159,9 @@ public class UpdateDispatcher {
             return this;
         }
 
-        /** 敏感话题分级（模块九 §10.5）；不设置即关闭该能力。 */
-        public Builder sensitiveTopicDetector(SensitiveTopicDetector value) {
-            this.sensitiveTopicDetector = value;
+        /** 敏感话题分级与递进处置（模块九 §10.5）；不设置即关闭该能力。 */
+        public Builder sensitiveTopicGuard(SensitiveTopicGuard value) {
+            this.sensitiveTopicGuard = value;
             return this;
         }
 
@@ -198,7 +198,7 @@ public class UpdateDispatcher {
         this.bannedWordDetector = b.bannedWordDetector;
         this.repeatedMessageDetector = b.repeatedMessageDetector;
         this.taughtRuleDetector = b.taughtRuleDetector;
-        this.sensitiveTopicDetector = b.sensitiveTopicDetector;
+        this.sensitiveTopicGuard = b.sensitiveTopicGuard;
         this.callbackRouter = b.callbackRouter;
         this.joinVerificationService = b.joinVerificationService;
         this.creditEventSink = b.creditEventSink == null ? CreditEventSink.noop() : b.creditEventSink;
@@ -382,7 +382,7 @@ public class UpdateDispatcher {
     private void moderateInto(UpdateContext ctx, Message message) {
         if (message == null || (moderationLayer == null && moderationPipeline == null
                 && bannedWordDetector == null && repeatedMessageDetector == null
-                && taughtRuleDetector == null && sensitiveTopicDetector == null)) {
+                && taughtRuleDetector == null && sensitiveTopicGuard == null)) {
             return;
         }
 
@@ -420,10 +420,13 @@ public class UpdateDispatcher {
         ModerationVerdict taught = taughtRuleDetector == null
                 ? null
                 : taughtRuleDetector.inspect(ctx.chatId(), content).orElse(null);
-        // 敏感话题分级（模块九 §10.5）：按群 + 群标签豁免，故需要 chatId；无群 id（服务类更新）时跳过。
-        ModerationVerdict sensitive = (sensitiveTopicDetector == null || ctx.chatId() == null)
+        // 敏感话题分级 + **递进处置**（模块九 §10.5）：按群 + 群标签豁免，故需要 chatId；
+        // 无群 id（服务类更新）时跳过。警告 / 禁言等主动动作在 guard 内完成；这里拿到的 verdict
+        // 仍走「删消息保底 + 入队复核 + 信用事件」——删除统一由 enforcer 负责，不重复。
+        ModerationVerdict sensitive = (sensitiveTopicGuard == null || ctx.chatId() == null)
                 ? null
-                : sensitiveTopicDetector.inspect(ctx.chatId(), content).orElse(null);
+                : sensitiveTopicGuard.handle(ctx.chatId(), ctx.userId(), content)
+                        .map(SensitiveTopicGuard.Outcome::verdict).orElse(null);
 
         ModerationVerdict verdict = worseOf(worseOf(worseOf(worseOf(l1, bannedWord), flood), taught), sensitive);
         if (verdict == null) {

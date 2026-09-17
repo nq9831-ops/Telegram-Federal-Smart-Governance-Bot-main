@@ -22,6 +22,8 @@ import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
 import com.tg.heyisheng.bot.core.moderation.SensitiveTopicDetector;
+import com.tg.heyisheng.bot.core.moderation.SensitiveTopicGuard;
+import com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -227,8 +229,11 @@ public class TggCoreConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "tgg.moderation", name = "sensitive-grading-enabled",
             havingValue = "true")
-    public SensitiveTopicDetector sensitiveTopicDetector(GroupTopicTagService groupTopicTagService) {
-        return new SensitiveTopicDetector(groupTopicTagService);
+    public SensitiveTopicGuard sensitiveTopicGuard(GroupTopicTagService groupTopicTagService,
+                                                   SensitiveTopicStrikeService strikeService,
+                                                   ModerationActionSender actionSender) {
+        return new SensitiveTopicGuard(new SensitiveTopicDetector(groupTopicTagService),
+                strikeService, actionSender);
     }
 
     /**
@@ -257,7 +262,7 @@ public class TggCoreConfiguration {
                                              BannedWordDetector bannedWordDetector,
                                              RepeatedMessageDetector repeatedMessageDetector,
                                              TaughtRuleDetector taughtRuleDetector,
-                                             ObjectProvider<SensitiveTopicDetector> sensitiveTopicDetector,
+                                             ObjectProvider<SensitiveTopicGuard> sensitiveTopicGuard,
                                              IdHasher idHasher,
                                              ObjectProvider<CallbackRouter> callbackRouter,
                                              ObjectProvider<JoinVerificationService> joinVerification,
@@ -279,7 +284,7 @@ public class TggCoreConfiguration {
                 .joinVerificationService(joinVerification.getIfAvailable())
                 .creditEventSink(creditEventSink.getIfAvailable())
                 .taughtRuleDetector(taughtRuleDetector)
-                .sensitiveTopicDetector(sensitiveTopicDetector.getIfAvailable())
+                .sensitiveTopicGuard(sensitiveTopicGuard.getIfAvailable())
                 .build();
     }
 
