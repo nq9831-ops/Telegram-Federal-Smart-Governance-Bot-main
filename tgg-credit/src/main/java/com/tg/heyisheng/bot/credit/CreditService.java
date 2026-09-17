@@ -71,7 +71,11 @@ public class CreditService {
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
 
-        PenaltyType penalty = CreditThresholds.penaltyFor(newScore);
+        // 显式联邦上报优先于分数阈值：生产侧声明「这就是要上报联邦」时，不因分数还没到线而静默不报
+        // （模块九 §10.5 的「三次联邦标记」即此——100−5−15−30=50 永远到不了 ≤0 的触发线）。
+        PenaltyType penalty = event.federationReport()
+                ? PenaltyType.REPORT_TO_FEDERATION
+                : CreditThresholds.penaltyFor(newScore);
         if (penalty != PenaltyType.NONE) {
             // 主体标识哈希化——明文 userId/chatId 不得进日志
             log.info("信用分跨阈值：subjectType={} subjectHash={} score={} penalty={}",

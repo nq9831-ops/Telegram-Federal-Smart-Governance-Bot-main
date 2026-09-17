@@ -31,8 +31,8 @@ public class SensitiveTopicGuard {
 
     /** 二次犯起禁言时长。 */
     static final Duration MUTE_DURATION = Duration.ofHours(24);
-    /** 达到该累计次数即进入「联邦标记」档。 */
-    static final int FEDERATION_STRIKE = 3;
+    /** 达到该累计次数即进入「联邦标记」档（跨模块可见：分发层据此发 `federationReport` 事件）。 */
+    public static final int FEDERATION_STRIKE = 3;
 
     /** 一轮处置的结果：判定 + 该用户累计次数 + 是否已禁言。 */
     public record Outcome(ModerationVerdict verdict, int strike, boolean muted) {
@@ -77,8 +77,28 @@ public class SensitiveTopicGuard {
 
         int strike = strikes.record(chatId, userId);
         boolean muted = enforce(chatId, userId, strike);
-        log.info("敏感话题递进处置：strike={} muted={} rules={}", strike, muted, hit.get().matchedRuleIds());
-        return Optional.of(new Outcome(hit.get(), strike, muted));
+        ModerationVerdict escalated = escalate(hit.get(), strike);
+        log.info("敏感话题递进处置：strike={} muted={} level={} rules={}",
+                strike, muted, escalated.riskLevel(), escalated.matchedRuleIds());
+        return Optional.of(new Outcome(escalated, strike, muted));
+    }
+
+    /**
+     * 按累计次数<b>提升严重度</b>——原文 §10.5 的扣分是 5/15/30，而模块七恰好按
+     * LOW/MEDIUM/HIGH 扣 5/15/30（见 {@code BuiltInCreditRules}），故把次数映射到等级即可对齐扣分。
+     *
+     * <p>取「话题等级」与「次数档位」的<b>较高者</b>：恐怖活动第一次就该是 HIGH，
+     * 不该因为「初犯」被降级为 LOW。
+     */
+    private static ModerationVerdict escalate(ModerationVerdict verdict, int strike) {
+        RiskLevel strikeLevel = strike >= FEDERATION_STRIKE
+                ? RiskLevel.HIGH
+                : (strike == 2 ? RiskLevel.MEDIUM : RiskLevel.LOW);
+        RiskLevel level = strikeLevel.severity() > verdict.riskLevel().severity()
+                ? strikeLevel
+                : verdict.riskLevel();
+        // hardLine 恒为 false：敏感话题是分级，不因次数变成红线。
+        return new ModerationVerdict(level, false, verdict.matchedRuleIds());
     }
 
     /**

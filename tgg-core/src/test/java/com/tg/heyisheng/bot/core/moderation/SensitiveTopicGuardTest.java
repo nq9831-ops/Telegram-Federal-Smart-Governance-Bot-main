@@ -103,4 +103,29 @@ class SensitiveTopicGuardTest {
         assertThat(guard.handle(CHAT, USER, "今天天气不错")).isEmpty();
         assertThat(sent).isEmpty();
     }
+
+    /** 严重度随次数递进——模块七正是按 LOW/MEDIUM/HIGH 扣 5/15/30，故这一映射决定扣分是否对得上原文。 */
+    @Test
+    void severityEscalatesWithStrikeCount() {
+        when(strikes.record(CHAT, USER)).thenReturn(1);
+        assertThat(guard.handle(CHAT, USER, "组织游行抗议").orElseThrow().verdict().riskLevel())
+                .as("首次：politics 本身 LOW，次数档位也是 LOW").isEqualTo(RiskLevel.LOW);
+
+        when(strikes.record(CHAT, USER)).thenReturn(2);
+        assertThat(guard.handle(CHAT, USER, "组织游行抗议").orElseThrow().verdict().riskLevel())
+                .isEqualTo(RiskLevel.MEDIUM);
+
+        when(strikes.record(CHAT, USER)).thenReturn(3);
+        assertThat(guard.handle(CHAT, USER, "组织游行抗议").orElseThrow().verdict().riskLevel())
+                .as("三次 → HIGH（模块七据此扣 30）").isEqualTo(RiskLevel.HIGH);
+    }
+
+    /** 话题自身等级不得被「初犯」拉低——恐怖活动第一次就该是 HIGH。 */
+    @Test
+    void topicLevelIsNeverDowngradedByFirstStrike() {
+        when(strikes.record(CHAT, USER)).thenReturn(1);
+
+        assertThat(guard.handle(CHAT, USER, "招募圣战分子，教做炸弹").orElseThrow().verdict().riskLevel())
+                .isEqualTo(RiskLevel.HIGH);
+    }
 }

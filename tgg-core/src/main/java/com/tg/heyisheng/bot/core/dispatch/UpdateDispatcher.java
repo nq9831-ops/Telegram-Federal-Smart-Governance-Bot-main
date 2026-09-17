@@ -423,10 +423,10 @@ public class UpdateDispatcher {
         // 敏感话题分级 + **递进处置**（模块九 §10.5）：按群 + 群标签豁免，故需要 chatId；
         // 无群 id（服务类更新）时跳过。警告 / 禁言等主动动作在 guard 内完成；这里拿到的 verdict
         // 仍走「删消息保底 + 入队复核 + 信用事件」——删除统一由 enforcer 负责，不重复。
-        ModerationVerdict sensitive = (sensitiveTopicGuard == null || ctx.chatId() == null)
+        SensitiveTopicGuard.Outcome sensitiveOutcome = (sensitiveTopicGuard == null || ctx.chatId() == null)
                 ? null
-                : sensitiveTopicGuard.handle(ctx.chatId(), ctx.userId(), content)
-                        .map(SensitiveTopicGuard.Outcome::verdict).orElse(null);
+                : sensitiveTopicGuard.handle(ctx.chatId(), ctx.userId(), content).orElse(null);
+        ModerationVerdict sensitive = sensitiveOutcome == null ? null : sensitiveOutcome.verdict();
 
         ModerationVerdict verdict = worseOf(worseOf(worseOf(worseOf(l1, bannedWord), flood), taught), sensitive);
         if (verdict == null) {
@@ -455,10 +455,14 @@ public class UpdateDispatcher {
         // 硬红线与中高风险都发布——分值差异由规则引擎按 hardLine 判定，不在此处区分。
         // userId 为空（服务类更新）时跳过，不让信用事件成为新的空指针源。
         if (verdict.needsReview() && ctx.userId() != null) {
+            // 敏感话题第 3 档 → **显式**要求上报联邦（§10.5「三次联邦标记」）。
+            // 不能指望分数阈值：原文的 100−5−15−30 = 50，永远到不了 ≤0 的触发线。
+            boolean federationReport = sensitiveOutcome != null
+                    && sensitiveOutcome.strike() >= SensitiveTopicGuard.FEDERATION_STRIKE;
             creditEventSink.publish(CreditEvent.of(
                     CreditSubjectType.INDIVIDUAL, ctx.userId(),
                     CreditEventType.MODERATION_HIT, verdict.riskLevel(),
-                    verdict.hardLine(), "moderation"));
+                    verdict.hardLine(), "moderation", federationReport));
         }
     }
 

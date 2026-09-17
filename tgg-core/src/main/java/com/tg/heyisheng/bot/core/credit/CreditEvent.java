@@ -24,6 +24,9 @@ import java.util.UUID;
  * @param hardLine    是否硬红线
  * @param source      来源模块标识（如 "moderation" / "wordfilter" / "admission"）
  * @param occurredAt  发生时间
+ * @param federationReport <b>显式要求上报联邦</b>（不靠分数阈值触发）。用于「按次数递进」的场景：
+ *                   如模块九 §10.5 的「敏感话题三次 → 联邦标记」，其 100−5−15−30 = 50 分
+ *                   <b>永远到不了</b> 触发线（≤0），故必须由生产侧显式声明，而非指望分数副作用。
  */
 public record CreditEvent(
         String eventId,
@@ -33,7 +36,8 @@ public record CreditEvent(
         RiskLevel severity,
         boolean hardLine,
         String source,
-        Instant occurredAt
+        Instant occurredAt,
+        boolean federationReport
 ) {
 
     public CreditEvent {
@@ -52,7 +56,14 @@ public record CreditEvent(
     public static CreditEvent of(CreditSubjectType subjectType, long subjectId,
                                  CreditEventType eventType, RiskLevel severity,
                                  boolean hardLine, String source) {
+        return of(subjectType, subjectId, eventType, severity, hardLine, source, false);
+    }
+
+    /** 便捷工厂（带显式联邦上报标记）。 */
+    public static CreditEvent of(CreditSubjectType subjectType, long subjectId,
+                                 CreditEventType eventType, RiskLevel severity,
+                                 boolean hardLine, String source, boolean federationReport) {
         return new CreditEvent(UUID.randomUUID().toString(), subjectType, subjectId,
-                eventType, severity, hardLine, source, Instant.now());
+                eventType, severity, hardLine, source, Instant.now(), federationReport);
     }
 }
