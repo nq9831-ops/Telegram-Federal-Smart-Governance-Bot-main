@@ -18,6 +18,7 @@ import com.tg.heyisheng.bot.core.moderation.ModerationVerdict;
 import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
+import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -61,6 +62,8 @@ public class UpdateDispatcher {
     private final ModerationReviewRecorder reviewRecorder;
     private final BannedWordDetector bannedWordDetector;
     private final RepeatedMessageDetector repeatedMessageDetector;
+    /** 按群教学规则检测器（模块九 §10.3）；为 null 表示该能力未装配。 */
+    private final TaughtRuleDetector taughtRuleDetector;
     private final CallbackRouter callbackRouter;
     private final JoinVerificationService joinVerificationService;
     /** 信用事件发布通道（模块七）；默认 noop——未装配信用分时主链路零影响。 */
@@ -86,6 +89,7 @@ public class UpdateDispatcher {
         private ModerationReviewRecorder reviewRecorder = ModerationReviewRecorder.noop();
         private BannedWordDetector bannedWordDetector;
         private RepeatedMessageDetector repeatedMessageDetector;
+        private TaughtRuleDetector taughtRuleDetector;
         private CallbackRouter callbackRouter;
         private JoinVerificationService joinVerificationService;
         private CreditEventSink creditEventSink = CreditEventSink.noop();
@@ -146,6 +150,11 @@ public class UpdateDispatcher {
             return this;
         }
 
+        public Builder taughtRuleDetector(TaughtRuleDetector value) {
+            this.taughtRuleDetector = value;
+            return this;
+        }
+
         public Builder callbackRouter(CallbackRouter value) {
             this.callbackRouter = value;
             return this;
@@ -178,6 +187,7 @@ public class UpdateDispatcher {
         this.reviewRecorder = b.reviewRecorder == null ? ModerationReviewRecorder.noop() : b.reviewRecorder;
         this.bannedWordDetector = b.bannedWordDetector;
         this.repeatedMessageDetector = b.repeatedMessageDetector;
+        this.taughtRuleDetector = b.taughtRuleDetector;
         this.callbackRouter = b.callbackRouter;
         this.joinVerificationService = b.joinVerificationService;
         this.creditEventSink = b.creditEventSink == null ? CreditEventSink.noop() : b.creditEventSink;
@@ -360,7 +370,8 @@ public class UpdateDispatcher {
      */
     private void moderateInto(UpdateContext ctx, Message message) {
         if (message == null || (moderationLayer == null && moderationPipeline == null
-                && bannedWordDetector == null && repeatedMessageDetector == null)) {
+                && bannedWordDetector == null && repeatedMessageDetector == null
+                && taughtRuleDetector == null)) {
             return;
         }
 
@@ -393,8 +404,13 @@ public class UpdateDispatcher {
         ModerationVerdict flood = repeatedMessageDetector == null
                 ? null
                 : repeatedMessageDetector.inspect(ctx.chatId(), ctx.userId(), content).orElse(null);
+        // 按群教学规则（模块九 §10.3 的 /teach）：与违禁词同为「按群」能力，
+        // 并列参与 worseOf 取最严重——低等级命中不得掩盖高等级（既有纪律）。
+        ModerationVerdict taught = taughtRuleDetector == null
+                ? null
+                : taughtRuleDetector.inspect(ctx.chatId(), content).orElse(null);
 
-        ModerationVerdict verdict = worseOf(worseOf(l1, bannedWord), flood);
+        ModerationVerdict verdict = worseOf(worseOf(worseOf(l1, bannedWord), flood), taught);
         if (verdict == null) {
             // 有审核能力但都没命中：仍挂 clean，让下游能区分「审过且干净」与「压根没审」。
             verdict = ModerationVerdict.clean();

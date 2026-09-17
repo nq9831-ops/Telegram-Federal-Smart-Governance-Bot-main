@@ -15,6 +15,7 @@ import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordService;
+import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -65,6 +66,10 @@ class RbacWiringTest {
                 // 四层审核流水线由 AiConfiguration 提供（本 runner 不加载它）——用空流水线占位：
                 // 本测试关心的是权限门控装配，不是审核层
                 .withBean(ModerationPipeline.class, () -> new ModerationPipeline(List.of()))
+                // 教学规则仓库：TggCoreConfiguration 会据此创建 TaughtRuleService / TaughtRuleDetector，
+                // 而 updateDispatcher 依赖后者——缺它整个上下文起不来（本测试不加载 JPA，须手工补）
+                .withBean(TaughtRuleRepository.class,
+                        () -> org.mockito.Mockito.mock(TaughtRuleRepository.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(

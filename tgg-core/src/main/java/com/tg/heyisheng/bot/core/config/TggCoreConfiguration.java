@@ -33,6 +33,9 @@ import com.tg.heyisheng.bot.core.webhook.SecretTokenVerifier;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordDetector;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordService;
+import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleDetector;
+import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleRepository;
+import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleService;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -191,6 +194,29 @@ public class TggCoreConfiguration {
     }
 
     /**
+     * 按群教学规则服务（模块九 §10.3 的 {@code /teach}）。
+     *
+     * <p><b>无条件装配</b>（与违禁词同款）：本模块是核心审核能力的一部分，不受可选开关门控；
+     * 群未使用该功能时它的开销是一次空列表缓存命中。时钟用系统 UTC；
+     * 缓存 TTL 的可测试性由构造参数保证（测试直接 {@code new} 注入 {@code Clock.fixed}）。
+     */
+    @Bean
+    public TaughtRuleService taughtRuleService(TaughtRuleRepository taughtRuleRepository) {
+        return new TaughtRuleService(taughtRuleRepository, java.time.Clock.systemUTC());
+    }
+
+    /**
+     * 按群教学规则检测器（热路径执行者）。
+     *
+     * <p>它<b>并列</b>于四层流水线而非实现 {@code ModerationLayer}——那个接口的
+     * {@code inspect(String)} 没有 chatId，而教学规则是按群的（同 {@code BannedWordDetector} 的判断）。
+     */
+    @Bean
+    public TaughtRuleDetector taughtRuleDetector(TaughtRuleService taughtRuleService) {
+        return new TaughtRuleDetector(taughtRuleService);
+    }
+
+    /**
      * 反刷屏：同一用户在同一群重复发相同内容的检测器（模块三）。
      *
      * <p>复用 {@link InMemoryRateLimiter} 做「群:用户:指纹」的滑动窗口计数——不另造轮子，
@@ -215,6 +241,7 @@ public class TggCoreConfiguration {
                                              ModerationReviewRecorder moderationReviewRecorder,
                                              BannedWordDetector bannedWordDetector,
                                              RepeatedMessageDetector repeatedMessageDetector,
+                                             TaughtRuleDetector taughtRuleDetector,
                                              IdHasher idHasher,
                                              ObjectProvider<CallbackRouter> callbackRouter,
                                              ObjectProvider<JoinVerificationService> joinVerification,
@@ -235,6 +262,7 @@ public class TggCoreConfiguration {
                 .callbackRouter(callbackRouter.getIfAvailable())
                 .joinVerificationService(joinVerification.getIfAvailable())
                 .creditEventSink(creditEventSink.getIfAvailable())
+                .taughtRuleDetector(taughtRuleDetector)
                 .build();
     }
 
