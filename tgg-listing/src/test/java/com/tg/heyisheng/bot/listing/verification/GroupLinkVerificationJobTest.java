@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.listing.ListingGroup;
 import com.tg.heyisheng.bot.listing.ListingGroupRepository;
 import com.tg.heyisheng.bot.listing.ListingGroupService;
 import com.tg.heyisheng.bot.listing.ListingProperties;
+import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +38,10 @@ import static org.mockito.Mockito.when;
  *
  * <p>另有第四项：重试退避真的按配置发生（次数 + 间隔）——用注入的 {@link Sleeper} 替身断言，
  * 而不是把间隔配成 0 假装测过。
+ *
+ * <p>第五项：<b>通知只在真的判失效那一刻发生</b>——注入可捕获的 {@link SubmitterNotifier} 替身，
+ * 断言「2 次失败时通知为空、第 3 次恰好通知一次且对象就是该条目」。
+ * 断言调用而不是断言日志：日志实现可以随时换掉，调用才是契约。
  */
 class GroupLinkVerificationJobTest {
 
@@ -99,11 +104,22 @@ class GroupLinkVerificationJobTest {
         }
     }
 
+    /** 可捕获的替身通知通道：断言「真的被调用」，而不是断言日志里出现了某行字。 */
+    static class RecordingNotifier implements SubmitterNotifier {
+        private final List<ListingGroup> notified = new ArrayList<>();
+
+        @Override
+        public void notifyDelisted(ListingGroup entry) {
+            notified.add(entry);
+        }
+    }
+
     private ListingGroupRepository groups;
     private VerificationRecordRepository records;
     private StubVerifier verifier;
     private MutableClock clock;
     private final List<Duration> sleeps = new ArrayList<>();
+    private RecordingNotifier notifier;
     private ListingGroup entry;
     private GroupLinkVerificationJob job;
 
@@ -113,6 +129,7 @@ class GroupLinkVerificationJobTest {
         records = mock(VerificationRecordRepository.class);
         verifier = new StubVerifier();
         clock = new MutableClock(T0);
+        notifier = new RecordingNotifier();
 
         when(groups.save(any(ListingGroup.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -127,7 +144,7 @@ class GroupLinkVerificationJobTest {
                 .thenReturn(List.of(entry));
 
         ListingGroupService service = new ListingGroupService(groups, records, verifier, properties, clock);
-        job = new GroupLinkVerificationJob(service, properties, duration -> sleeps.add(duration));
+        job = new GroupLinkVerificationJob(service, properties, duration -> sleeps.add(duration), notifier);
     }
 
     @Test
@@ -151,6 +168,7 @@ class GroupLinkVerificationJobTest {
 
         // ERROR 不重试（重试是给 FAIL 的退避），所以一次都不该睡
         assertThat(sleeps).as("ERROR 不做退避重试").isEmpty();
+        assertThat(notifier.notified).as("探测失败不是下架，不得发出下架通知").isEmpty();
     }
 
     @Test
@@ -160,6 +178,7 @@ class GroupLinkVerificationJobTest {
         job.verifyAllActive();
         assertThat(entry.getFailCount()).isEqualTo(1);
         assertThat(entry.getStatus()).isEqualTo(ListingGroup.Status.ACTIVE.name());
+        assertThat(notifier.notified).as("尚未失效，不得通知").isEmpty();
 
         clock.advance(Duration.ofDays(1));
         job.verifyAllActive();
@@ -168,6 +187,7 @@ class GroupLinkVerificationJobTest {
                 .as("连续 2 次失败仍应保持 ACTIVE（阈值是 3）")
                 .isEqualTo(ListingGroup.Status.ACTIVE.name());
         assertThat(entry.getSuspendedAt()).isNull();
+        assertThat(notifier.notified).as("尚未失效，不得通知").isEmpty();
 
         clock.advance(Duration.ofDays(1));
         job.verifyAllActive();
@@ -176,6 +196,9 @@ class GroupLinkVerificationJobTest {
         assertThat(entry.getSuspendedAt())
                 .as("suspendedAt 取自注入时钟，而非系统时间")
                 .isEqualTo(clock.instant());
+        assertThat(notifier.notified)
+                .as("判失效当刻通知提交者，且恰好一次")
+                .containsExactly(entry);
     }
 
     @Test
@@ -191,6 +214,7 @@ class GroupLinkVerificationJobTest {
         assertThat(entry.getFailCount()).as("验证成功应清零失败计数").isZero();
         assertThat(entry.getLastVerifiedAt()).isEqualTo(clock.instant());
         assertThat(entry.getStatus()).isEqualTo(ListingGroup.Status.ACTIVE.name());
+        assertThat(notifier.notified).as("成功恢复不得通知下架").isEmpty();
     }
 
     @Test
@@ -205,5 +229,6 @@ class GroupLinkVerificationJobTest {
         assertThat(entry.getFailCount())
                 .as("一轮验证只记一次失败（重试不额外计数）")
                 .isEqualTo(1);
+        assertThat(notifier.notified).as("一轮只到 1 次失败，不得通知").isEmpty();
     }
 }

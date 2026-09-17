@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.listing;
 
+import com.tg.heyisheng.bot.listing.notify.LoggingSubmitterNotifier;
+import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerificationJob;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerifier;
 import com.tg.heyisheng.bot.listing.verification.Sleeper;
@@ -95,10 +97,32 @@ public class ListingConfiguration {
                 groupLinkVerifier, properties, Clock.systemUTC());
     }
 
-    /** 每日凌晨的链接验证任务。 */
+    /**
+     * 下架通知通道（设计文档 §6.4）。
+     *
+     * <p>默认装配 {@link LoggingSubmitterNotifier}——它<b>只记日志、不真实投递</b>，
+     * 并在每次调用打 WARN 说明这一点（避免运维误以为提交者已收到告知）。
+     * 真实投递由部署方替换本 bean（生产配置类给一个 {@code @Primary} 实现即可）。
+     */
+    @Bean
+    public SubmitterNotifier submitterNotifier() {
+        return new LoggingSubmitterNotifier();
+    }
+
+    /** 每日凌晨的链接验证任务（判失效时经 {@link SubmitterNotifier} 通知提交者）。 */
     @Bean
     public GroupLinkVerificationJob groupLinkVerificationJob(ListingGroupService listingGroupService,
-                                                             Sleeper listingRetrySleeper) {
-        return new GroupLinkVerificationJob(listingGroupService, properties, listingRetrySleeper);
+                                                             Sleeper listingRetrySleeper,
+                                                             SubmitterNotifier submitterNotifier) {
+        return new GroupLinkVerificationJob(listingGroupService, properties, listingRetrySleeper,
+                submitterNotifier);
     }
+
+    /*
+     * 命令处理器（/listing_add、/listing_list、/listing_appeal）**刻意不在这里 @Bean 装配**：
+     * 注册命令所需的 @BotCommand 注解本身元注解了 @Component，标注它的类必然进入组件扫描，
+     * 因此再在此处 @Bean 一次就会产生两个同类型实例 → CommandRegistry 会以「命令名冲突」
+     * 直接让上下文档启动失败。解法与模块八 AppealCommandHandler 一致：命令类自持
+     * @ConditionalOnProperty(tgg.listing.enabled) 门控，门开才装配、门关一个都不产生。
+     */
 }

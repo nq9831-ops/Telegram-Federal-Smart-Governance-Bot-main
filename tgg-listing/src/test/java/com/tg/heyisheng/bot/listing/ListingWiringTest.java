@@ -1,7 +1,11 @@
 package com.tg.heyisheng.bot.listing;
 
+import com.tg.heyisheng.bot.listing.command.ListingAddCommandHandler;
+import com.tg.heyisheng.bot.listing.command.ListingAppealCommandHandler;
+import com.tg.heyisheng.bot.listing.command.ListingListCommandHandler;
 import com.tg.heyisheng.bot.listing.merchant.MerchantConfiguration;
 import com.tg.heyisheng.bot.listing.merchant.MerchantProperties;
+import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerificationJob;
 import com.tg.heyisheng.bot.listing.verification.GroupLinkVerifier;
 import com.tg.heyisheng.bot.listing.verification.VerificationRecordRepository;
@@ -44,6 +48,11 @@ class ListingWiringTest {
         VerificationRecordRepository verificationRecordRepository() {
             return mock(VerificationRecordRepository.class);
         }
+
+        @Bean
+        ListingAppealRepository listingAppealRepository() {
+            return mock(ListingAppealRepository.class);
+        }
     }
 
     /** 另一个同样带 {@code @EnableScheduling} 的配置：生产里 failover / admission 就是这样。 */
@@ -53,7 +62,11 @@ class ListingWiringTest {
     }
 
     private final ApplicationContextRunner listingRunner = new ApplicationContextRunner()
-            .withUserConfiguration(ListingConfiguration.class, RepositoryStub.class);
+            .withUserConfiguration(ListingConfiguration.class, RepositoryStub.class,
+                    // 命令处理器靠 @BotCommand（元注解 @Component）进入组件扫描；ApplicationContextRunner
+                    // 不做扫描，故在此显式注册——它们自持 @ConditionalOnProperty，门的两个方向照样被断言。
+                    ListingAddCommandHandler.class, ListingListCommandHandler.class,
+                    ListingAppealCommandHandler.class);
 
     private final ApplicationContextRunner merchantRunner = new ApplicationContextRunner()
             .withUserConfiguration(MerchantConfiguration.class);
@@ -67,6 +80,10 @@ class ListingWiringTest {
             assertThat(context).doesNotHaveBean(GroupLinkVerifier.class);
             assertThat(context).doesNotHaveBean(ListingGroupService.class);
             assertThat(context).doesNotHaveBean(GroupLinkVerificationJob.class);
+            assertThat(context).doesNotHaveBean(SubmitterNotifier.class);
+            assertThat(context).doesNotHaveBean(ListingAddCommandHandler.class);
+            assertThat(context).doesNotHaveBean(ListingListCommandHandler.class);
+            assertThat(context).doesNotHaveBean(ListingAppealCommandHandler.class);
         });
     }
 
@@ -79,6 +96,10 @@ class ListingWiringTest {
             assertThat(context).doesNotHaveBean(GroupLinkVerifier.class);
             assertThat(context).doesNotHaveBean(ListingGroupService.class);
             assertThat(context).doesNotHaveBean(GroupLinkVerificationJob.class);
+            assertThat(context).doesNotHaveBean(SubmitterNotifier.class);
+            assertThat(context).doesNotHaveBean(ListingAddCommandHandler.class);
+            assertThat(context).doesNotHaveBean(ListingListCommandHandler.class);
+            assertThat(context).doesNotHaveBean(ListingAppealCommandHandler.class);
         });
     }
 
@@ -91,6 +112,11 @@ class ListingWiringTest {
             assertThat(context).hasSingleBean(GroupLinkVerifier.class);
             assertThat(context).hasSingleBean(ListingGroupService.class);
             assertThat(context).hasSingleBean(GroupLinkVerificationJob.class);
+            assertThat(context).hasSingleBean(ListingAppealRepository.class);
+            assertThat(context).hasSingleBean(SubmitterNotifier.class);
+            assertThat(context).hasSingleBean(ListingAddCommandHandler.class);
+            assertThat(context).hasSingleBean(ListingListCommandHandler.class);
+            assertThat(context).hasSingleBean(ListingAppealCommandHandler.class);
             assertThat(context.getBean(ListingProperties.class).getFailThreshold()).isEqualTo(3);
         });
     }
