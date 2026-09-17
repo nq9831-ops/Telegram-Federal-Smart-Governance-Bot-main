@@ -97,6 +97,9 @@ class ConfigurationMappingTest {
         assertThat(yml.getProperty("tgg.moderation.reviewers"))
                 .as("复核人白名单必须显式映射到 TGG_MODERATION_REVIEWERS")
                 .isEqualTo("${TGG_MODERATION_REVIEWERS:}");
+        assertThat(yml.getProperty("tgg.moderation.sensitive-grading-enabled"))
+                .as("多词键必须显式映射到 TGG_MODERATION_SENSITIVE_GRADING_ENABLED")
+                .isEqualTo("${TGG_MODERATION_SENSITIVE_GRADING_ENABLED:false}");
     }
 
     /** 主开关默认必须为 false——「默认关闭」是本项目的装配契约，不该被 yml 悄悄改写。 */

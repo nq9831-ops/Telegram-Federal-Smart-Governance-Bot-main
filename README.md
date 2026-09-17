@@ -86,6 +86,7 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | `TGG_MERCHANT_REVIEWERS` | 空 | 资质复核人与保证金操作人 userId（**全局**白名单，逗号分隔）；为空则 `/merchant_review`·`/merchant_deposit` 对任何人不可用 |
 | `TGG_MERCHANT_INITIAL_SCORE` | `500` | 商家入驻成功时写入的初始信用分（需同时 `TGG_CREDIT_ENABLED=true`，否则信用分不初始化） |
 | `TGG_MODERATION_REVIEWERS` | 空 | 复核人 userId（**全局**白名单，逗号分隔）。为空则 `/review_list`·`/review_approve`·`/review_reject` 对任何人不可用 |
+| `TGG_MODERATION_SENSITIVE_GRADING_ENABLED` | `false` | 敏感话题分级（§10.5）：按群分级、受 `/group_tag` 声明的话题标签豁免；命中即删除 + 入队复核（**不封禁**） |
 
 > 📘 **模块五/六 的部署验证步骤**见 `docs/DEPLOYMENT-VERIFICATION.md` N 段与配套的 `docs/DEPLOYMENT-RUNBOOK.md`（后者含可照抄的命令、预期输出与失败排查表）。
 

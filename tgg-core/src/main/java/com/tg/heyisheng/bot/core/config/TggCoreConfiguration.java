@@ -15,11 +15,13 @@ import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
+import com.tg.heyisheng.bot.core.moderation.GroupTopicTagService;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector;
+import com.tg.heyisheng.bot.core.moderation.SensitiveTopicDetector;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -41,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -217,6 +220,18 @@ public class TggCoreConfiguration {
     }
 
     /**
+     * 敏感话题分级检测器（模块九 §10.5）——<b>默认关闭</b>：不设
+     * {@code tgg.moderation.sensitive-grading-enabled=true} 时本类不产生该 bean，
+     * {@code UpdateDispatcher} 走 null 分支，审核主链路与既有行为逐字不变。
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "tgg.moderation", name = "sensitive-grading-enabled",
+            havingValue = "true")
+    public SensitiveTopicDetector sensitiveTopicDetector(GroupTopicTagService groupTopicTagService) {
+        return new SensitiveTopicDetector(groupTopicTagService);
+    }
+
+    /**
      * 反刷屏：同一用户在同一群重复发相同内容的检测器（模块三）。
      *
      * <p>复用 {@link InMemoryRateLimiter} 做「群:用户:指纹」的滑动窗口计数——不另造轮子，
@@ -242,6 +257,7 @@ public class TggCoreConfiguration {
                                              BannedWordDetector bannedWordDetector,
                                              RepeatedMessageDetector repeatedMessageDetector,
                                              TaughtRuleDetector taughtRuleDetector,
+                                             ObjectProvider<SensitiveTopicDetector> sensitiveTopicDetector,
                                              IdHasher idHasher,
                                              ObjectProvider<CallbackRouter> callbackRouter,
                                              ObjectProvider<JoinVerificationService> joinVerification,
@@ -263,6 +279,7 @@ public class TggCoreConfiguration {
                 .joinVerificationService(joinVerification.getIfAvailable())
                 .creditEventSink(creditEventSink.getIfAvailable())
                 .taughtRuleDetector(taughtRuleDetector)
+                .sensitiveTopicDetector(sensitiveTopicDetector.getIfAvailable())
                 .build();
     }
 

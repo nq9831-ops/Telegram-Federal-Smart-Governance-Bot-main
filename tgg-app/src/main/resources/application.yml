@@ -31,6 +31,9 @@ tgg:
     # （理由同 tgg.merchant.reviewers）。为空则 /review_list·/review_approve·/review_reject
     # 对任何人不可用（启动期 WARN）。
     reviewers: ${TGG_MODERATION_REVIEWERS:}
+    # 敏感话题分级（模块九 §10.5）：默认关闭。启用后按群对敏感话题分级（命中即删除 + 入队复核，
+    # **不封禁**），并受「群话题标签」（/group_tag）豁免——本群声明了某话题即豁免该话题。
+    sensitive-grading-enabled: ${TGG_MODERATION_SENSITIVE_GRADING_ENABLED:false}
   webhook:
     # 运行必须通过 TGG_WEBHOOK_SECRET 注入；此处不提供默认值（缺失即启动失败，刻意 fail-fast）
     secret: ${TGG_WEBHOOK_SECRET:}
