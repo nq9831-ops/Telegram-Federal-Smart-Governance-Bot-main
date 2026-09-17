@@ -40,3 +40,9 @@ tgg:
       enabled: ${TGG_AI_DEEPSEEK_ENABLED:false}
       # 显式映射：Spring 默认会找 TGG_AI_DEEPSEEK_API_KEY，这里保留更直观的短名
       api-key: ${TGG_DEEPSEEK_API_KEY:}
+  credit:
+    # 模块七 · 信用分体系：默认关闭。不启用则整组组件不装配（审核主链路零影响）。
+    enabled: ${TGG_CREDIT_ENABLED:false}
+    # 显式映射：Spring 默认会把 signingKey 推导为 TGG_CREDIT_SIGNINGKEY（无下划线），与文档不符；
+    # 启用模块七时必须注入该密钥，缺失即启动失败（未签名的处罚令可被伪造）。
+    signing-key: ${TGG_CREDIT_SIGNING_KEY:}
