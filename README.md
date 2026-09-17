@@ -56,7 +56,7 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | 变量 | 说明 |
 |---|---|
 | `TGG_WEBHOOK_SECRET` | Webhook 的 `X-Telegram-Bot-Api-Secret-Token` 校验值。库**不**校验该头，由 `SecretTokenFilter` 常量时间比对实现 |
-| `TGG_BOT_TOKEN` | Bot token。启用准入 / 联邦封禁等主动调用时需要 |
+| `TGG_BOT_TOKEN` | Bot token。主动调用（准入验证、硬红线封禁、**收录下架通知私聊**、链接探针）需要；缺失时这些能力**各自显式降级并 WARN**，不静默 |
 
 **数据库**：
 
