@@ -20,6 +20,12 @@
       <artifactId>tgg-core</artifactId>
     </dependency>
 
+    <!-- 模块七：信用分体系。放在启动器 classpath 上，其 @Configuration 才被组件扫描到 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-credit</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
