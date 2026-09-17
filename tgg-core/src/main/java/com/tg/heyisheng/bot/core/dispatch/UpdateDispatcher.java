@@ -4,6 +4,10 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
+import com.tg.heyisheng.bot.core.credit.CreditEvent;
+import com.tg.heyisheng.bot.core.credit.CreditEventSink;
+import com.tg.heyisheng.bot.core.credit.CreditEventType;
+import com.tg.heyisheng.bot.core.credit.CreditSubjectType;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
@@ -59,6 +63,8 @@ public class UpdateDispatcher {
     private final RepeatedMessageDetector repeatedMessageDetector;
     private final CallbackRouter callbackRouter;
     private final JoinVerificationService joinVerificationService;
+    /** 信用事件发布通道（模块七）；默认 noop——未装配信用分时主链路零影响。 */
+    private final CreditEventSink creditEventSink;
 
     /**
      * 构造器已增至 9 个参数，继续叠加会难以维护——新增装配一律走 {@link #builder()}；
@@ -82,6 +88,7 @@ public class UpdateDispatcher {
         private RepeatedMessageDetector repeatedMessageDetector;
         private CallbackRouter callbackRouter;
         private JoinVerificationService joinVerificationService;
+        private CreditEventSink creditEventSink = CreditEventSink.noop();
 
         public Builder middlewareChain(MiddlewareChain value) {
             this.middlewareChain = value;
@@ -149,6 +156,12 @@ public class UpdateDispatcher {
             return this;
         }
 
+        /** 信用事件发布通道（模块七）；不设置即 noop。 */
+        public Builder creditEventSink(CreditEventSink value) {
+            this.creditEventSink = value;
+            return this;
+        }
+
         public UpdateDispatcher build() {
             return new UpdateDispatcher(this);
         }
@@ -167,6 +180,7 @@ public class UpdateDispatcher {
         this.repeatedMessageDetector = b.repeatedMessageDetector;
         this.callbackRouter = b.callbackRouter;
         this.joinVerificationService = b.joinVerificationService;
+        this.creditEventSink = b.creditEventSink == null ? CreditEventSink.noop() : b.creditEventSink;
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
@@ -400,6 +414,16 @@ public class UpdateDispatcher {
         // clean 无需复核。入队失败不影响主链路（由 recorder 实现 fail-open）。
         if (verdict.needsReview() && !verdict.shouldFreezeImmediately()) {
             reviewRecorder.record(ctx, verdict);
+        }
+
+        // 信用事件（模块七）：与复核入队**并列**发布，互不影响。
+        // 硬红线与中高风险都发布——分值差异由规则引擎按 hardLine 判定，不在此处区分。
+        // userId 为空（服务类更新）时跳过，不让信用事件成为新的空指针源。
+        if (verdict.needsReview() && ctx.userId() != null) {
+            creditEventSink.publish(CreditEvent.of(
+                    CreditSubjectType.INDIVIDUAL, ctx.userId(),
+                    CreditEventType.MODERATION_HIT, verdict.riskLevel(),
+                    verdict.hardLine(), "moderation"));
         }
     }
 

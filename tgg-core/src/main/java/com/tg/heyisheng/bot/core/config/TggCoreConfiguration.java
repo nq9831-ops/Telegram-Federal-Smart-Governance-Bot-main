@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
+import com.tg.heyisheng.bot.core.credit.CreditEventSink;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
@@ -216,7 +217,8 @@ public class TggCoreConfiguration {
                                              RepeatedMessageDetector repeatedMessageDetector,
                                              IdHasher idHasher,
                                              ObjectProvider<CallbackRouter> callbackRouter,
-                                             ObjectProvider<JoinVerificationService> joinVerification) {
+                                             ObjectProvider<JoinVerificationService> joinVerification,
+                                             ObjectProvider<CreditEventSink> creditEventSink) {
         // 用 Builder 而非位置构造器：可选项已多到难以按位置阅读（见 Builder 的 javadoc）。
         // 回调路由与入群验证属模块四，受 tgg.admission.enabled 门控——未启用时取不到，传 null 即关闭该分支。
         return UpdateDispatcher.builder()
@@ -232,6 +234,7 @@ public class TggCoreConfiguration {
                 .repeatedMessageDetector(repeatedMessageDetector)
                 .callbackRouter(callbackRouter.getIfAvailable())
                 .joinVerificationService(joinVerification.getIfAvailable())
+                .creditEventSink(creditEventSink.getIfAvailable())
                 .build();
     }
 
