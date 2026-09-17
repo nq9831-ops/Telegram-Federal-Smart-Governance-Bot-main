@@ -73,6 +73,34 @@ public class MerchantConfiguration {
                 Clock.systemUTC());
     }
 
+    /**
+     * 保证金链上动作接入位（设计文档 §3.1）。
+     *
+     * <p>默认 {@link NoopDepositGateway}：<b>账本 / 状态机 / 流水 / 退还三分支全部真实工作</b>，
+     * 只有链上那一半是本地的（每次都打 WARN，避免运维误以为已上链）。真实 ton4j 实现由部署方
+     * 以 {@code @Primary} 覆盖本 bean——接口不变，模块十二（担保交易）届时可直接对接。
+     */
+    @Bean
+    public DepositGateway depositGateway() {
+        return new NoopDepositGateway();
+    }
+
+    /**
+     * 保证金服务（状态机 + 退还三分支）。
+     *
+     * <p>它持有 {@link MerchantService} 做编排：「缴费开始」推商家到 {@code DEPOSIT_PENDING}，
+     * 「锁仓成功」推商家到 {@code ACTIVE}（含信用分初始化）——Wave 4 留下的
+     * {@code markDepositPending} / {@code markActive} 在此获得生产调用方。
+     */
+    @Bean
+    public MerchantDepositService merchantDepositService(MerchantDepositRepository deposits,
+                                                         MerchantDepositRecordRepository records,
+                                                         MerchantService merchantService,
+                                                         DepositGateway depositGateway) {
+        return new MerchantDepositService(deposits, records, merchantService, depositGateway,
+                Clock.systemUTC());
+    }
+
     /*
      * 命令处理器（/merchant_apply、/merchant_review、/merchant_status）**刻意不在这里 @Bean 装配**：
      * 注册命令所需的 @BotCommand 注解本身元注解了 @Component，标注它的类必然进入组件扫描，
