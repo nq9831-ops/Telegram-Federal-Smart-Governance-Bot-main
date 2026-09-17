@@ -26,6 +26,11 @@ spring:
     locations: classpath:db/migration
 
 tgg:
+  moderation:
+    # 复核人 userId 全局白名单（逗号分隔）。复核是**平台层**动作，与群内管理员不是同一套
+    # （理由同 tgg.merchant.reviewers）。为空则 /review_list·/review_approve·/review_reject
+    # 对任何人不可用（启动期 WARN）。
+    reviewers: ${TGG_MODERATION_REVIEWERS:}
   webhook:
     # 运行必须通过 TGG_WEBHOOK_SECRET 注入；此处不提供默认值（缺失即启动失败，刻意 fail-fast）
     secret: ${TGG_WEBHOOK_SECRET:}

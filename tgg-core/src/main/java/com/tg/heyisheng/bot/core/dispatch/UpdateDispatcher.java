@@ -426,9 +426,10 @@ public class UpdateDispatcher {
                     idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
         }
 
-        // 中高风险（非硬红线）入队待人工复核：硬红线走「立即删除 + 封禁」不等复核，
-        // clean 无需复核。入队失败不影响主链路（由 recorder 实现 fail-open）。
-        if (verdict.needsReview() && !verdict.shouldFreezeImmediately()) {
+        // 中高风险与硬红线**都入队**：clean 无需复核；硬红线虽已「立即删除 + 封禁」、
+        // 不走放行复核，但须留痕以支持操作员**事后推翻误封**（解封）——这是「推翻权」
+        // 最有分量的一半（§10.4.4）。入队失败不影响主链路（recorder 实现 fail-open）。
+        if (verdict.needsReview()) {
             reviewRecorder.record(ctx, verdict);
         }
 

@@ -89,6 +89,16 @@ class ConfigurationMappingTest {
                 .isEqualTo("${TGG_ADMISSION_OBSERVATION_SECONDS:604800}");
     }
 
+    /** 模块九 §10.4：复核人白名单（平台层）也要显式映射。 */
+    @Test
+    void moderationKeysAreExplicitlyMapped() throws Exception {
+        PropertySource<?> yml = yaml();
+
+        assertThat(yml.getProperty("tgg.moderation.reviewers"))
+                .as("复核人白名单必须显式映射到 TGG_MODERATION_REVIEWERS")
+                .isEqualTo("${TGG_MODERATION_REVIEWERS:}");
+    }
+
     /** 主开关默认必须为 false——「默认关闭」是本项目的装配契约，不该被 yml 悄悄改写。 */
     @Test
     void moduleSwitchesDefaultToDisabled() throws Exception {

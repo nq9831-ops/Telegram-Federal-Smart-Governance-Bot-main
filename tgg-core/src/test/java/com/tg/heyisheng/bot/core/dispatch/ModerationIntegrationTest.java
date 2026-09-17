@@ -221,23 +221,26 @@ class ModerationIntegrationTest {
     }
 
     /**
-     * 只有中高风险（非硬红线）入队待人工复核。
+     * 中高风险与硬红线<b>都入队</b>待人工复核。
      *
-     * <p>三条对照：中风险命中 → 入队；硬红线 → 不入队（走立即处置，不等复核）；
-     * clean → 不入队（无可复核）。
+     * <p>三条对照：中风险命中 → 入队；硬红线 → <b>也入队</b>（虽已「立即删除 + 封禁」、
+     * 不走放行复核，但须留痕以支持操作员<b>事后推翻误封</b>，见 §10.4.4）；clean → 不入队（无可复核）。
      */
     @Test
-    void enqueuesOnlyMidHighNonHardLineHits() throws Exception {
+    void enqueuesMidHighAndHardLineHitsButNotClean() throws Exception {
         List<ModerationVerdict> recorded = new ArrayList<>();
         UpdateDispatcher dispatcher = dispatcherRecording(recorded);
 
         dispatcher.dispatch(messageUpdateWithId("快来 888casino 玩", 1));        // SPAM_CASINO(LOW) → 入队
-        dispatcher.dispatch(messageUpdateWithId("send me your private key", 2)); // 硬红线 → 不入队
+        dispatcher.dispatch(messageUpdateWithId("send me your private key", 2)); // 硬红线 → 也入队
         dispatcher.dispatch(messageUpdateWithId("今天天气不错", 3));               // clean → 不入队
 
-        assertThat(recorded).as("只有中高风险（非硬红线）入队").hasSize(1);
-        assertThat(recorded.get(0).riskLevel()).isEqualTo(RiskLevel.LOW);
-        assertThat(recorded.get(0).matchedRuleIds()).containsExactly("SPAM_CASINO");
+        assertThat(recorded).as("中高风险与硬红线都入队，clean 不入队").hasSize(2);
+        assertThat(recorded).extracting(ModerationVerdict::matchedRuleIds)
+                .containsExactly(List.of("SPAM_CASINO"), List.of("HARD_SECRET"));
+        assertThat(recorded).extracting(ModerationVerdict::hardLine)
+                .as("硬红线入队时必须带 hardLine 标记（否则操作员分不清该不该解封）")
+                .containsExactly(false, true);
     }
 
     /**

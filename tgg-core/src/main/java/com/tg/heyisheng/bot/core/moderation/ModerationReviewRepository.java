@@ -8,4 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * <p>本阶段只需保存与计数；按状态分页查询等后台需求（模块十一）出现时再加方法。
  */
 public interface ModerationReviewRepository extends JpaRepository<ModerationReviewItem, Long> {
+
+    /** 按状态查（复核列表与「待裁决」筛选用；id 升序 = 入队顺序）。 */
+    java.util.List<ModerationReviewItem> findByStatusOrderByIdAsc(ReviewStatus status);
 }

@@ -37,7 +37,8 @@ public class ModerationReviewQueueService implements ModerationReviewRecorder {
                     ctx.userId(),
                     ctx.messageId().orElse(null),
                     verdict.matchedRuleIds(),
-                    verdict.riskLevel());
+                    verdict.riskLevel(),
+                    verdict.hardLine());
             repository.save(item);
             log.info("审核命中已入队待人工复核：rule={} level={}",
                     verdict.matchedRuleIds(), verdict.riskLevel());
