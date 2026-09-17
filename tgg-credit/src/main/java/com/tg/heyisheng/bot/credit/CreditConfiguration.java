@@ -41,10 +41,10 @@ public class CreditConfiguration {
 
     /** 在装配任何 bean 之前先校验密钥——避免"起了半个模块"才发现配置缺失。 */
     @PostConstruct
-    void requireSigningKey() {
-        if (properties.getSigningKey() == null || properties.getSigningKey().isBlank()) {
+    void requirePrivateKey() {
+        if (properties.getPrivateKey() == null || properties.getPrivateKey().isBlank()) {
             throw new TggConfigException(
-                    "启用 tgg.credit.enabled 时必须配置 TGG_CREDIT_SIGNING_KEY（否则处罚令无法签名、可被伪造）");
+                    "启用 tgg.credit.enabled 时必须配置 TGG_CREDIT_PRIVATE_KEY（Ed25519 私钥，PKCS#8 Base64；否则处罚令无法签名）");
         }
         log.info("模块七 · 信用分体系已启用（三套分：个人 / 群组 / 商家）。");
     }
@@ -55,10 +55,10 @@ public class CreditConfiguration {
         return new BuiltInCreditRules();
     }
 
-    /** 处罚令签名器。 */
+    /** 处罚令签名器（Ed25519，持本节点私钥）。 */
     @Bean
     public PenaltySigner penaltySigner() {
-        return new PenaltySigner(properties.getSigningKey());
+        return new PenaltySigner(properties.getPrivateKey());
     }
 
     /**

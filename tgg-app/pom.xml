@@ -26,6 +26,12 @@
       <artifactId>tgg-credit</artifactId>
     </dependency>
 
+    <!-- 模块八：联邦治理。同上，其 @Configuration / @RestController 需在扫描范围内 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-federation</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

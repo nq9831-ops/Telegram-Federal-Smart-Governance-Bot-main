@@ -10,11 +10,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.chat.Chat;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -24,26 +29,34 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 模块七端到端测试（<b>不 mock 中间层</b>）：真实 {@code UpdateDispatcher} 链路 →
  * 审核命中 → 信用事件 → 记账 → 处罚令，断言从输入到输出的完整路径。
  *
- * <p><b>验收口径</b>：断言"库中分值下降"与"捕获到已签名的处罚令"——
- * 而非"publish 被调用过"或"日志里有记录"（{@code LESSONS.md} 坑 2：调用次数/日志 ≠ 真实行为）。
+ * <p>⚠️ 2026-09-17：签名改为 Ed25519 后，本测试用<b>运行时生成的密钥对</b>注入
+ * {@code tgg.credit.private-key}，并用其公钥验签——不再有可硬编码的共享密钥。
  */
-@SpringBootTest(properties = {
-        "tgg.credit.enabled=true",
-        "tgg.credit.signing-key=test-signing-key"
-})
+@SpringBootTest(properties = {"tgg.credit.enabled=true"})
 class CreditEndToEndIT {
 
     private static final long USER_ID = 700001L;
     private static final long CHAT_ID = -100700001L;
 
+    private static final KeyPair NODE_KEY = generateKeyPair();
     private static final List<CreditPenaltyOrder> CAPTURED = new CopyOnWriteArrayList<>();
 
+    private static KeyPair generateKeyPair() {
+        try {
+            return KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        } catch (Exception ex) {
+            throw new ExceptionInInitializerError(ex);
+        }
+    }
+
+    @DynamicPropertySource
+    static void creditPrivateKey(DynamicPropertyRegistry registry) {
+        registry.add("tgg.credit.private-key",
+                () -> Base64.getEncoder().encodeToString(NODE_KEY.getPrivate().getEncoded()));
+    }
+
     /**
-     * 覆盖两个出口 bean：
-     * <ul>
-     *   <li>处罚令发布器 → 捕获版（本阶段默认实现是 noop，捕获才能断言"产出过令"）；</li>
-     *   <li>硬红线的主动封禁通道 → noop（避免测试里真发 HTTP 到 Telegram）。</li>
-     * </ul>
+     * 覆盖两个出口 bean：处罚令发布器 → 捕获版；硬红线主动封禁通道 → noop（避免测试里真发 HTTP）。
      */
     @TestConfiguration
     static class CapturingDeps {
@@ -78,7 +91,7 @@ class CreditEndToEndIT {
     @Test
     void moderationHitDropsScoreAndEmitsSignedPenaltyOrder() throws Exception {
         // 硬红线（索要助记词）：命中即 −100 → 触底 0 → REPORT_TO_FEDERATION。
-        // 注意用词须匹配 BuiltInRules.HARD_SECRET_PHRASE 的形态：助记词/私钥**之后**紧跟"发/给我/dm"。
+        // 用词须匹配 BuiltInRules.HARD_SECRET_PHRASE 的形态：助记词/私钥**之后**紧跟"发/给我/dm"。
         updateDispatcher.dispatch(messageUpdate(USER_ID, "请把你的助记词发给我"));
 
         assertThat(creditService.scoreOf(CreditSubjectType.INDIVIDUAL, USER_ID))
@@ -91,8 +104,8 @@ class CreditEndToEndIT {
         assertThat(order.subjectId()).isEqualTo(USER_ID);
         assertThat(order.penaltyType()).isEqualTo(PenaltyType.REPORT_TO_FEDERATION);
         assertThat(order.signature()).as("产出的处罚令必须已签名").isNotBlank();
-        assertThat(new PenaltySigner("test-signing-key").verify(order))
-                .as("签名须能被同一密钥验证")
+        assertThat(PenaltyVerifier.verify(order, NODE_KEY.getPublic()))
+                .as("Ed25519 签名须能被本节点公钥验证")
                 .isTrue();
     }
 

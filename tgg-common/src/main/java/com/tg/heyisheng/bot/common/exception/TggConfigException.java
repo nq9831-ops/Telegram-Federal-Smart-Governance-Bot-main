@@ -11,4 +11,9 @@ public class TggConfigException extends TggException {
     public TggConfigException(String message) {
         super(message);
     }
+
+    /** 带根因的构造器——把底层异常（如密钥解析失败）的 cause 保留下来，便于诊断。 */
+    public TggConfigException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -2,48 +2,54 @@ package com.tg.heyisheng.bot.credit;
 
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.util.HexFormat;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Base64;
 
 /**
- * 处罚令签名器（模块七）：HMAC-SHA256。
+ * 处罚令签名器（模块七）：<b>Ed25519 非对称签名</b>（持本节点私钥）。
  *
- * <p><b>为什么必须签名</b>：处罚令会被广播到联邦各节点；无签名则任何节点都能伪造他节点的处罚。
- * 启用模块七时若未配置密钥，构造即失败（fail-fast）——不降级放行，
- * 因为"未签名的处罚令"与"可伪造的处罚令"是同一件事。
+ * <p><b>为什么是 Ed25519 而不是 HMAC（2026-09-17 修正）</b>：HMAC-SHA256 是<b>对称</b>密码——
+ * 验签方持有与签名方相同的密钥，因而<b>同样能伪造签名</b>。"每节点独立 HMAC key" 只能带来
+ * 隔离性（一个节点泄露不波及他人），**做不到"节点间不可互相伪造"**。Ed25519 下每节点持
+ * 私钥签名、对端持**公钥**验签，持公钥者无法伪造。
  *
- * <p><b>验签用常量时间比较</b>（{@link MessageDigest#isEqual}），与 {@code SecretTokenVerifier} 同纪律。
+ * <p><b>密钥格式</b>：私钥为 PKCS#8 DER 的 Base64（{@code TGG_CREDIT_PRIVATE_KEY}）。
+ * 缺失或非法即抛 {@link TggConfigException}（fail-fast）——不降级放行。
+ *
+ * <p>验签见 {@link PenaltyVerifier}（用对端公钥）。
  */
 public class PenaltySigner {
 
-    private static final String ALGORITHM = "HmacSHA256";
+    /** 算法名，与 {@link PenaltyVerifier} 共用。 */
+    static final String ALGORITHM = "Ed25519";
 
-    private final byte[] key;
+    private final PrivateKey privateKey;
 
     /**
-     * @param signingKey 签名密钥；为空即抛 {@link TggConfigException}（启用模块七的必需配置）
+     * @param privateKeyBase64 Ed25519 私钥（PKCS#8 DER 的 Base64）；为空即抛 {@link TggConfigException}
      */
-    public PenaltySigner(String signingKey) {
-        if (signingKey == null || signingKey.isBlank()) {
+    public PenaltySigner(String privateKeyBase64) {
+        if (privateKeyBase64 == null || privateKeyBase64.isBlank()) {
             throw new TggConfigException(
-                    "启用 tgg.credit 时必须配置 TGG_CREDIT_SIGNING_KEY（否则处罚令无法签名、可被伪造）");
+                    "启用 tgg.credit 时必须配置 TGG_CREDIT_PRIVATE_KEY（Ed25519 私钥，PKCS#8 Base64；否则处罚令无法签名）");
         }
-        this.key = signingKey.getBytes(StandardCharsets.UTF_8);
+        this.privateKey = decodePrivateKey(privateKeyBase64);
     }
 
-    /** 计算处罚令的签名（十六进制小写）。 */
+    /** 计算处罚令的签名（Base64）。 */
     public String sign(CreditPenaltyOrder order) {
         try {
-            Mac mac = Mac.getInstance(ALGORITHM);
-            mac.init(new SecretKeySpec(key, ALGORITHM));
-            byte[] raw = mac.doFinal(order.canonicalString().getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(raw);
+            Signature sig = Signature.getInstance(ALGORITHM);
+            sig.initSign(privateKey);
+            sig.update(order.canonicalString().getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(sig.sign());
         } catch (GeneralSecurityException ex) {
-            throw new IllegalStateException("HMAC-SHA256 计算失败", ex);
+            throw new IllegalStateException("Ed25519 签名失败", ex);
         }
     }
 
@@ -52,18 +58,14 @@ public class PenaltySigner {
         return unsigned.withSignature(sign(unsigned));
     }
 
-    /**
-     * 验证处罚令的签名是否与内容一致。
-     *
-     * @return true 表示签名有效且内容未被篡改；签名缺失或内容被改则 false
-     */
-    public boolean verify(CreditPenaltyOrder order) {
-        if (order == null || order.signature() == null) {
-            return false;
+    /** 解析 PKCS#8 Base64 私钥；非法即抛 {@link TggConfigException}（配置错误，应拦在启动期）。 */
+    static PrivateKey decodePrivateKey(String base64) {
+        try {
+            byte[] der = Base64.getDecoder().decode(base64.trim());
+            return KeyFactory.getInstance(ALGORITHM).generatePrivate(new PKCS8EncodedKeySpec(der));
+        } catch (GeneralSecurityException | IllegalArgumentException ex) {
+            throw new TggConfigException(
+                    "TGG_CREDIT_PRIVATE_KEY 不是合法的 Ed25519 PKCS#8 Base64 私钥", ex);
         }
-        String expected = sign(order);
-        return MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8),
-                order.signature().getBytes(StandardCharsets.UTF_8));
     }
 }

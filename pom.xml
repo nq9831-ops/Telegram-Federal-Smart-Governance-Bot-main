@@ -34,6 +34,7 @@
     <module>tgg-common</module>
     <module>tgg-core</module>
     <module>tgg-credit</module>
+    <module>tgg-federation</module>
     <module>tgg-app</module>
   </modules>
 
@@ -52,6 +53,11 @@
       <dependency>
         <groupId>com.tg.heyisheng.bot</groupId>
         <artifactId>tgg-credit</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.tg.heyisheng.bot</groupId>
+        <artifactId>tgg-federation</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
