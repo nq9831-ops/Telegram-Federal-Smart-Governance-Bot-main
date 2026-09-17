@@ -103,7 +103,7 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 
 ## 许可
 
-计划以 **AGPL-3.0** 发布；**`LICENSE` 文件尚待补充**（当前仓库内不存在该文件）。
+**AGPL-3.0**（GNU Affero General Public License v3.0）—— 全文见仓库根目录 [`LICENSE`](LICENSE)。
 
 ## 免责声明
 
