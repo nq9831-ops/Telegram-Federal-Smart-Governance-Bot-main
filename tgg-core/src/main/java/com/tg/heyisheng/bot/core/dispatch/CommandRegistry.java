@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 
 import com.tg.heyisheng.bot.common.exception.TggDispatchException;
 import com.tg.heyisheng.bot.core.permission.Permission;
+import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.core.annotation.AnnotationUtils;
 
 import java.util.Collections;
@@ -31,7 +32,12 @@ public class CommandRegistry {
     public CommandRegistry(List<?> commandBeans) {
         Map<String, Entry> map = new HashMap<>();
         for (Object bean : commandBeans) {
-            BotCommand annotation = AnnotationUtils.findAnnotation(bean.getClass(), BotCommand.class);
+            // 必须按「最终目标类」读注解：命令处理器可能被 Spring AOP 代理
+            // （模块十的审计切面即切入本方法），JDK 动态代理下代理类不继承类级注解，
+            // 直接用 bean.getClass() 会读不到 @BotCommand → 命令静默消失。
+            // AopProxyUtils.ultimateTargetClass 对非代理 bean 返回其自身类，行为不变。
+            BotCommand annotation = AnnotationUtils.findAnnotation(
+                    AopProxyUtils.ultimateTargetClass(bean), BotCommand.class);
             if (annotation == null) {
                 continue;
             }
