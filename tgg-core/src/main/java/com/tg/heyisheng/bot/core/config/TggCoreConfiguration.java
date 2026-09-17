@@ -22,6 +22,9 @@ import com.tg.heyisheng.bot.core.notify.NotificationPreferenceService;
 import com.tg.heyisheng.bot.core.notify.NotificationRateLimiter;
 import com.tg.heyisheng.bot.core.notify.NotificationSender;
 import com.tg.heyisheng.bot.core.notify.TelegramNotificationSender;
+import com.tg.heyisheng.bot.core.retention.RetentionJob;
+import com.tg.heyisheng.bot.core.retention.RetentionProperties;
+import com.tg.heyisheng.bot.core.retention.RetentionService;
 
 import java.time.Clock;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
@@ -74,7 +77,7 @@ import java.util.List;
  * 中间件看不到「即将执行哪条命令」，无法得知该命令需要什么权限。
  */
 @Configuration
-@EnableConfigurationProperties(WebhookProperties.class)
+@EnableConfigurationProperties({WebhookProperties.class, RetentionProperties.class})
 @EnableScheduling
 public class TggCoreConfiguration {
 
@@ -275,6 +278,25 @@ public class TggCoreConfiguration {
     @Bean
     public DeferredNotificationJob deferredNotificationJob(DeferredNotificationFlusher flusher) {
         return new DeferredNotificationJob(flusher);
+    }
+
+    /**
+     * 数据保留策略（模块十 §11.2）——<b>默认只报告不清理</b>（{@code tgg.retention.enabled=false}）。
+     *
+     * <p>bean 刻意不受开关门控：即便不清理，每日报告也要照常打出——
+     * 运维得先看到「会发生什么」，才谈得上决定是否放行。
+     */
+    @Bean
+    public RetentionService retentionService(com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository reviewRepository,
+                                             com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository strikeRepository,
+                                             RetentionProperties retentionProperties) {
+        return new RetentionService(reviewRepository, strikeRepository, retentionProperties,
+                Clock.systemUTC());
+    }
+
+    @Bean
+    public RetentionJob retentionJob(RetentionService retentionService) {
+        return new RetentionJob(retentionService);
     }
 
     /**

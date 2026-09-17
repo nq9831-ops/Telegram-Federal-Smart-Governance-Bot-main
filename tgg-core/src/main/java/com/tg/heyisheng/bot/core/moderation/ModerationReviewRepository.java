@@ -11,4 +11,10 @@ public interface ModerationReviewRepository extends JpaRepository<ModerationRevi
 
     /** 按状态查（复核列表与「待裁决」筛选用；id 升序 = 入队顺序）。 */
     java.util.List<ModerationReviewItem> findByStatusOrderByIdAsc(ReviewStatus status);
+
+    /** 保留策略用：某状态下、创建早于给定时点的行数（只读报告）。 */
+    long countByStatusAndCreatedAtBefore(ReviewStatus status, java.time.Instant cutoff);
+
+    /** 保留策略用：删除某状态下、创建早于给定时点的行（返回删除行数）。 */
+    long deleteByStatusAndCreatedAtBefore(ReviewStatus status, java.time.Instant cutoff);
 }

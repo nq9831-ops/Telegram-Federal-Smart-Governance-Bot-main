@@ -78,6 +78,13 @@ class RbacWiringTest {
                 .withBean(com.tg.heyisheng.bot.core.notify.DeferredNotificationRepository.class,
                         () -> org.mockito.Mockito.mock(
                                 com.tg.heyisheng.bot.core.notify.DeferredNotificationRepository.class))
+                // 模块十（保留策略）：装配依赖复核队列与违规计数两个仓库，同样是 JPA 侧——补替身。
+                .withBean(com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository.class))
+                .withBean(com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(

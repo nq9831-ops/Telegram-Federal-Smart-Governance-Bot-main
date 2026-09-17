@@ -34,6 +34,14 @@ tgg:
     # 敏感话题分级（模块九 §10.5）：默认关闭。启用后按群对敏感话题分级（命中即删除 + 入队复核，
     # **不封禁**），并受「群话题标签」（/group_tag）豁免——本群声明了某话题即豁免该话题。
     sensitive-grading-enabled: ${TGG_MODERATION_SENSITIVE_GRADING_ENABLED:false}
+  retention:
+    # 数据保留策略（§11.2）：默认**只报告不清理**。保留策略的本质是自动删除业务数据，
+    # 把它做成「默认就会删」很危险——先看每日报告，再决定是否放行。
+    # 审计表 audit_log **永不清理**（不可删，硬编码排除，见 RetentionService）。
+    enabled: ${TGG_RETENTION_ENABLED:false}
+    reviewed-queue-days: ${TGG_RETENTION_REVIEWED_QUEUE_DAYS:90}
+    strike-days: ${TGG_RETENTION_STRIKE_DAYS:365}
+    cron: ${TGG_RETENTION_CRON:0 30 4 * * *}
   webhook:
     # 运行必须通过 TGG_WEBHOOK_SECRET 注入；此处不提供默认值（缺失即启动失败，刻意 fail-fast）
     secret: ${TGG_WEBHOOK_SECRET:}

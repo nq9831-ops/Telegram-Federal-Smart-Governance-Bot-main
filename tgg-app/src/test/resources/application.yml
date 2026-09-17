@@ -9,6 +9,11 @@ spring:
     username: tgg
     password: tggdev
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 测试会缓存多个 @SpringBootTest 上下文，每个上下文各持一个池——默认 10 会迅速打满
+      # MySQL 的 max_connections（实测报 Error 1040 Too many connections）。测试无需并发余量。
+      maximum-pool-size: 2
+      minimum-idle: 0
 
   jpa:
     hibernate:
@@ -23,6 +28,12 @@ spring:
     locations: classpath:db/migration
 
 tgg:
+  # 测试**不跑**后台维护任务：它们会在每个缓存上下文里周期性借连接，
+  # 是「Too many connections」的主要来源（实测）。把周期推到永不触发。
+  retention:
+    cron: "0 0 0 1 1 *"
+  notify:
+    flush-interval-ms: 86400000
   webhook:
     path: /webhook
     secret: test-secret-value

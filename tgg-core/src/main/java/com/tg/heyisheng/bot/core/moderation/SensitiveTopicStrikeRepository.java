@@ -31,4 +31,10 @@ public interface SensitiveTopicStrikeRepository extends JpaRepository<SensitiveT
             ON DUPLICATE KEY UPDATE strike_count = strike_count + 1, last_at = :at
             """)
     void upsertIncrement(@Param("chatId") long chatId, @Param("userId") long userId, @Param("at") Instant at);
+
+    /** 保留策略用：最近一次违规早于给定时点的行数（只读报告）。 */
+    long countByLastAtBefore(Instant cutoff);
+
+    /** 保留策略用：删除最近一次违规早于给定时点的计数行（返回删除行数）。 */
+    long deleteByLastAtBefore(Instant cutoff);
 }
