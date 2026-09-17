@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.common.exception.TggException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,9 @@ public class ModerationReviewDecisionService {
     /** 「维持」HIGH 违规时的禁言时长（保守值；真实封禁/解封效果属部署后验证项）。 */
     static final Duration MUTE_DURATION = Duration.ofHours(24);
 
+    /** 裁决备注长度上限——与 {@code moderation_review_queue.note} 的列宽一致。 */
+    public static final int MAX_NOTE_LENGTH = 255;
+
     private final ModerationReviewRepository repository;
     private final ModerationActionSender actionSender;
     private final Clock clock;
@@ -76,6 +80,12 @@ public class ModerationReviewDecisionService {
         if (decision != ReviewStatus.APPROVED && decision != ReviewStatus.REJECTED) {
             throw new IllegalArgumentException("裁决结论只能是 APPROVED（维持）或 REJECTED（推翻）");
         }
+        // 列宽 255：不拦的话超长备注会在 flush 期以 DataIntegrityViolationException 炸掉整个事务
+        // ——裁决回滚、连回执都没有（提交后审查抓到的 CRITICAL）。在此显式拒绝，让命令层给出可读提示。
+        String cleanNote = note == null ? null : note.trim();
+        if (cleanNote != null && cleanNote.length() > MAX_NOTE_LENGTH) {
+            throw new TggException("裁决备注过长（上限 " + MAX_NOTE_LENGTH + " 字符）");
+        }
         Optional<ModerationReviewItem> found = repository.findById(id);
         if (found.isEmpty()) {
             return Outcome.notFound();
@@ -85,7 +95,7 @@ public class ModerationReviewDecisionService {
             return Outcome.alreadyDecided(item.getStatus());
         }
 
-        item.decide(decision, operator, note, clock.instant());
+        item.decide(decision, operator, cleanNote, clock.instant());
         repository.save(item);
         enforce(item, decision);
 

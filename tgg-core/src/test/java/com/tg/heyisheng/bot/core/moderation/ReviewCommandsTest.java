@@ -94,6 +94,17 @@ class ReviewCommandsTest {
                 .contains("用法");
     }
 
+    /** 审查抓到的缺陷回归：输入问题（如备注超长）必须回显原因，不得穿透成静默失败。 */
+    @Test
+    void decisionFailureIsReportedNotSwallowed() {
+        when(decisions.decide(7L, ReviewStatus.APPROVED, REVIEWER, null))
+                .thenThrow(new com.tg.heyisheng.bot.common.exception.TggException("裁决备注过长（上限 255 字符）"));
+
+        String reply = text(new ReviewApproveCommandHandler(decisions, guard).handle(ctx(REVIEWER, "7")));
+
+        assertThat(reply).contains("未生效").contains("过长");
+    }
+
     @Test
     void listShowsPendingItems() {
         ModerationReviewItem item = new ModerationReviewItem(CHAT, 42L, 5, List.of("SPAM_LUCKY"),

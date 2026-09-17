@@ -15,7 +15,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @BotCommand(value = "review_reject", description = "推翻复核结论（判定误报，复核人）")
 public class ReviewRejectCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/review_reject <编号> [备注]";
+    static final String USAGE = "用法：/review_reject <编号> [备注]\n备注是裁决理由，请勿粘贴消息正文（备注会落库）。";
 
     private final ModerationReviewDecisionService decisions;
     private final ModerationReviewGuard guard;

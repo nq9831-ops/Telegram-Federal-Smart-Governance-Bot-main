@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -132,5 +133,36 @@ class ModerationReviewDecisionServiceTest {
         when(repository.findByStatusOrderByIdAsc(ReviewStatus.PENDING)).thenReturn(List.of());
 
         assertThat(service().listPending()).isEmpty();
+    }
+
+    /**
+     * 提交后审查抓到的 CRITICAL 回归：超长备注必须在<b>写库前</b>被拦下。
+     *
+     * <p>不拦的话，超 255 字会在 flush 期抛 {@code DataIntegrityViolationException}，
+     * 把整个 {@code @Transactional} 裁决事务炸掉——状态没改、连回执都没有。
+     */
+    @Test
+    void rejectsOverlongNoteBeforeTouchingTheDatabase() {
+        ModerationReviewItem i = item(RiskLevel.MEDIUM, false);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+
+        assertThatThrownBy(() -> service().decide(ID, ReviewStatus.APPROVED, OPERATOR, "x".repeat(256)))
+                .isInstanceOf(com.tg.heyisheng.bot.common.exception.TggException.class)
+                .hasMessageContaining("过长");
+
+        assertThat(i.getStatus()).as("超长备注必须在写库前被拦下，不得改动状态")
+                .isEqualTo(ReviewStatus.PENDING);
+        assertThat(sent).isEmpty();
+    }
+
+    @Test
+    void acceptsNoteAtExactlyTheLimit() {
+        ModerationReviewItem i = item(RiskLevel.MEDIUM, false);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+
+        String note = "x".repeat(ModerationReviewDecisionService.MAX_NOTE_LENGTH);
+        service().decide(ID, ReviewStatus.APPROVED, OPERATOR, note);
+
+        assertThat(i.getNote()).hasSize(ModerationReviewDecisionService.MAX_NOTE_LENGTH);
     }
 }

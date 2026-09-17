@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -43,7 +44,14 @@ final class ReviewDecisionCommandSupport {
         }
         String note = parts.length > 1 ? parts[1].trim() : null;
 
-        ModerationReviewDecisionService.Outcome outcome = decisions.decide(id, decision, ctx.userId(), note);
+        ModerationReviewDecisionService.Outcome outcome;
+        try {
+            outcome = decisions.decide(id, decision, ctx.userId(), note);
+        } catch (TggException ex) {
+            // 输入问题（如备注超长）：如实回显原因。不让异常穿透到分发层——那会变成静默失败，
+            // 而「裁决没生效却不告诉操作员」比直接报错危险得多。
+            return reply(ctx, "裁决未生效：" + ex.getMessage());
+        }
 
         String verb = decision == ReviewStatus.APPROVED ? "维持" : "推翻";
         return switch (outcome.result()) {
