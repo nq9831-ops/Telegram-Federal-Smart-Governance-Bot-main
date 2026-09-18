@@ -1,8 +1,10 @@
 package com.tg.heyisheng.bot.admin;
 
 import com.tg.heyisheng.bot.admin.approval.ApprovalCommandService;
+import com.tg.heyisheng.bot.admin.approval.ApprovalOverdueJob;
 import com.tg.heyisheng.bot.admin.approval.ApprovalQueryService;
 import com.tg.heyisheng.bot.core.audit.AuditService;
+import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewDecisionService;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
@@ -57,6 +59,22 @@ public class AdminConfiguration {
                                                          ModerationReviewDecisionService decisions,
                                                          AuditService audit) {
         return new ApprovalCommandService(reviewRepository, decisions, audit);
+    }
+
+    /**
+     * 审批超时提醒（§12.1 第 4 步）——超过 24 小时提醒、超过 72 小时升级。
+     *
+     * <p>与 §10.6 的硬红线 2 小时 SLA <b>分工而不重叠</b>：那条只催硬红线，这条只催非硬红线
+     * （见 {@link ApprovalOverdueJob}）。阈值与 cron 均可配
+     * （{@code tgg.admin.overdue-remind-hours} / {@code ...-escalate-hours} / {@code ...-cron}）。
+     */
+    @Bean
+    public ApprovalOverdueJob approvalOverdueJob(ApprovalQueryService queries,
+                                                 ModerationReviewGuard moderationReviewGuard,
+                                                 NotificationDispatcher notificationDispatcher,
+                                                 AdminProperties properties) {
+        return new ApprovalOverdueJob(queries, moderationReviewGuard, notificationDispatcher,
+                properties.getOverdueRemindHours(), properties.getOverdueEscalateHours());
     }
 
     /**

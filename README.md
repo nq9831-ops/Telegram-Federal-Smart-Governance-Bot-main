@@ -21,10 +21,13 @@ tgg-common      共享：领域模型、异常、工具（无业务逻辑）
 tgg-core        模块一：Webhook 接入 / 中间件链 / 命令分发 / 限流 / 权限 / 审核 / 准入
 tgg-credit      模块七：信用分体系（三套信用分 / 规则引擎 / 处罚令）
 tgg-federation  模块八：联邦治理（对等节点广播 / 入站验签 / 跨群封禁 / 申诉）
+tgg-listing     模块五/六：收录（群组收录 / 商家收录与保证金）
+tgg-admin       模块十一：Web 后台（审批中心 REST API；无界面）
 tgg-app         Spring Boot 启动器（打成单一可运行 jar）
 ```
 
-依赖单向：`tgg-app → tgg-federation → tgg-credit → tgg-core → tgg-common`。
+依赖单向：`tgg-app` 依赖各业务模块，业务模块依赖 `tgg-core`，`tgg-core` 依赖 `tgg-common`
+（即 `tgg-app → {federation, listing, admin, credit} → core → common`）；反向依赖不存在。
 
 ```mermaid
 flowchart LR
@@ -86,6 +89,8 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | `TGG_MERCHANT_REVIEWERS` | 空 | 资质复核人与保证金操作人 userId（**全局**白名单，逗号分隔）；为空则 `/merchant_review`·`/merchant_deposit` 对任何人不可用 |
 | `TGG_MERCHANT_INITIAL_SCORE` | `500` | 商家入驻成功时写入的初始信用分（需同时 `TGG_CREDIT_ENABLED=true`，否则信用分不初始化） |
 | `TGG_MODERATION_REVIEWERS` | 空 | 复核人 userId（**全局**白名单，逗号分隔）。为空则 `/review_list`·`/review_approve`·`/review_reject` 对任何人不可用 |
+| `TGG_ADMIN_API_TOKEN` | 空 | 模块十一 · 审批中心后端的 `Bearer` 令牌。**为空则 `/admin/approvals` 端点整体不装配**（访问得 404）。审批人身份另由 `X-Operator-Id` 头携带，并须落在 `TGG_MODERATION_REVIEWERS` 白名单内 |
+| `TGG_ADMIN_OVERDUE_REMIND_HOURS` / `..._ESCALATE_HOURS` | `24` / `72` | 审批待办超时提醒与升级阈值（**跳过硬红线**——它们由 §10.6 的 2h SLA 负责） |
 | `TGG_MODERATION_SENSITIVE_GRADING_ENABLED` | `false` | 敏感话题分级（§10.5）：按群分级、受标签豁免。用 `/group_tag add\|remove\|list <标签>`（需群内管理员）管理。**可豁免话题**：`politics` / `intl_politics` / `religionism`；**不可豁免**：恐怖活动 / 极端主义 / 煽动战争 |
 
 > 📘 **模块五/六 的部署验证步骤**见 `docs/DEPLOYMENT-VERIFICATION.md` N 段与配套的 `docs/DEPLOYMENT-RUNBOOK.md`（后者含可照抄的命令、预期输出与失败排查表）。
@@ -101,7 +106,9 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | 八 · 联邦治理（对等广播、入站验签、跨群封禁、申诉） | 已完成（默认关闭） |
 | 九 · AI 审核（L1 正则 + 四层流水线 + 复核队列 + L3 云端 / L2·L4 接入位） | 已完成（L2/L3/L4 默认关闭） |
 | **五/六 · 收录（群组收录、商家收录与保证金）** | **已完成（默认关闭）** |
-| 十（通知审计）、十一（Web 后台）、十二（TON 担保） | **未开始** |
+| 十 · 通知与审计（三级分类 / 免打扰 / 全链路审计 / 保留策略 / 72h 泄露通报） | 已完成（默认关闭） |
+| 十一 · Web 后台（**仅后端审批中心**，无界面） | 已完成（默认关闭） |
+| 十二 · TON 担保交易 | 未开始（链上不可达，既定非目标） |
 
 ## 文档
 
