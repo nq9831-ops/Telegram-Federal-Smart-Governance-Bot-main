@@ -17,4 +17,12 @@ public interface ModerationReviewRepository extends JpaRepository<ModerationRevi
 
     /** 保留策略用：删除某状态下、创建早于给定时点的行（返回删除行数）。 */
     long deleteByStatusAndCreatedAtBefore(ReviewStatus status, java.time.Instant cutoff);
+
+    /**
+     * §10.6 红线复核 SLA 用：<b>硬红线且仍待裁决</b>、且创建早于给定时点的条目。
+     *
+     * <p>条件必须同时锁死「硬红线」与「PENDING」——把普通条目或已裁决条目算进来会稀释催办。
+     */
+    java.util.List<ModerationReviewItem> findByHardLineTrueAndStatusAndCreatedAtBefore(
+            ReviewStatus status, java.time.Instant cutoff);
 }

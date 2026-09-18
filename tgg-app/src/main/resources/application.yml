@@ -34,6 +34,10 @@ tgg:
     # 敏感话题分级（模块九 §10.5）：默认关闭。启用后按群对敏感话题分级（命中即删除 + 入队复核，
     # **不封禁**），并受「群话题标签」（/group_tag）豁免——本群声明了某话题即豁免该话题。
     sensitive-grading-enabled: ${TGG_MODERATION_SENSITIVE_GRADING_ENABLED:false}
+    # 红线复核 SLA（§10.6）：硬红线命中后须在 N 小时内人工确认（/review_approve 或 /review_reject），
+    # 超时向白名单发**紧急级**催办。只催办、不自动解封——原文未规定超时后果。
+    redline-review-sla-hours: ${TGG_MODERATION_REDLINE_SLA_HOURS:2}
+    redline-sla-cron: ${TGG_MODERATION_REDLINE_SLA_CRON:0 5 * * * *}
   breach:
     # 数据泄露 72 小时通报（§11.2）：催办 cron（默认每小时一次）。
     # 催办走**紧急级**通知（不受用户免打扰阻塞），发给 TGG_MODERATION_REVIEWERS 白名单。

@@ -322,6 +322,23 @@ public class TggCoreConfiguration {
     }
 
     /**
+     * 红线复核 SLA 催办（模块九 §10.6）——硬红线命中后须在 2 小时内完成人工确认，超时升级提醒。
+     *
+     * <p>SLA 与 cron 均可配（{@code tgg.moderation.redline-review-sla-hours} / {@code ...-cron}）。
+     * 只催办、不自动动作：原文未规定「超时会怎样」，规格没写的地方不替规格做决定。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.core.moderation.RedLineReviewSla redLineReviewSla(
+            com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository reviewRepository,
+            com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard moderationReviewGuard,
+            NotificationDispatcher notificationDispatcher,
+            @Value("${tgg.moderation.redline-review-sla-hours:2}") long slaHours) {
+        return new com.tg.heyisheng.bot.core.moderation.RedLineReviewSla(reviewRepository,
+                moderationReviewGuard, notificationDispatcher, Clock.systemUTC(),
+                java.time.Duration.ofHours(slaHours));
+    }
+
+    /**
      * 数据泄露登记与 72 小时催办（模块十 §11.2）。
      *
      * <p>不挂开关：泄露是合规事故，不该因为某个功能开关没打开就失去计时能力。
