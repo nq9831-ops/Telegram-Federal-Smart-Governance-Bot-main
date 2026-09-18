@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.core.moderation;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * 待人工复核队列的仓库。
@@ -25,4 +26,28 @@ public interface ModerationReviewRepository extends JpaRepository<ModerationRevi
      */
     java.util.List<ModerationReviewItem> findByHardLineTrueAndStatusAndCreatedAtBefore(
             ReviewStatus status, java.time.Instant cutoff);
+
+    // ─────────────── 模块十一（审批中心）所需的只读查询 ───────────────
+    // 注意：优先级排序**刻意不在此处下推到 SQL**。risk_level 以枚举名（LOW/MEDIUM/HIGH）存储，
+    // 按字符串排序会得到 MEDIUM > LOW > HIGH 这种错误次序；正确次序由应用层按 severity() 组装
+    // 复合比较器（见 tgg-admin 的 ApprovalQueryService）。这里只提供计数与聚合。
+
+    /** 按状态计数（统计用）。 */
+    long countByStatus(ReviewStatus status);
+
+    /** 硬红线且处于某状态的条数（统计用：待办中有多少是「已自动封禁、等人复核」的）。 */
+    long countByHardLineTrueAndStatus(ReviewStatus status);
+
+    /**
+     * 已裁决条目的<b>平均处置时长</b>（秒）；没有已裁决条目时返回 {@code null}。
+     *
+     * <p>用 native SQL 而非 JPQL：{@code TIMESTAMPDIFF} 不是 JPQL 标准函数
+     * （与本项目其他 native 查询同一取舍——让数据库做它擅长的时间差，而不是拉全表回来算）。
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT AVG(TIMESTAMPDIFF(SECOND, created_at, decided_at))
+            FROM moderation_review_queue
+            WHERE status IN ('APPROVED', 'REJECTED') AND decided_at IS NOT NULL
+            """)
+    Double averageDecisionSeconds();
 }

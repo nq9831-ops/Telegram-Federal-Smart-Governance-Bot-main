@@ -43,6 +43,7 @@
     <module>tgg-credit</module>
     <module>tgg-federation</module>
     <module>tgg-listing</module>
+    <module>tgg-admin</module>
     <module>tgg-app</module>
   </modules>
 
@@ -71,6 +72,11 @@
       <dependency>
         <groupId>com.tg.heyisheng.bot</groupId>
         <artifactId>tgg-listing</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.tg.heyisheng.bot</groupId>
+        <artifactId>tgg-admin</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

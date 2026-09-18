@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tg.heyisheng.bot</groupId>
+    <artifactId>tgg-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tgg-admin</artifactId>
+  <name>tgg-admin</name>
+  <description>模块十一：Web 后台（审批中心 REST API）</description>
+
+  <dependencies>
+    <!-- 模块一：审批中心的全部依赖都在这里，本模块自身不引入新的第三方依赖——
+         既有的复核队列（ModerationReviewRepository）、裁决逻辑（ModerationReviewDecisionService）、
+         审计（AuditService）、通知（NotificationDispatcher）与常量时间比对（SecretTokenVerifier）
+         均可直接复用；web 栈由 tgg-core 的 spring-boot-starter-web 传递引入。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

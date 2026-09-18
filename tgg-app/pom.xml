@@ -38,6 +38,13 @@
       <artifactId>tgg-listing</artifactId>
     </dependency>
 
+    <!-- 模块十一：Web 后台（审批中心 REST API）。同上，其 @Configuration / @RestController
+         需在扫描范围内；未配置 tgg.admin.api-token 时其端点整体不装配（见 AdminConfiguration）。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-admin</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
