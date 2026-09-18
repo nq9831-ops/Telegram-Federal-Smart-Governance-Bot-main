@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.retention;
 
+import com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
 import com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository;
@@ -37,15 +38,18 @@ public class RetentionService {
 
     private final ModerationReviewRepository reviewRepository;
     private final SensitiveTopicStrikeRepository strikeRepository;
+    private final MemberJoinObservationRepository memberJoinRepository;
     private final RetentionProperties properties;
     private final Clock clock;
 
     public RetentionService(ModerationReviewRepository reviewRepository,
                             SensitiveTopicStrikeRepository strikeRepository,
+                            MemberJoinObservationRepository memberJoinRepository,
                             RetentionProperties properties,
                             Clock clock) {
         this.reviewRepository = reviewRepository;
         this.strikeRepository = strikeRepository;
+        this.memberJoinRepository = memberJoinRepository;
         this.properties = properties;
         this.clock = clock;
     }
@@ -60,10 +64,12 @@ public class RetentionService {
         Instant now = clock.instant();
         Instant queueCutoff = now.minus(Duration.ofDays(properties.getReviewedQueueDays()));
         Instant strikeCutoff = now.minus(Duration.ofDays(properties.getStrikeDays()));
+        Instant membershipCutoff = now.minus(Duration.ofDays(properties.getMembershipDays()));
 
         long approved = reviewRepository.countByStatusAndCreatedAtBefore(ReviewStatus.APPROVED, queueCutoff);
         long rejected = reviewRepository.countByStatusAndCreatedAtBefore(ReviewStatus.REJECTED, queueCutoff);
         long strikes = strikeRepository.countByLastAtBefore(strikeCutoff);
+        long memberships = memberJoinRepository.countByObservedAtBefore(membershipCutoff);
 
         return List.of(
                 new Finding("moderation_review_queue",
@@ -75,6 +81,9 @@ public class RetentionService {
                 new Finding("sensitive_topic_strikes",
                         "最近一次违规早于 " + properties.getStrikeDays() + " 天前",
                         strikes, true, "清零后「屡犯升级」的累计重新开始（这是刻意的窗口语义）"),
+                new Finding("member_join_observations",
+                        "最后一次写入早于 " + properties.getMembershipDays() + " 天前",
+                        memberships, true, "入群观察数据：退群即删，此处是兜底（如 bot 已被移出群、收不到退群事件）"),
                 new Finding(AUDIT_TABLE, "不适用（永不清理）", -1, false, AUDIT_REASON));
     }
 
@@ -92,10 +101,12 @@ public class RetentionService {
         Instant now = clock.instant();
         Instant queueCutoff = now.minus(Duration.ofDays(properties.getReviewedQueueDays()));
         Instant strikeCutoff = now.minus(Duration.ofDays(properties.getStrikeDays()));
+        Instant membershipCutoff = now.minus(Duration.ofDays(properties.getMembershipDays()));
 
         long deleted = reviewRepository.deleteByStatusAndCreatedAtBefore(ReviewStatus.APPROVED, queueCutoff)
                 + reviewRepository.deleteByStatusAndCreatedAtBefore(ReviewStatus.REJECTED, queueCutoff)
-                + strikeRepository.deleteByLastAtBefore(strikeCutoff);
+                + strikeRepository.deleteByLastAtBefore(strikeCutoff)
+                + memberJoinRepository.deleteByObservedAtBefore(membershipCutoff);
 
         log.info("保留策略已清理过期数据：共 {} 行（审计表不在清理范围）", deleted);
         return deleted;

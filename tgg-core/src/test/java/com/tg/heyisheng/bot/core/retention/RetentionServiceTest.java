@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.retention;
 
+import com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
 import com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository;
@@ -21,8 +22,9 @@ import static org.mockito.Mockito.when;
 /**
  * 保留策略测试（模块十 §11.2）。
  *
- * <p><b>两条最要紧的护栏</b>：① 审计表<b>永不清理</b>（否则上一波立的「不可删」就地自我否定）；
- * ② 默认<b>只报告不清理</b>——保留策略的本质是自动删数据，默认就删是危险的。
+ * <p><b>三条最要紧的护栏</b>：① 审计表<b>永不清理</b>（否则上一波立的「不可删」就地自我否定）；
+ * ② 默认<b>只报告不清理</b>——保留策略的本质是自动删数据，默认就删是危险的；
+ * ③ 入群观察表<b>必须出现在报告里</b>——它是「数据最小化」承诺的兜底（退群即删之外的保留期）。
  */
 class RetentionServiceTest {
 
@@ -30,10 +32,11 @@ class RetentionServiceTest {
 
     private final ModerationReviewRepository reviews = mock(ModerationReviewRepository.class);
     private final SensitiveTopicStrikeRepository strikes = mock(SensitiveTopicStrikeRepository.class);
+    private final MemberJoinObservationRepository memberships = mock(MemberJoinObservationRepository.class);
     private final RetentionProperties properties = new RetentionProperties();
 
     private RetentionService service() {
-        return new RetentionService(reviews, strikes, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+        return new RetentionService(reviews, strikes, memberships, properties, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -54,10 +57,23 @@ class RetentionServiceTest {
         when(reviews.countByStatusAndCreatedAtBefore(eq(ReviewStatus.APPROVED), any())).thenReturn(3L);
         when(reviews.countByStatusAndCreatedAtBefore(eq(ReviewStatus.REJECTED), any())).thenReturn(1L);
         when(strikes.countByLastAtBefore(any())).thenReturn(7L);
+        when(memberships.countByObservedAtBefore(any())).thenReturn(4L);
 
         List<RetentionService.Finding> findings = service().report();
 
-        assertThat(findings).extracting(RetentionService.Finding::expired).contains(3L, 1L, 7L);
+        assertThat(findings).extracting(RetentionService.Finding::expired).contains(3L, 1L, 7L, 4L);
+    }
+
+    @Test
+    void reportIncludesJoinObservationsAsPurgeable() {
+        List<RetentionService.Finding> findings = service().report();
+
+        RetentionService.Finding join = findings.stream()
+                .filter(finding -> "member_join_observations".equals(finding.table()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("入群观察表必须出现在保留报告里——那是数据最小化的兜底"));
+
+        assertThat(join.purgeable()).isTrue();
     }
 
     @Test
@@ -67,6 +83,7 @@ class RetentionServiceTest {
         assertThat(result).as("-1 = 未启用，与「启用但无可删」（0）区分开").isEqualTo(-1);
         verify(reviews, never()).deleteByStatusAndCreatedAtBefore(any(), any());
         verify(strikes, never()).deleteByLastAtBefore(any());
+        verify(memberships, never()).deleteByObservedAtBefore(any());
     }
 
     @Test
@@ -75,7 +92,8 @@ class RetentionServiceTest {
         when(reviews.deleteByStatusAndCreatedAtBefore(eq(ReviewStatus.APPROVED), any())).thenReturn(2L);
         when(reviews.deleteByStatusAndCreatedAtBefore(eq(ReviewStatus.REJECTED), any())).thenReturn(1L);
         when(strikes.deleteByLastAtBefore(any())).thenReturn(5L);
+        when(memberships.deleteByObservedAtBefore(any())).thenReturn(3L);
 
-        assertThat(service().purge()).as("2 + 1 + 5").isEqualTo(8L);
+        assertThat(service().purge()).as("2 + 1 + 5 + 3").isEqualTo(11L);
     }
 }

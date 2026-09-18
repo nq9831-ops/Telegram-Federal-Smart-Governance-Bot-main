@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.credit.CreditEvent;
 import com.tg.heyisheng.bot.core.credit.CreditEventSink;
 import com.tg.heyisheng.bot.core.credit.CreditEventType;
 import com.tg.heyisheng.bot.core.credit.CreditSubjectType;
+import com.tg.heyisheng.bot.core.membership.MemberJoinRecorder;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
@@ -71,6 +72,8 @@ public class UpdateDispatcher {
     private final JoinVerificationService joinVerificationService;
     /** 信用事件发布通道（模块七）；默认 noop——未装配信用分时主链路零影响。 */
     private final CreditEventSink creditEventSink;
+    /** 成员入群时间采集（模块九 §10.3「入群时长」门槛的数据源）；为 null 表示该能力未装配。 */
+    private final MemberJoinRecorder memberJoinRecorder;
 
     /**
      * 构造器已增至 9 个参数，继续叠加会难以维护——新增装配一律走 {@link #builder()}；
@@ -97,6 +100,7 @@ public class UpdateDispatcher {
         private CallbackRouter callbackRouter;
         private JoinVerificationService joinVerificationService;
         private CreditEventSink creditEventSink = CreditEventSink.noop();
+        private MemberJoinRecorder memberJoinRecorder;
 
         public Builder middlewareChain(MiddlewareChain value) {
             this.middlewareChain = value;
@@ -181,6 +185,12 @@ public class UpdateDispatcher {
             return this;
         }
 
+        /** 成员入群时间采集（模块九 §10.3）；不设置即关闭该能力（chat_member 更新被忽略）。 */
+        public Builder memberJoinRecorder(MemberJoinRecorder value) {
+            this.memberJoinRecorder = value;
+            return this;
+        }
+
         public UpdateDispatcher build() {
             return new UpdateDispatcher(this);
         }
@@ -202,6 +212,7 @@ public class UpdateDispatcher {
         this.callbackRouter = b.callbackRouter;
         this.joinVerificationService = b.joinVerificationService;
         this.creditEventSink = b.creditEventSink == null ? CreditEventSink.noop() : b.creditEventSink;
+        this.memberJoinRecorder = b.memberJoinRecorder;
     }
 
     public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
@@ -315,6 +326,18 @@ public class UpdateDispatcher {
             // 因此必须在 relevantMessage 之前分流，否则会被当成"无内容更新"静默丢弃。
             if (callbackRouter != null && update.hasCallbackQuery()) {
                 return callbackRouter.route(update.getCallbackQuery());
+            }
+
+            // 成员状态变化（模块九 §10.3「入群时长」的唯一数据源）：chat_member 更新**没有 message**，
+            // 故必须在此处（relevantMessage 之前）**无条件**分流——与 callback query 同构。
+            // 若只按 recorder 是否装配来分流，未装配时它会带着 ChatMemberUpdated 走完整条链路
+            // （中间件与命令分发既拿不到 chatId 也拿不到 userId），然后被当成「无内容更新」静默丢弃。
+            // 那正是「采集上线了却一条都没记下」最隐蔽的失败形态，故这里不留给装配状态决定。
+            if (update.hasChatMember()) {
+                if (memberJoinRecorder != null) {
+                    memberJoinRecorder.onChatMemberUpdated(update.getChatMember());
+                }
+                return Optional.empty();
             }
 
             Message message = relevantMessage(update);

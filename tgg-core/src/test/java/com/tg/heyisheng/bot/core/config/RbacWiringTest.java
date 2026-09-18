@@ -85,6 +85,11 @@ class RbacWiringTest {
                 .withBean(com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository.class,
                         () -> org.mockito.Mockito.mock(
                                 com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository.class))
+                // §10.3 入群时长：采集器（memberJoinRecorder）与门槛（membershipDurationTeachGate）
+                // 都依赖入群观察仓库（JPA 侧）——runner 不加载 JPA，同样补替身。
+                .withBean(com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository.class))
                 // 模块十（泄露通报）：装配依赖 DataBreachRepository（JPA 侧）——同样补替身。
                 .withBean(com.tg.heyisheng.bot.core.breach.DataBreachRepository.class,
                         () -> org.mockito.Mockito.mock(

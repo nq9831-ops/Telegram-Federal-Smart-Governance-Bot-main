@@ -289,9 +289,43 @@ public class TggCoreConfiguration {
     @Bean
     public RetentionService retentionService(com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository reviewRepository,
                                              com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository strikeRepository,
+                                             com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository memberJoinRepository,
                                              RetentionProperties retentionProperties) {
-        return new RetentionService(reviewRepository, strikeRepository, retentionProperties,
-                Clock.systemUTC());
+        return new RetentionService(reviewRepository, strikeRepository, memberJoinRepository,
+                retentionProperties, Clock.systemUTC());
+    }
+
+    /**
+     * 成员入群时间采集（模块九 §10.3「入群时长」门槛的数据源）。
+     *
+     * <p><b>必须由部署侧配合才不空转</b>：Telegram 仅在 webhook 的 {@code allowed_updates} 显式包含
+     * {@code chat_member}、<b>且</b> bot 是群管理员时，才会推送成员状态变化。二者缺一，表里一条都不会有
+     * ——而且不会有任何报错（这就是「采集上线了却查不到数据」的形态）。部署要求已写入
+     * {@code docs/DEPLOYMENT-VERIFICATION.md}。
+     *
+     * <p><b>不挂功能开关</b>：它是「入群时长」门槛的唯一数据源，关掉等于让该门槛无声失效；
+     * 而它自身的代价很小——只写一行窄数据，且退群即删（见 V15 迁移的说明）。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.core.membership.MemberJoinRecorder memberJoinRecorder(
+            com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository memberJoinRepository,
+            IdHasher idHasher) {
+        return new com.tg.heyisheng.bot.core.membership.MemberJoinRecorder(
+                memberJoinRepository, idHasher, Clock.systemUTC());
+    }
+
+    /**
+     * 「入群时长」教学门槛（模块九 §10.3 原文第三条）——阈值可配，默认 30 天。
+     *
+     * <p>「无记录即放行」的口径与理由写在 {@code MembershipDurationTeachGate} 的 javadoc 里：
+     * 历史入群时间在 Telegram 侧不可回收，拒绝无记录者等于永久误伤 bot 上线前的全部成员。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.core.wordfilter.TeachGate membershipDurationTeachGate(
+            com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository memberJoinRepository,
+            @Value("${tgg.teach.min-membership-days:30}") long minMembershipDays) {
+        return new com.tg.heyisheng.bot.core.membership.MembershipDurationTeachGate(
+                memberJoinRepository, Clock.systemUTC(), java.time.Duration.ofDays(minMembershipDays));
     }
 
     /**
@@ -299,7 +333,7 @@ public class TggCoreConfiguration {
      *
      * <p><b>另两条的落地方式</b>：「信用分」那条的数据在 tgg-credit，core 处于依赖链底层看不到，
      * 故由模块七注册自己的 {@code TeachGate}（{@code NoDeductionTeachGate}）自动并入下方聚合器；
-     * 「入群时长 ≥30 天」全仓无数据源，须先新增个人数据采集（口径待定）——两者都不在本波擅自决定。
+     * 「入群时长」由本类的 {@code membershipDurationTeachGate} 实现（数据来自 chat_member 采集）。
      */
     @Bean
     public com.tg.heyisheng.bot.core.wordfilter.TeachGate noViolationTeachGate(
@@ -409,7 +443,8 @@ public class TggCoreConfiguration {
                                              IdHasher idHasher,
                                              ObjectProvider<CallbackRouter> callbackRouter,
                                              ObjectProvider<JoinVerificationService> joinVerification,
-                                             ObjectProvider<CreditEventSink> creditEventSink) {
+                                             ObjectProvider<CreditEventSink> creditEventSink,
+                                             ObjectProvider<com.tg.heyisheng.bot.core.membership.MemberJoinRecorder> memberJoinRecorder) {
         // 用 Builder 而非位置构造器：可选项已多到难以按位置阅读（见 Builder 的 javadoc）。
         // 回调路由与入群验证属模块四，受 tgg.admission.enabled 门控——未启用时取不到，传 null 即关闭该分支。
         return UpdateDispatcher.builder()
@@ -426,6 +461,7 @@ public class TggCoreConfiguration {
                 .callbackRouter(callbackRouter.getIfAvailable())
                 .joinVerificationService(joinVerification.getIfAvailable())
                 .creditEventSink(creditEventSink.getIfAvailable())
+                .memberJoinRecorder(memberJoinRecorder.getIfAvailable())
                 .taughtRuleDetector(taughtRuleDetector)
                 .sensitiveTopicGuard(sensitiveTopicGuard.getIfAvailable())
                 .build();

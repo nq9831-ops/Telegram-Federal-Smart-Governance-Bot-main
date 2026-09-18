@@ -24,6 +24,14 @@ public class RetentionProperties {
     /** 敏感话题累计计数的保留天数（超过即清零——「屡犯升级」需要窗口，不能永久累计）。 */
     private int strikeDays = 365;
 
+    /**
+     * 成员入群时间观察的保留天数（超过即删）。
+     *
+     * <p>该表已用「退群即删」把体积压到「仅当前在群成员」，但仍需保留期兜底——
+     * 例如 bot 被移出群之后再收不到成员的退群事件，那些行会一直留着。默认与违规计数同口径（365 天）。
+     */
+    private int membershipDays = 365;
+
     /** 每日清理时间（cron）。默认凌晨 4:30，避开收录验证（3:00）。 */
     private String cron = "0 30 4 * * *";
 
@@ -49,6 +57,14 @@ public class RetentionProperties {
 
     public void setStrikeDays(int strikeDays) {
         this.strikeDays = strikeDays;
+    }
+
+    public int getMembershipDays() {
+        return membershipDays;
+    }
+
+    public void setMembershipDays(int membershipDays) {
+        this.membershipDays = membershipDays;
     }
 
     public String getCron() {
