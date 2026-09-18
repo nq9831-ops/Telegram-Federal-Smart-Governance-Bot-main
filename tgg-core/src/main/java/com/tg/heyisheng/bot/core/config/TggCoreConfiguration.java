@@ -295,25 +295,30 @@ public class TggCoreConfiguration {
     }
 
     /**
-     * 教学门槛（模块九 §10.3）——用 core 能看到的信号实现原文门槛里的「<b>无违规</b>」那一条。
+     * 「无违规」教学门槛（模块九 §10.3）——用 core 能看到的信号实现原文三条门槛里的这一条。
      *
-     * <p><b>另两条未实现，且不是疏忽</b>（详见 {@code TeachEligibility} 的 javadoc）：
-     * 「信用分 ≥400」在本项目不可达（个人分区间 [0,150]），且信用分在 tgg-credit、core 看不到；
-     * 「入群时长 ≥30 天」全仓无数据源（现有观察期把截止交给 Telegram 的 untilDate，本地不存）。
-     * 要补这两条须先定口径 / 新增数据采集——不在本波擅自决定。
+     * <p><b>另两条的落地方式</b>：「信用分」那条的数据在 tgg-credit，core 处于依赖链底层看不到，
+     * 故由模块七注册自己的 {@code TeachGate}（{@code NoDeductionTeachGate}）自动并入下方聚合器；
+     * 「入群时长 ≥30 天」全仓无数据源，须先新增个人数据采集（口径待定）——两者都不在本波擅自决定。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.core.wordfilter.TeachGate noViolationTeachGate(
+            com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService strikeService) {
+        return new com.tg.heyisheng.bot.core.wordfilter.NoViolationTeachGate(strikeService);
+    }
+
+    /**
+     * 教学门槛聚合器（模块九 §10.3）——把<b>各模块</b>注册的 {@code TeachGate} 并成一个判定。
+     *
+     * <p>为何「聚合」而不是「core 直接实现」：门槛的数据源跨模块（core 有违规计数、tgg-credit 有信用分），
+     * 而 core 看不到上层。各上层模块注册自己的 gate 即生效，core 无需知道它们存在——
+     * 与 {@code CreditEventSink} 同一套依赖倒置。<b>未接线即零影响</b>：某模块未启用时它的 gate 不存在，
+     * 聚合列表里就没有它，{@code /teach} 行为与升级前逐字一致。
      */
     @Bean
     public com.tg.heyisheng.bot.core.wordfilter.TeachEligibility teachEligibility(
-            com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService strikeService) {
-        return (chatId, userId) -> {
-            if (userId == null) {
-                return java.util.Optional.of("无法识别你的身份。");
-            }
-            int strikes = strikeService.countOf(chatId, userId);
-            return strikes > 0
-                    ? java.util.Optional.of("本群教学要求无违规记录（你已有 " + strikes + " 次敏感话题违规）。")
-                    : java.util.Optional.empty();
-        };
+            java.util.List<com.tg.heyisheng.bot.core.wordfilter.TeachGate> gates) {
+        return com.tg.heyisheng.bot.core.wordfilter.TeachEligibility.composite(gates);
     }
 
     @Bean
