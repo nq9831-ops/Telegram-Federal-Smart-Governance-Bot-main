@@ -74,7 +74,10 @@
 |---|---|
 | 密钥经环境变量注入、不硬编码 | **已实现**（关键密钥缺失即 fail-fast 启动失败） |
 | 日志脱敏（标识哈希化） | **已实现** |
-| 依赖版本统一管理 | **部分**：版本由父 POM 统一管理；**未**生成 SBOM、**未**接漏洞扫描 |
+| 依赖版本统一管理 | **已实现**：版本由父 POM 统一管理（含下列几项漏洞修复的版本覆盖） |
+| SBOM（软件物料清单） | **已实现**：`mvn package` 生成聚合 `target/bom.json`（CycloneDX 1.5，`cyclonedx-maven-plugin`），覆盖全部模块与编译/运行期传递依赖 |
+| 依赖漏洞扫描 | **已实现且可复现**：`tools/security/scan_dependencies.py` 读 SBOM 查 OSV（osv.dev）。本仓库最近一次扫描（2026-09-19）**0 命中**——此前发现的 3×CRITICAL/5×MEDIUM 已通过版本覆盖处置，记录见 `docs/KNOWN-ISSUES.md`。⚠️ **扫描只覆盖公开收录的漏洞，不等于安全保证**；上线环境应把它接进 CI 持续跑 |
+| 容器化部署 | **已实现**：`Dockerfile`（多阶段构建 + 非 root 运行）+ `docker-compose.yml`（应用 + MySQL）。**未**提供 K8s 清单 |
 | Token 定期轮换 | **未实现**（属运营流程，非代码能力） |
 | Vault 集成 | **未实现**（用环境变量替代） |
 | Actuator 锁定 / CSP / HSTS | **未实现**（本项目未引入 Actuator；建议在反向代理层加固） |
