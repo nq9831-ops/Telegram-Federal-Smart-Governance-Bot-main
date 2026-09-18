@@ -26,6 +26,11 @@ GRANT ALL ON tgg_test.* TO 'tgg'@'localhost';
 **`*IT` 由 failsafe 在 `verify` 阶段执行**——只跑 `mvn test` 会**静默跳过**全部集成测试，
 而 `BUILD SUCCESS` 并不代表端到端跑过。提交前请跑 `mvn verify` 并**逐模块核对用例数**。
 
+**CI 跑的是同一套命令**：`.github/workflows/ci.yml` 的 `build` job 在 MySQL 8.4 服务上执行
+`mvn -B -ntp verify`；另一个 `dependency-scan` job 跑 SBOM → OSV 扫描（退出码 1 即失败）。
+测试所需的 `TGG_WEBHOOK_SECRET` / `TGG_BOT_TOKEN` 由 `src/test/resources/application.yml`
+提供，CI **不配任何 secret**。注意本地跑绿不等于 CI 会绿——CI 是干净环境（空 `~/.m2`、空库）。
+
 ## 三、代码约定
 
 - 包名 `com.tg.heyisheng.bot`；模块划分与依赖方向见 `README.md`。

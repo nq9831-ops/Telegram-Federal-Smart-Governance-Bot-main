@@ -83,6 +83,18 @@ python3 tools/security/scan_dependencies.py
 扫描器与单测在 `tools/security/`；最近一次处置记录见 `docs/KNOWN-ISSUES.md`
 「第六阶段 · 安全加固与容器化」。**0 命中不等于安全**——OSV 只收录公开漏洞。
 
+### 持续集成（GitHub Actions）
+
+`.github/workflows/ci.yml` 两个 job：
+
+- **build** —— 起 MySQL 8.4 服务（库 `tgg_test`，与 `src/test/resources/application.yml` 严格一致），
+  跑 `mvn -B -ntp verify`（**含 `*IT`**）。测试所需密钥写在测试配置里，CI **不注入任何 secret**。
+- **dependency-scan** —— `mvn -DskipTests package` 产出 SBOM，再跑 `tools/security/scan_dependencies.py`
+  查 OSV；退出码 1 即令流水线失败。
+
+⚠️ 两条硬约束：必须带 MySQL（集成测试连独立库 `tgg_test`，**不是** H2，见 `docs/LESSONS.md`）；
+必须用 `verify` 而非 `test`（否则 `*IT` 被静默跳过、得到假绿灯）。
+
 ## 配置（环境变量）
 
 **必需**（缺失即启动失败，属刻意的 fail-fast）：

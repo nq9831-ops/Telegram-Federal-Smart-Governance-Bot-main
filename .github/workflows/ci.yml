@@ -1,0 +1,101 @@
+# 持续集成：构建 + 全量测试 + 依赖安全扫描。
+#
+# 设计要点（都与本项目的既有约束对齐，改之前请先读注释）：
+#   * **必须带 MySQL**：`*IT` 集成测试连独立库 `tgg_test`（见 tgg-app/src/test/resources/application.yml），
+#     刻意不用 H2 —— H2 的 MySQL 兼容模式会掩盖方言差异（`docs/LESSONS.md`）。
+#   * **`mvn verify`，不是 `mvn test`**：surefire 只跑 `*Test`；`*IT` 由 failsafe 在 verify 阶段执行。
+#     只跑 `mvn test` 会**静默跳过全部集成测试**而得到绿灯。
+#   * **不注入任何密钥**：测试所需的 `TGG_WEBHOOK_SECRET` / `TGG_BOT_TOKEN` 已写在
+#     `src/test/resources/application.yml` 里（`test-secret-value`），CI 无需配置 secret。
+#   * 依赖扫描**独立成 job**：即使测试红，也能单独看到依赖安全状态；它只 `package`（跳过测试），比 verify 快。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & verify (JDK 21 + MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          # 与 src/test/resources/application.yml 的 url/username/password 严格一致
+          MYSQL_DATABASE: tgg_test
+          MYSQL_USER: tgg
+          MYSQL_PASSWORD: tggdev
+        ports:
+          - 3306:3306
+        # GitHub Actions 会等健康检查通过后才启动 steps，故不需要额外的等待脚本
+        # （runner 上也没有 mysql client 可用）。
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --character-set-server=utf8mb4
+          --collation-server=utf8mb4_unicode_ci
+          --default-time-zone=+00:00
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build & verify
+        run: mvn -B -ntp verify
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/target/*-reports/*.txt'
+          if-no-files-found: ignore
+
+  dependency-scan:
+    name: Dependency scan (SBOM → OSV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # package 阶段顺带产出聚合 SBOM（target/bom.json，见根 pom.xml 的 cyclonedx-maven-plugin）
+      - name: Package (produces target/bom.json)
+        run: mvn -B -ntp -DskipTests package
+
+      # 退出码语义：0=无 HIGH/CRITICAL、1=有（本 step 失败）、2=SBOM IO 错、3=网络失败。
+      # 扫描器 fail-closed：网络不可达时**不会**给出「0 漏洞」的假绿灯。
+      - name: Scan dependencies against OSV
+        run: python3 tools/security/scan_dependencies.py --sbom target/bom.json
+
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-scan
+          path: target/security/
+          if-no-files-found: ignore
