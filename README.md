@@ -115,6 +115,10 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | 文件 | 内容 |
 |---|---|
 | `PRIVACY.md` | 隐私说明：消息原文零存储、日志脱敏、**第三方 AI 送什么/不送什么** |
+| `COMPLIANCE.md` | 运营者合规清单：**开篇即列出本项目「没有做什么」**（无资金托管 / 无制裁筛查 / 无 KYC），再逐条对照 GDPR・AI Act・COPPA・Telegram 平台政策 |
+| `DISCLAIMER.md` | 开发者免责声明：只提供软件、不参与运营、无担保、责任限制 |
+| `TERMS.md` | 服务条款**模板**（含占位符，运营者须按自身部署与法域改写并公开） |
+| `CONTRIBUTING.md` | 贡献指南：环境、测试纪律（含「只跑 `mvn test` 会静默跳过全部 IT」）、提交前自检 |
 
 ## 许可
 
