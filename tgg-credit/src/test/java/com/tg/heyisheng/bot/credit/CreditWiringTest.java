@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.credit;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.credit.CreditEventSink;
+import com.tg.heyisheng.bot.core.wordfilter.TeachGate;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -72,5 +73,21 @@ class CreditWiringTest {
                     assertThat(context).hasSingleBean(PenaltySigner.class);
                     assertThat(context).hasSingleBean(CreditService.class);
                 });
+    }
+
+    @Test
+    void enabledRegistersTheTeachingGateSoCoreAggregatorCanPickItUp() {
+        runner.withPropertyValues("tgg.credit.enabled=true", "tgg.credit.private-key=" + VALID_PRIVATE_KEY)
+                .withBean(CreditScoreRepository.class, () -> mock(CreditScoreRepository.class))
+                .withBean(IdHasher.class, IdHasher::fromEnvironment)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TeachGate.class);
+                    assertThat(context.getBean(TeachGate.class)).isInstanceOf(NoDeductionTeachGate.class);
+                });
+    }
+
+    @Test
+    void disabledProducesNoTeachingGate() {
+        runner.run(context -> assertThat(context).doesNotHaveBean(TeachGate.class));
     }
 }

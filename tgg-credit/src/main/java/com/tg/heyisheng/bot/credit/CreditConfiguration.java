@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.credit;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.credit.CreditEventSink;
+import com.tg.heyisheng.bot.core.wordfilter.TeachGate;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,5 +91,18 @@ public class CreditConfiguration {
                                            PenaltySigner penaltySigner,
                                            PenaltyOrderPublisher penaltyOrderPublisher) {
         return new CreditEventSinkAdapter(creditService, penaltySigner, penaltyOrderPublisher);
+    }
+
+    /**
+     * 「信用良好（无扣分）」教学门槛（模块九 §10.3）——注册 core 的 {@link TeachGate} 接缝，
+     * 由 {@code TggCoreConfiguration} 的门槛聚合器自动并入判定。
+     *
+     * <p>随本类的开关一同门控：未启用模块七时该 bean 不存在，教学门槛里就没有「信用分」这一条
+     * （core 的聚合器只看到「无违规」）——这是 {@code tgg.credit.enabled=false} 时
+     * {@code /teach} 行为与升级前逐字一致的原因。
+     */
+    @Bean
+    public TeachGate noDeductionTeachGate(CreditService creditService) {
+        return new NoDeductionTeachGate(creditService);
     }
 }
