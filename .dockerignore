@@ -1,0 +1,32 @@
+# Docker 构建上下文瘦身：context 会整体传给 daemon，这里把不需要进镜像的都排掉。
+# （独立于 .gitignore；本项目 docs/ .rivet/ references/ scripts/ 属「本地保留、不入 git」，
+#   见 .rivet/HANDOFF.md —— 它们同样不该进镜像。）
+
+# 构建产物
+**/target/
+
+# 版本控制
+.git/
+
+# 本地保留、不入 git 的资产（见 .rivet/HANDOFF.md）
+docs/
+.rivet/
+references/
+scripts/
+
+# 构建工具：容器内构建不需要（只用 pom + src）
+tools/
+
+# 编辑器 / 系统杂项
+**/.DS_Store
+**/*.log
+.idea/
+*.iml
+.vscode/
+*~
+
+# 本地数据库与临时探针文件
+**/*.db
+**/*.db-shm
+**/*.db-wal
+*.raw

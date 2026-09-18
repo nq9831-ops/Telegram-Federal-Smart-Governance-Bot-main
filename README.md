@@ -55,6 +55,34 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21 \
 java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 ```
 
+### 容器化运行（Docker / Compose）
+
+```bash
+export TGG_WEBHOOK_SECRET="$(openssl rand -hex 32)"   # 必需：缺失即启动失败
+export MYSQL_ROOT_PASSWORD="<强随机>"
+export TGG_DB_PASSWORD="<强随机>"
+docker compose up -d --build
+docker compose logs -f app     # 期望：末行 Started TggApplication in N.NNN seconds
+```
+
+`Dockerfile` 是多阶段构建（Maven 构建 → JRE 运行，**非 root**，uid 10001）；
+`docker-compose.yml` 编排应用 + MySQL 8.4，数据库端口**只绑 `127.0.0.1`**。
+⚠️ 本项目**未引入 Actuator**，容器 `HEALTHCHECK` 只探 TCP 端口，**不代表业务就绪**——
+判定以日志里那行 `Started TggApplication` 为准。详见 `docs/DEPLOYMENT-RUNBOOK.md` §0.2b。
+
+### 依赖安全（SBOM + 漏洞扫描）
+
+```bash
+# 1) 生成 SBOM（mvn package 阶段自动产出，无需额外命令）
+JAVA_HOME=/opt/homebrew/opt/openjdk@21 mvn -B -ntp -DskipTests package   # → target/bom.json
+
+# 2) 查公开漏洞库（OSV）。退出码 0 = 无 HIGH/CRITICAL；1 = 有；3 = 网络失败（不得当作「无漏洞」）
+python3 tools/security/scan_dependencies.py
+```
+
+扫描器与单测在 `tools/security/`；最近一次处置记录见 `docs/KNOWN-ISSUES.md`
+「第六阶段 · 安全加固与容器化」。**0 命中不等于安全**——OSV 只收录公开漏洞。
+
 ## 配置（环境变量）
 
 **必需**（缺失即启动失败，属刻意的 fail-fast）：
@@ -119,6 +147,8 @@ java -jar tgg-app/target/tgg-app-0.1.0-SNAPSHOT.jar
 | `DISCLAIMER.md` | 开发者免责声明：只提供软件、不参与运营、无担保、责任限制 |
 | `TERMS.md` | 服务条款**模板**（含占位符，运营者须按自身部署与法域改写并公开） |
 | `CONTRIBUTING.md` | 贡献指南：环境、测试纪律（含「只跑 `mvn test` 会静默跳过全部 IT」）、提交前自检 |
+| `Dockerfile` / `docker-compose.yml` | 容器化交付物：多阶段构建 + 非 root 运行；应用 + MySQL 单机编排 |
+| `tools/security/scan_dependencies.py` | 依赖漏洞扫描器（读 SBOM 查 OSV；退出码可接 CI）；单测在同目录 |
 
 ## 许可
 

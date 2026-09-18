@@ -1,0 +1,62 @@
+# 单机部署编排：应用 + MySQL。
+#
+# 用法：
+#   1) 准备环境变量（缺一个都起不来——应用对关键密钥刻意 fail-fast）：
+#        export TGG_WEBHOOK_SECRET='<Telegram webhook 的 secret token>'
+#        export MYSQL_ROOT_PASSWORD='<自定义>'
+#        export TGG_DB_PASSWORD='<自定义>'
+#   2) docker compose up -d --build
+#   3) 查看状态：docker compose ps / docker compose logs -f app
+#
+# 说明：
+#   - 数据库**只绑 127.0.0.1**，不对公网暴露；应用通过 compose 内网 `db` 主机名连它。
+#   - 应用监听 8080 并暴露到宿主机；webhook 上线前需放行/反代该端口（见 docs/DEPLOYMENT-RUNBOOK.md）。
+#   - 本项目未引入 Actuator：健康检查探的是 TCP 端口，不代表业务已就绪（迁移/装配可能仍在进行）。
+name: tgg
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # 应用按 UTC 读写（见 docs/LESSONS.md 的时区教训），容器时区显式对齐
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: tgg
+      MYSQL_USER: tgg
+      MYSQL_PASSWORD: ${TGG_DB_PASSWORD:?必须设置 TGG_DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      # 数组形式不过 shell，故用 CMD-SHELL；`$$` 让 compose 不插值、留给容器内 shell
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # 缺失即启动失败——刻意 fail-fast，不给默认值
+      TGG_WEBHOOK_SECRET: ${TGG_WEBHOOK_SECRET:?必须设置 TGG_WEBHOOK_SECRET}
+      TGG_DB_URL: jdbc:mysql://db:3306/tgg?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai
+      TGG_DB_USER: tgg
+      TGG_DB_PASSWORD: ${TGG_DB_PASSWORD}
+      SERVER_PORT: "8080"
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
