@@ -1,0 +1,138 @@
+# 应用工作负载：Deployment + Service + Ingress。
+#
+# 应用：kubectl apply -f k8s/app.yaml
+#   ⚠️ 先把 REPLACE_ME 替换掉（镜像名、域名、TLS secret 名）。
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tgg-app
+  labels:
+    app.kubernetes.io/name: tgg
+spec:
+  # ⚠️ 必须为 1。两个原因，都会在多副本下真实出问题：
+  #   ① 迁移：Flyway 在启动时跑 schema，多副本并发迁移无锁协调；
+  #   ② 定时任务：@Scheduled（保留策略 / SLA 催办 / 审批超时提醒）**无分布式锁**，
+  #      每个副本都会各自扫描并各自通知。本项目未引 Redis。
+  replicas: 1
+  strategy:
+    # Recreate 而非 RollingUpdate：单副本 + 启动即迁移，滚动更新会短暂出现两个实例
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tgg
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tgg
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 与 Dockerfile 中创建的用户一致
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: "REPLACE_ME/tgg-app:0.1.0-SNAPSHOT"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: tgg-config
+            - secretRef:
+                name: tgg-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # JAVA_OPTS 默认 -XX:MaxRAMPercentage=75，堆会按此 limit 的 75% 计算
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # 根文件系统只读，故给 JVM 一个可写的临时目录
+            - name: tmp
+              mountPath: /tmp
+          # ⚠️ 本项目【未引入 Actuator】，没有 /actuator/health 可探——故只能用 tcpSocket。
+          # 它只证明端口在监听，**不证明** Flyway 迁移完成或组件装配就绪。
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30      # 首次启动含迁移，最多容忍 150s
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tgg-app
+  labels:
+    app.kubernetes.io/name: tgg
+spec:
+  selector:
+    app.kubernetes.io/name: tgg
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tgg-app
+  labels:
+    app.kubernetes.io/name: tgg
+  annotations:
+    # TLS 在入口层终止。
+    # ⚠️ 本项目【未实现】CSP/HSTS 与 Actuator 锁定——若需要，请在这一层统一加响应头。
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: ["REPLACE_ME.example.com"]
+      secretName: tgg-tls
+  rules:
+    - host: "REPLACE_ME.example.com"
+      http:
+        paths:
+          # Telegram 只会访问 webhook 路径
+          - path: /webhook
+            pathType: Prefix
+            backend:
+              service:
+                name: tgg-app
+                port:
+                  name: http
+          # ⚠️ /admin/* 是运营面：**不要**无条件暴露到公网。
+          # 建议二选一：① 只在内网 Ingress 中开放；② 用 IP 白名单注解限制来源。
+          # 需要时取消下面注释，并补 nginx.ingress.kubernetes.io/whitelist-source-range
+          #
+          # - path: /admin
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: tgg-app
+          #       port:
+          #         name: http

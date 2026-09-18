@@ -1,0 +1,65 @@
+# 非敏感配置 + 敏感值【模板】。
+#
+# 应用：kubectl apply -f k8s/config.yaml
+#   ⚠️ secret 段的 REPLACE_ME 必须替换为真实值后再 apply。
+#   生产环境**不要**把明文密钥放进版本库——建议改用 External Secrets / Sealed Secrets /
+#   云厂商密钥服务注入，本文件只作为字段清单与本地演练用。
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tgg-config
+  labels:
+    app.kubernetes.io/name: tgg
+data:
+  # ── 必填的非敏感项 ──
+  TGG_DB_URL: "jdbc:mysql://mysql:3306/tgg?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai"
+  TGG_DB_USER: "tgg"
+  SERVER_PORT: "8080"
+
+  # ── 模块开关（除注明外均默认关闭，不启用即整组组件不装配）──
+  TGG_ADMISSION_ENABLED: "false"
+  TGG_CREDIT_ENABLED: "false"
+  TGG_FEDERATION_ENABLED: "false"
+  TGG_LISTING_ENABLED: "false"
+  TGG_MERCHANT_ENABLED: "false"
+  TGG_FAILOVER_ENABLED: "false"
+  # ⚠️ 启用即意味着【消息正文发送至第三方 AI 服务】（数据出境），见 PRIVACY.md
+  TGG_AI_DEEPSEEK_ENABLED: "false"
+  # 保留策略默认【只报告不删除】；确认期限合规后再改为 true
+  TGG_RETENTION_ENABLED: "false"
+  # 敏感话题分级（§10.5），默认关闭
+  TGG_MODERATION_SENSITIVE_GRADING_ENABLED: "false"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tgg-secrets
+  labels:
+    app.kubernetes.io/name: tgg
+type: Opaque
+stringData:
+  # ⚠️ 缺失即【启动失败】（刻意 fail-fast，不要给它默认值）
+  TGG_WEBHOOK_SECRET: "REPLACE_ME"
+
+  TGG_DB_PASSWORD: "REPLACE_ME"
+
+  # 标识哈希用盐。不设会退回开发兜底盐——userId 空间小，固定盐可被枚举反推
+  TGG_HASH_SALT: "REPLACE_ME"
+
+  # 主动调用 Telegram API 需要（封禁、通知真实投递、收录下架通知）。
+  # 缺失时这些能力【各自显式降级并 WARN】，不静默。
+  TGG_BOT_TOKEN: "REPLACE_ME"
+
+  # 模块十一审批中心的 Bearer 令牌。为空则 /admin/* 端点【整体不装配】（访问得 404）
+  TGG_ADMIN_API_TOKEN: "REPLACE_ME"
+
+  # ── 授权白名单（为空时对应命令【对任何人不可用】，不是「人人可用」）──
+  # 格式：<chatId>:<userId>[:role]，逗号分隔
+  TGG_PERMISSION_ADMINS: ""
+  TGG_MODERATION_REVIEWERS: ""
+  TGG_FEDERATION_ADMINS: ""
+  TGG_MERCHANT_REVIEWERS: ""
+
+  # 模块七启用时【必填】：Ed25519 PKCS#8 Base64 私钥（缺失即启动失败）
+  TGG_CREDIT_PRIVATE_KEY: ""
