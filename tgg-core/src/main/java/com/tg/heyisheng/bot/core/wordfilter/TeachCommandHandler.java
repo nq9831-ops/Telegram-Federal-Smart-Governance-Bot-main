@@ -8,6 +8,9 @@ import com.tg.heyisheng.bot.core.moderation.RiskLevel;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Optional;
 
 /**
  * {@code /teach <规则id> <正则> <描述>} —— 教一条<b>本群</b>审核规则（V5.0 §10.3）。需 {@link Permission#TEACH_RULE}。
@@ -35,9 +38,18 @@ public class TeachCommandHandler implements CommandHandler {
     static final String NOT_A_GROUP = "请在要生效的群内执行本命令。";
 
     private final TaughtRuleService service;
+    /** 教学门槛（§10.3）；默认放行——未接线时行为与升级前逐字一致。 */
+    private final TeachEligibility eligibility;
 
+    /** 兼容构造：不设门槛（既有调用方与测试用）。 */
     public TeachCommandHandler(TaughtRuleService service) {
+        this(service, TeachEligibility.allowAll());
+    }
+
+    @Autowired
+    public TeachCommandHandler(TaughtRuleService service, TeachEligibility eligibility) {
         this.service = service;
+        this.eligibility = eligibility == null ? TeachEligibility.allowAll() : eligibility;
     }
 
     @Override
@@ -59,6 +71,13 @@ public class TeachCommandHandler implements CommandHandler {
         String ruleId = parts[0];
         String regex = parts[1];
         String name = parts[2];
+
+        // 门槛先于落库：拒绝时**不得**留下已生效的规则——否则管理员看到失败提示、规则却在群里跑。
+        Optional<String> rejection = eligibility.rejectionFor(chatId, ctx.userId());
+        if (rejection.isPresent()) {
+            return reply(ctx, "规则未生效：" + rejection.get());
+        }
+
         try {
             TaughtRule saved = service.teach(chatId, ruleId, name, regex, RiskLevel.MEDIUM, false, ctx.userId());
             // 回显预览即「确认」步骤：让管理员看到真正落库的正则（含转义后的形态）

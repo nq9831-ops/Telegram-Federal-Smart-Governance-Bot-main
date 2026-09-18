@@ -92,6 +92,10 @@ class RbacWiringTest {
                 // 泄露通报催办依赖平台白名单 guard（@Service，runner 不扫描）——补实例。
                 .withBean(com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard.class,
                         () -> new com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard("900"))
+                // §10.3 教学门槛依赖违规计数服务（@Service）——同样补替身。
+                .withBean(com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(
