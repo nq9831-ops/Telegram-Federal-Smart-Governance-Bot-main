@@ -300,6 +300,28 @@ public class TggCoreConfiguration {
     }
 
     /**
+     * 数据泄露登记与 72 小时催办（模块十 §11.2）。
+     *
+     * <p>不挂开关：泄露是合规事故，不该因为某个功能开关没打开就失去计时能力。
+     * 催办用紧急级通知，不受用户免打扰影响。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.core.breach.DataBreachService dataBreachService(
+            com.tg.heyisheng.bot.core.breach.DataBreachRepository dataBreachRepository) {
+        return new com.tg.heyisheng.bot.core.breach.DataBreachService(dataBreachRepository,
+                Clock.systemUTC());
+    }
+
+    @Bean
+    public com.tg.heyisheng.bot.core.breach.DataBreachJob dataBreachJob(
+            com.tg.heyisheng.bot.core.breach.DataBreachService dataBreachService,
+            com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard moderationReviewGuard,
+            NotificationDispatcher notificationDispatcher) {
+        return new com.tg.heyisheng.bot.core.breach.DataBreachJob(dataBreachService,
+                moderationReviewGuard, notificationDispatcher);
+    }
+
+    /**
      * 敏感话题分级与递进处置（模块九 §10.5）；不设置即关闭该能力。
      */
     @Bean

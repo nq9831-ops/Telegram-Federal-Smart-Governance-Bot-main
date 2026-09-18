@@ -34,6 +34,10 @@ tgg:
     # 敏感话题分级（模块九 §10.5）：默认关闭。启用后按群对敏感话题分级（命中即删除 + 入队复核，
     # **不封禁**），并受「群话题标签」（/group_tag）豁免——本群声明了某话题即豁免该话题。
     sensitive-grading-enabled: ${TGG_MODERATION_SENSITIVE_GRADING_ENABLED:false}
+  breach:
+    # 数据泄露 72 小时通报（§11.2）：催办 cron（默认每小时一次）。
+    # 催办走**紧急级**通知（不受用户免打扰阻塞），发给 TGG_MODERATION_REVIEWERS 白名单。
+    remind-cron: ${TGG_BREACH_REMIND_CRON:0 0 * * * *}
   retention:
     # 数据保留策略（§11.2）：默认**只报告不清理**。保留策略的本质是自动删除业务数据，
     # 把它做成「默认就会删」很危险——先看每日报告，再决定是否放行。

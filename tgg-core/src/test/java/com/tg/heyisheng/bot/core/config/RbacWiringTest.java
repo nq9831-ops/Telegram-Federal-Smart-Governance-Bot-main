@@ -85,6 +85,13 @@ class RbacWiringTest {
                 .withBean(com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository.class,
                         () -> org.mockito.Mockito.mock(
                                 com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository.class))
+                // 模块十（泄露通报）：装配依赖 DataBreachRepository（JPA 侧）——同样补替身。
+                .withBean(com.tg.heyisheng.bot.core.breach.DataBreachRepository.class,
+                        () -> org.mockito.Mockito.mock(
+                                com.tg.heyisheng.bot.core.breach.DataBreachRepository.class))
+                // 泄露通报催办依赖平台白名单 guard（@Service，runner 不扫描）——补实例。
+                .withBean(com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard.class,
+                        () -> new com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard("900"))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
                 .withPropertyValues(

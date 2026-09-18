@@ -47,6 +47,15 @@ public class ModerationReviewGuard {
         return reviewerIds.size();
     }
 
+    /**
+     * 白名单成员（供「向平台处置人广播」用，如泄露通报催办）。
+     *
+     * <p>返回只读集合；调用方<b>不得</b>用它做身份判定（那走 {@link #isReviewer}）。
+     */
+    public Set<Long> reviewerIds() {
+        return reviewerIds;
+    }
+
     /** 解析逗号分隔的 userId 名单；非数字项忽略并告警，不因一个笔误让整条配置失效。 */
     static Set<Long> parse(String raw) {
         if (raw == null || raw.isBlank()) {
