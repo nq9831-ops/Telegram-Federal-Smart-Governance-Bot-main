@@ -51,8 +51,12 @@ public class RedLineReviewSla {
     @Scheduled(cron = "${tgg.moderation.redline-sla-cron:0 5 * * * *}")
     public void alarm() {
         Instant cutoff = clock.instant().minus(sla);
+        // 入口无条件留痕：任务「没被注册」与「跑了但没数据」是完全不同的故障，
+        // 没有这行日志二者在外部表现一致（都是静默）——上一轮就因此无法定案。
+        log.info("红线复核 SLA 扫描：cutoff={}", cutoff);
         List<ModerationReviewItem> overdue = repository
                 .findByHardLineTrueAndStatusAndCreatedAtBefore(ReviewStatus.PENDING, cutoff);
+        log.info("红线复核 SLA 命中：{} 条", overdue.size());
         if (overdue.isEmpty()) {
             return;
         }
