@@ -45,7 +45,11 @@ kubectl logs -l app.kubernetes.io/name=tgg --tail=50
    **无分布式锁**，多副本会重复执行与重复通知。
 2. **`/admin/*` 默认未在 Ingress 开放**——它是运营面。要开放请配合来源 IP 白名单
    （`nginx.ingress.kubernetes.io/whitelist-source-range`），token 之外再加一层。
-3. **无 Actuator**：CSP/HSTS、健康就绪探针都属于本项目**未实现**的部分，请在入口层补。
+3. **Actuator 已引入并锁定**：只暴露 `/actuator/health`（`show-details=never`），可用于
+   `httpGet` 就绪/存活探针；`k8s/app.yaml` 目前用的是 `tcpSocket`，想改成业务就绪探针就把它换成
+   `httpGet: { path: /actuator/health, port: 8080 }`。
+   ⚠️ **CSP/HSTS 仍不在应用层**（HSTS 必须由 TLS 终止方下发、CSP 约束的是不由 Spring 托管的静态站），
+   请在入口层补。
 4. **Secret 是模板**：`k8s/config.yaml` 里的 `stringData` 只是字段清单。生产请用
    External Secrets / Sealed Secrets / 云密钥服务注入，**不要把明文提交进版本库**。
 5. **本清单未经 Kubernetes 集群验证**：开发机没有 `kubectl`，交付前只做了 YAML 结构解析。
