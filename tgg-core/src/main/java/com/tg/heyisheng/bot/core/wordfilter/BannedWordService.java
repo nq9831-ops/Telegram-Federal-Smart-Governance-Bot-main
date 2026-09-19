@@ -2,21 +2,32 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 按群违禁词的读写。
  *
- * <p><b>读取 fail-open</b>：读词表失败时按「无词表」放行并记 ERROR——
- * 词表是**增强**而非**门禁**，数据库抖动不应让全群消息都被拦下或抛出异常。
- * （与 {@link com.tg.heyisheng.bot.core.groupconfig.GroupConfigService} 同纪律。）
+ * <p><b>读取 fail-open，但不再「故障即空表」</b>：读词表失败时优先回退<b>上次已知词表</b>——
+ * 陈旧但真实，远好过空表（空表在审核路径上等于<b>违禁词全部放行</b>）。
+ * 只有本进程从未成功读到过该群词表时，才按空表放行并记 ERROR。
+ * （与 {@link com.tg.heyisheng.bot.core.groupconfig.GroupConfigService} 同纪律：见那里的「上次已知配置」。）
  *
  * <p><b>写入 fail-closed-ish</b>：添加/删除失败会抛出并由调用方（命令 handler）感知，
  * 因为那是管理员显式操作，静默失败会让他以为词已加、实际没加。
+ *
+ * <p><b>热路径与缓存</b>：{@code listWords} 在每条消息上被 {@code BannedWordDetector} 调用
+ * （{@code KNOWN-ISSUES} P2#1 记录的「热路径每条消息查一次库」），故与
+ * {@code TaughtRuleService} / {@code GroupTopicTagService} 同款：进程内 TTL 缓存
+ * （{@link #CACHE_TTL}），写操作后<b>立即失效</b>（加/删词立刻生效，TTL 只是兜底）。
  */
 @Service
 public class BannedWordService {
@@ -26,23 +37,58 @@ public class BannedWordService {
     /** 与 DB 列宽一致；超出即拒绝，避免运行期 DataTruncation。 */
     static final int MAX_WORD_LENGTH = 255;
 
-    private final BannedWordRepository repository;
+    /** 词表缓存 TTL：写后立即失效，TTL 只兜底「本实例未发生的改动」（如另一实例、手工改库）。 */
+    static final Duration CACHE_TTL = Duration.ofSeconds(10);
 
-    public BannedWordService(BannedWordRepository repository) {
-        this.repository = repository;
+    private final BannedWordRepository repository;
+    private final Clock clock;
+
+    /** 进程内 TTL 缓存：chatId → 词表 + 过期时刻。过期条目仍保留，用作读失败时的 last-known 回退。 */
+    private final Map<Long, CachedWords> cache = new ConcurrentHashMap<>();
+
+    private record CachedWords(List<String> words, Instant expiresAt) {
     }
 
-    /** 取某群的词表（原文列表）。失败时返回空表并记 ERROR。 */
+    @Autowired
+    public BannedWordService(BannedWordRepository repository) {
+        this(repository, Clock.systemUTC());
+    }
+
+    BannedWordService(BannedWordRepository repository, Clock clock) {
+        this.repository = repository;
+        this.clock = clock;
+    }
+
+    /**
+     * 取某群的词表（原文列表）。
+     *
+     * <p>缓存命中时不查库（热路径）；未命中则查库并缓存。查库失败时回退上次已知词表，
+     * 从未读到过才返回空表。
+     */
     @Transactional(readOnly = true)
     public List<String> listWords(Long chatId) {
         if (chatId == null) {
             return List.of();
         }
+        Instant now = clock.instant();
+        CachedWords cached = cache.get(chatId);
+        if (cached != null && now.isBefore(cached.expiresAt())) {
+            return cached.words();
+        }
         try {
-            return repository.findByChatId(chatId).stream().map(BannedWord::getWord).toList();
+            List<String> words = repository.findByChatId(chatId).stream().map(BannedWord::getWord).toList();
+            cache.put(chatId, new CachedWords(words, now.plus(CACHE_TTL)));
+            return words;
         } catch (RuntimeException ex) {
-            log.error("读取违禁词失败（chatId={}），本次按无词表放行", chatId, ex);
-            return List.of();
+            // 读失败：优先回退「上次已知词表」（陈旧但真实）。空表会让违禁词全部放行，
+            // 只有在从未成功读到过时才不得不如此。
+            List<String> lastKnown = cached == null ? null : cached.words();
+            if (lastKnown == null) {
+                log.error("读取违禁词失败（chatId={}），本进程尚无该群词表缓存，本次按无词表放行", chatId, ex);
+                return List.of();
+            }
+            log.error("读取违禁词失败（chatId={}），回退上次已知词表（{} 词）", chatId, lastKnown.size(), ex);
+            return lastKnown;
         }
     }
 
@@ -63,7 +109,9 @@ public class BannedWordService {
         if (chatId == null || normalized == null) {
             return false;
         }
-        return repository.insertIgnore(chatId, normalized, createdBy, Instant.now()) > 0;
+        boolean inserted = repository.insertIgnore(chatId, normalized, createdBy, clock.instant()) > 0;
+        cache.remove(chatId); // 词表已变：立即失效，下次读重新加载（「加完立刻生效」）
+        return inserted;
     }
 
     /**
@@ -77,7 +125,9 @@ public class BannedWordService {
         if (chatId == null || normalized == null) {
             return false;
         }
-        return repository.deleteByChatIdAndWord(chatId, normalized) > 0;
+        boolean removed = repository.deleteByChatIdAndWord(chatId, normalized) > 0;
+        cache.remove(chatId); // 词表已变：立即失效
+        return removed;
     }
 
     /** 归一化：去首尾空白；空串或超长视为非法（返回 null）。 */

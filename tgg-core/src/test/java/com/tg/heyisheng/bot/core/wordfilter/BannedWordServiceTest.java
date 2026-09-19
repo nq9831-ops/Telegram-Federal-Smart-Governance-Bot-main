@@ -3,10 +3,18 @@ package com.tg.heyisheng.bot.core.wordfilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -78,5 +86,87 @@ class BannedWordServiceTest {
         BannedWordService service = new BannedWordService(repo);
 
         assertThat(service.removeWord(CHAT, "spam")).as("本群没有该词时应返回 false").isFalse();
+    }
+
+    // ---------- 缓存（解 P2#1 热路径查库）与 last-known 回退 ----------
+
+    @Test
+    void listWordsHitsCacheWithinTtl() {
+        BannedWordRepository repo = mock(BannedWordRepository.class);
+        when(repo.findByChatId(CHAT)).thenReturn(List.of(new BannedWord(CHAT, "spam", 1L)));
+        BannedWordService service = new BannedWordService(repo, fixedClock());
+
+        service.listWords(CHAT);
+        service.listWords(CHAT);
+        service.listWords(CHAT);
+
+        verify(repo, times(1)).findByChatId(CHAT);
+    }
+
+    @Test
+    void writeInvalidatesCacheSoChangeTakesEffectImmediately() {
+        BannedWordRepository repo = mock(BannedWordRepository.class);
+        when(repo.findByChatId(CHAT)).thenReturn(List.of(new BannedWord(CHAT, "spam", 1L)));
+        when(repo.insertIgnore(any(), any(), any(), any())).thenReturn(1);
+        BannedWordService service = new BannedWordService(repo, fixedClock());
+
+        service.listWords(CHAT);            // 预热缓存
+        service.addWord(CHAT, "scam", 1L);  // 写后必须立即失效
+        service.listWords(CHAT);            // 应重新查库
+
+        verify(repo, times(2)).findByChatId(CHAT);
+    }
+
+    /**
+     * 核心不变量：读失败时回退<b>上次已知词表</b>，而不是空表——
+     * 空表在审核路径上等于违禁词全部放行，这正是本次修复的方向。
+     */
+    @Test
+    void listWordsFallsBackToLastKnownWhenRepositoryFailsAfterCacheExpiry() {
+        BannedWordRepository repo = mock(BannedWordRepository.class);
+        when(repo.findByChatId(CHAT)).thenReturn(List.of(new BannedWord(CHAT, "spam", 1L)));
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-20T00:00:00Z"));
+        BannedWordService service = new BannedWordService(repo, clock);
+
+        assertThat(service.listWords(CHAT)).containsExactly("spam");
+
+        clock.advance(BannedWordService.CACHE_TTL.plusSeconds(1)); // 缓存过期，但条目仍是 last-known
+        when(repo.findByChatId(CHAT)).thenThrow(new RuntimeException("db down"));
+
+        assertThat(service.listWords(CHAT))
+                .as("读失败应回退上次已知词表，绝不因 DB 抖动让全群违禁词放行")
+                .containsExactly("spam");
+    }
+
+    private static Clock fixedClock() {
+        return Clock.fixed(Instant.parse("2026-09-20T00:00:00Z"), ZoneOffset.UTC);
+    }
+
+    /** 可控时钟：让「缓存过期后的 last-known 回退」可被直接验证（固定时钟无法推进时间）。 */
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        private MutableClock(Instant start) {
+            this.now = start;
+        }
+
+        void advance(Duration delta) {
+            now = now.plus(delta);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 }
