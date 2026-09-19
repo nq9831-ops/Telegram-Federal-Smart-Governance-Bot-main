@@ -110,4 +110,24 @@ class ConfigurationMappingTest {
         assertThat(String.valueOf(yml.getProperty("tgg.listing.enabled"))).contains("false");
         assertThat(String.valueOf(yml.getProperty("tgg.merchant.enabled"))).contains("false");
     }
+
+    /**
+     * OpenAPI 文档（原文 §17 的「API 文档」）：**生产** yml 里必须显式关闭，且键显式映射。
+     *
+     * <p>⚠️ <b>这条断言只能写在这里</b>：{@code src/test/resources/application.yml} 会遮蔽生产 yml，
+     * 故 {@code OpenApiDocsDisabledIT} 跑的是**测试**配置——它证明不了**生产**配置关掉了文档。
+     * 而 springdoc 自带的默认值是 {@code enabled=true}：生产 yml 里那一段若被误删，引入依赖
+     * 就等于把全部端点清单与参数结构暴露出去，且**不会有任何报错**。这正是本测试存在的理由。
+     */
+    @Test
+    void openApiDocsAreDisabledByDefaultInProduction() throws Exception {
+        PropertySource<?> yml = yaml();
+
+        assertThat(yml.getProperty("springdoc.api-docs.enabled"))
+                .as("springdoc 默认 enabled=true，生产必须显式关掉，并映射到 TGG_OPENAPI_ENABLED")
+                .isEqualTo("${TGG_OPENAPI_ENABLED:false}");
+        assertThat(yml.getProperty("springdoc.swagger-ui.enabled"))
+                .as("UI 同样默认关闭（只关 JSON 而 UI 开着，仍是同一条信息面）")
+                .isEqualTo("${TGG_OPENAPI_ENABLED:false}");
+    }
 }

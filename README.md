@@ -132,6 +132,7 @@ python3 tools/security/scan_dependencies.py
 | `TGG_MODERATION_REVIEWERS` | 空 | 复核人 userId（**全局**白名单，逗号分隔）。为空则 `/review_list`·`/review_approve`·`/review_reject` 对任何人不可用 |
 | `TGG_ADMIN_API_TOKEN` | 空 | 模块十一 · 审批中心后端的 `Bearer` 令牌。**为空则 `/admin/approvals` 端点整体不装配**（访问得 404）。审批人身份另由 `X-Operator-Id` 头携带，并须落在 `TGG_MODERATION_REVIEWERS` 白名单内 |
 | `TGG_ADMIN_OVERDUE_REMIND_HOURS` / `..._ESCALATE_HOURS` | `24` / `72` | 审批待办超时提醒与升级阈值（**跳过硬红线**——它们由 §10.6 的 2h SLA 负责） |
+| `TGG_OPENAPI_ENABLED` | `false` | 启用 Swagger / OpenAPI 文档（`/swagger-ui.html`、`/v3/api-docs`）。**默认关闭**——springdoc 会暴露全部端点清单与参数结构，属信息面；启用后**不要裸露公网**（见 `ADMIN-GUIDE.md`） |
 | `TGG_MODERATION_SENSITIVE_GRADING_ENABLED` | `false` | 敏感话题分级（§10.5）：按群分级、受标签豁免。用 `/group_tag add\|remove\|list <标签>`（需群内管理员）管理。**可豁免话题**：`politics` / `intl_politics` / `religionism`；**不可豁免**：恐怖活动 / 极端主义 / 煽动战争 |
 
 > 📘 **模块五/六 的部署验证步骤**见 `docs/DEPLOYMENT-VERIFICATION.md` N 段与配套的 `docs/DEPLOYMENT-RUNBOOK.md`（后者含可照抄的命令、预期输出与失败排查表）。

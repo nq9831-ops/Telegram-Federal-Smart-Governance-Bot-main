@@ -1,3 +1,17 @@
+# ── OpenAPI / Swagger 文档（原文 §17 交付物清单的「API 文档」）────────────────────
+# ⚠️ **默认关闭**。springdoc 会扫描全部 @RestController，把端点清单与参数结构暴露成
+# JSON（/v3/api-docs）与界面（/swagger-ui.html）——那是一条信息面。与项目
+# 「未启用即零影响」的纪律一致，默认 false；启用后**不要**裸露到公网，
+# 应只在内网开放或加来源 IP 白名单（做法见 ADMIN-GUIDE.md）。
+#
+# 变量名显式映射：多词键的宽松绑定会去掉连字符（TGG_OPENAPI_ENABLED 之外的写法易踩坑），
+# 故这里写死映射，与 README 的配置表保持一致。
+springdoc:
+  api-docs:
+    enabled: ${TGG_OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: ${TGG_OPENAPI_ENABLED:false}
+
 spring:
   application:
     name: tgg

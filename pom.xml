@@ -112,6 +112,17 @@
         <artifactId>telegrambots-longpolling</artifactId>
         <version>${telegrambots.version}</version>
       </dependency>
+
+      <!-- Swagger / OpenAPI 文档（原文 §17 交付物清单的「API 文档」）。
+           2.x 线：**必须**停在 2.x——3.x 对应 Spring Boot 4，而本项目锁 Boot 3.5.16
+           （4.x 用 Jackson 3，与 TelegramBots 的 Jackson 2 注解不兼容，见本 POM 顶部）。
+           ⚠️ 它会在运行时扫描所有 @RestController 并暴露端点清单与参数结构，
+           属信息面——故本项目**默认关闭**（TGG_OPENAPI_ENABLED=false），见 tgg-app 的 application.yml。 -->
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>2.9.1</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 

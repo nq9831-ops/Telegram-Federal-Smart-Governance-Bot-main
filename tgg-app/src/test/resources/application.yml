@@ -1,3 +1,15 @@
+# ⚠️ 本文件会**遮蔽** src/main/resources/application.yml（测试 classpath 优先 test-classes）。
+# 因此生产 yml 的键在这里**看不到**——守门生产配置的断言请写在 ConfigurationMappingTest
+# （它用 FileSystemResource 直读 src/main/resources 那份）。
+
+# 与生产一致：OpenAPI 文档默认关闭。不写这一段的话，springdoc 自带的默认值 true 会生效，
+# 于是「引入依赖」就等于「暴露全部端点清单」——OpenApiDocsDisabledIT 正是在守这条契约。
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 spring:
   datasource:
     # 测试直连本机 MySQL 的【独立测试库 tgg_test】——刻意不用 H2：H2 的 MySQL 兼容模式不等于 MySQL，
