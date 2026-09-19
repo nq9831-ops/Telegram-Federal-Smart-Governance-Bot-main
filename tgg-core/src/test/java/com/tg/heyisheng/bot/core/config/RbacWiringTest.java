@@ -51,10 +51,11 @@ class RbacWiringTest {
 
     private ApplicationContextRunner runner(String adminsSpec) {
         return new ApplicationContextRunner()
-                // 通知装配已拆到 NotificationConfiguration，而 TggCoreConfiguration 里仍有依赖
-                // NotificationDispatcher 的 bean（redLineReviewSla / dataBreachJob）——
-                // runner 只装后者时会缺 bean，故一并加载（同包，无需 import）。
-                .withUserConfiguration(TggCoreConfiguration.class, NotificationConfiguration.class)
+                // 装配已按域拆成多个 @Configuration（通知 / 保留策略 / 合规）：TggCoreConfiguration
+                // 里仍有依赖 NotificationDispatcher 的 bean（redLineReviewSla），而保留策略与合规域的
+                // bean 各自也需一并加载——runner 只装其中一个就会缺 bean。这些类同包，无需 import。
+                .withUserConfiguration(TggCoreConfiguration.class, NotificationConfiguration.class,
+                        RetentionConfiguration.class, ComplianceConfiguration.class)
                 .withBean(BanHandler.class, BanHandler::new)
                 // ApplicationContextRunner 不做组件扫描，中间件链依赖的 service 需手工提供
                 .withBean(GroupConfigService.class,

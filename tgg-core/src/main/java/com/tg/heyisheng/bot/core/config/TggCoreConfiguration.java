@@ -15,9 +15,6 @@ import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
-import com.tg.heyisheng.bot.core.retention.RetentionJob;
-import com.tg.heyisheng.bot.core.retention.RetentionProperties;
-import com.tg.heyisheng.bot.core.retention.RetentionService;
 
 import java.time.Clock;
 import com.tg.heyisheng.bot.core.moderation.BuiltInRules;
@@ -67,7 +64,7 @@ import java.util.List;
  * 中间件看不到「即将执行哪条命令」，无法得知该命令需要什么权限。
  */
 @Configuration
-@EnableConfigurationProperties({WebhookProperties.class, RetentionProperties.class})
+@EnableConfigurationProperties(WebhookProperties.class)
 @EnableScheduling
 public class TggCoreConfiguration {
 
@@ -228,21 +225,6 @@ public class TggCoreConfiguration {
 
 
     /**
-     * 数据保留策略（模块十 §11.2）——<b>默认只报告不清理</b>（{@code tgg.retention.enabled=false}）。
-     *
-     * <p>bean 刻意不受开关门控：即便不清理，每日报告也要照常打出——
-     * 运维得先看到「会发生什么」，才谈得上决定是否放行。
-     */
-    @Bean
-    public RetentionService retentionService(com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository reviewRepository,
-                                             com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeRepository strikeRepository,
-                                             com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository memberJoinRepository,
-                                             RetentionProperties retentionProperties) {
-        return new RetentionService(reviewRepository, strikeRepository, memberJoinRepository,
-                retentionProperties, Clock.systemUTC());
-    }
-
-    /**
      * 成员入群时间采集（模块九 §10.3「入群时长」门槛的数据源）。
      *
      * <p><b>必须由部署侧配合才不空转</b>：Telegram 仅在 webhook 的 {@code allowed_updates} 显式包含
@@ -302,11 +284,6 @@ public class TggCoreConfiguration {
         return com.tg.heyisheng.bot.core.wordfilter.TeachEligibility.composite(gates);
     }
 
-    @Bean
-    public RetentionJob retentionJob(RetentionService retentionService) {
-        return new RetentionJob(retentionService);
-    }
-
     /**
      * 红线复核 SLA 催办（模块九 §10.6）——硬红线命中后须在 2 小时内完成人工确认，超时升级提醒。
      *
@@ -322,28 +299,6 @@ public class TggCoreConfiguration {
         return new com.tg.heyisheng.bot.core.moderation.RedLineReviewSla(reviewRepository,
                 moderationReviewGuard, notificationDispatcher, Clock.systemUTC(),
                 java.time.Duration.ofHours(slaHours));
-    }
-
-    /**
-     * 数据泄露登记与 72 小时催办（模块十 §11.2）。
-     *
-     * <p>不挂开关：泄露是合规事故，不该因为某个功能开关没打开就失去计时能力。
-     * 催办用紧急级通知，不受用户免打扰影响。
-     */
-    @Bean
-    public com.tg.heyisheng.bot.core.breach.DataBreachService dataBreachService(
-            com.tg.heyisheng.bot.core.breach.DataBreachRepository dataBreachRepository) {
-        return new com.tg.heyisheng.bot.core.breach.DataBreachService(dataBreachRepository,
-                Clock.systemUTC());
-    }
-
-    @Bean
-    public com.tg.heyisheng.bot.core.breach.DataBreachJob dataBreachJob(
-            com.tg.heyisheng.bot.core.breach.DataBreachService dataBreachService,
-            com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard moderationReviewGuard,
-            NotificationDispatcher notificationDispatcher) {
-        return new com.tg.heyisheng.bot.core.breach.DataBreachJob(dataBreachService,
-                moderationReviewGuard, notificationDispatcher);
     }
 
     /**
