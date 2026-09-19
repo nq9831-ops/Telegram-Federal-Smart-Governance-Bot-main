@@ -1,6 +1,5 @@
 package com.tg.heyisheng.bot.core.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.AdmissionProperties;
@@ -11,11 +10,9 @@ import com.tg.heyisheng.bot.core.admission.VerificationCallbackHandler;
 import com.tg.heyisheng.bot.core.admission.VerificationTimeoutSweeper;
 import com.tg.heyisheng.bot.core.callback.CallbackHandler;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
-import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import jakarta.annotation.PostConstruct;
-import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -68,38 +65,45 @@ public class AdmissionConfiguration {
         return new PendingVerificationRegistry(Clock.systemUTC());
     }
 
-    /** 准入链路的主动发送通道（验证消息、观察期限制、超时移出共用）。 */
-    @Bean
-    public ModerationActionSender admissionActionSender(ObjectMapper objectMapper) {
-        TelegramApiMethodExecutor executor = new TelegramApiMethodExecutor(
-                new OkHttpClient(), objectMapper, webhookProperties.getBotToken());
-        return executor::execute;
-    }
+    /*
+     * ⚠️ 这里**刻意不再定义** ModerationActionSender。
+     *
+     * 曾经此处有一个 `admissionActionSender` bean，与 TggCoreConfiguration 里**无条件装配**的
+     * `moderationActionSender` 实现同一接口 → 容器里出现两个候选，任何按类型注入该接口的消费方
+     * （ModerationReviewDecisionService 等）都会以「required a single bean, but 2 were found」
+     * 让**整个上下文启动失败**——即「准入一开启，应用就起不来」。
+     * 该缺陷 2026-09-19 在「全开实跑」时暴露（既有测试从不开此开关，故长期假绿），
+     * 回归护栏见 `tgg-app/src/test/java/.../AdmissionWiringTest.java`。
+     *
+     * 两者职责本就相同（用 bot token 调 Bot API 发送一个方法），故共用 core 的那一个：
+     * 本类的 {@link #requireBotToken()} 已保证「准入启用 ⇒ token 非空」，于是 core 的 sender
+     * 必然是真实通道而非 noop 兜底——语义与原先逐字一致。
+     */
 
     /**
      * 观察期：通过验证后的限时限制（默认 7 天，期满 Telegram 自动解禁）。
      * 周期由 {@code tgg.admission.observation-seconds} 控制，设 0 即不启用。
      */
     @Bean
-    public ObservationPeriodService observationPeriodService(ModerationActionSender admissionActionSender,
+    public ObservationPeriodService observationPeriodService(ModerationActionSender moderationActionSender,
                                                              AdmissionProperties properties) {
-        return new ObservationPeriodService(admissionActionSender,
+        return new ObservationPeriodService(moderationActionSender,
                 Duration.ofSeconds(properties.getObservationSeconds()));
     }
 
     @Bean
     public JoinVerificationService joinVerificationService(PendingVerificationRegistry registry,
-                                                           ModerationActionSender admissionActionSender,
+                                                           ModerationActionSender moderationActionSender,
                                                            IdHasher idHasher,
                                                            AdmissionProperties properties) {
-        return new JoinVerificationService(registry, admissionActionSender, idHasher,
+        return new JoinVerificationService(registry, moderationActionSender, idHasher,
                 Duration.ofSeconds(properties.getTimeoutSeconds()));
     }
 
     @Bean
     public VerificationTimeoutSweeper verificationTimeoutSweeper(PendingVerificationRegistry registry,
-                                                                 ModerationActionSender admissionActionSender) {
-        return new VerificationTimeoutSweeper(registry, admissionActionSender);
+                                                                 ModerationActionSender moderationActionSender) {
+        return new VerificationTimeoutSweeper(registry, moderationActionSender);
     }
 
     @Bean
