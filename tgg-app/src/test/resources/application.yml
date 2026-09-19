@@ -50,6 +50,10 @@ tgg:
     path: /webhook
     secret: test-secret-value
     bot-token: test-bot-token
+  command-menu:
+    # 注册命令菜单是**启动期外呼**（真的打 api.telegram.org）——测试里关掉，
+    # 否则每个缓存的 @SpringBootTest 上下文都会向外网发一次请求。
+    enabled: false
   permission:
     # 端到端测试需要真实授权才能执行 /enable 与 /disable（均需 MANAGE_CONFIG）。
     # 格式：<chatId>:<userId>[:role]

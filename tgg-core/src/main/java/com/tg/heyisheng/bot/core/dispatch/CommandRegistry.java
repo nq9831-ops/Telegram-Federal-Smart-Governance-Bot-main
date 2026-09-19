@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * 命令注册表：启动时扫描 {@link BotCommand} 标注的 bean，建立「命令名/别名 → 处理器 + 所需权限」映射。
@@ -29,8 +30,12 @@ public class CommandRegistry {
 
     private final Map<String, Entry> entries;
 
+    /** 主命令 → 描述（**不含别名**，按命令名排序）。Telegram 命令菜单的唯一事实来源。 */
+    private final Map<String, String> mainCommands;
+
     public CommandRegistry(List<?> commandBeans) {
         Map<String, Entry> map = new HashMap<>();
+        Map<String, String> menu = new HashMap<>();
         for (Object bean : commandBeans) {
             // 必须按「最终目标类」读注解：命令处理器可能被 Spring AOP 代理
             // （模块十的审计切面即切入本方法），JDK 动态代理下代理类不继承类级注解，
@@ -48,11 +53,17 @@ public class CommandRegistry {
             String owner = bean.getClass().getName();
             Entry entry = new Entry(handler, annotation.requiredPermission(), annotation.worksWhenDisabled());
             register(map, annotation.value(), entry, owner);
+            // 只把**主命令**收进菜单视图：别名（如 /ping）在客户端菜单里是噪声。
+            // description() 自切片 1 起一直无人消费——命令菜单正是它的第一个消费者。
+            menu.put(normalize(annotation.value()),
+                    annotation.description() == null ? "" : annotation.description());
             for (String alias : annotation.aliases()) {
                 register(map, alias, entry, owner);
             }
         }
         this.entries = Map.copyOf(map);
+        // TreeMap：输出按名字稳定排序，菜单与日志顺序才不会随机抖动
+        this.mainCommands = Collections.unmodifiableMap(new TreeMap<>(menu));
     }
 
     private static void register(Map<String, Entry> map, String name, Entry entry, String owner) {
@@ -105,6 +116,17 @@ public class CommandRegistry {
 
     public Set<String> registeredCommands() {
         return Collections.unmodifiableSet(entries.keySet());
+    }
+
+    /**
+     * 主命令 → 描述（不含别名，按名字排序）。
+     *
+     * <p>供启动期注册 Telegram 命令菜单使用——即 {@code @BotCommand.description()} 的消费者。
+     * 注册表只陈述事实：**描述是否为空、是否合 Telegram 的格式要求，由组装层决定**
+     * （见 {@link CommandMenuRegistrar}）。
+     */
+    public Map<String, String> mainCommands() {
+        return mainCommands;
     }
 
     public int size() {
