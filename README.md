@@ -190,7 +190,7 @@ python3 tools/security/scan_dependencies.py
 | `tools/security/scan_dependencies.py` | 依赖漏洞扫描器（读 SBOM 查 OSV；退出码可接 CI）；单测在同目录 |
 | `ARCHITECTURE.md` | **架构文档**：模块划分与依赖方向、一次更新的生命周期、关键设计决策、数据模型、扩展接缝 |
 | `SECURITY.md` | **安全文档**：认证/授权/隐私/输入安全/密钥管理/审计/供应链/部署加固，并明列**未实现**项 |
-| `USER-GUIDE.md` | **用户手册**：群主与成员的 Bot 使用指南（26 个命令、权限、通知、隐私） |
+| `USER-GUIDE.md` | **用户手册**：群主与成员的 Bot 使用指南（29 个命令、权限、通知、隐私） |
 | `ADMIN-GUIDE.md` | **管理员手册**：审批中心 REST API、复核流程、运营者日常清单 |
 | `DPIA-TEMPLATE.md` | **数据保护影响评估模板**（GDPR 第 35 条）；含本项目实际处理的数据清单，运营者填写并签署 |
 | `k8s/` | Kubernetes 清单（Deployment / Service / Ingress / ConfigMap / Secret 模板）+ 应用说明 |
