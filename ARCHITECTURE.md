@@ -46,7 +46,7 @@ flowchart TD
 | `tgg-credit` | 三套信用分、规则引擎、Ed25519 处罚令（七） |
 | `tgg-federation` | 对等节点广播、入站验签、跨群封禁、申诉（八） |
 | `tgg-listing` | 群组收录、商家收录与保证金（五/六） |
-| `tgg-admin` | 审批中心 REST API（十一，**无界面**） |
+| `tgg-admin` | 审批中心 REST API + `frontend/` Vue 3 控制台（十一） |
 | `tgg-app` | Spring Boot 启动器：把各模块放进组件扫描范围，打成单一 jar |
 
 `tgg-core` 体量最大（143 个源文件——判据 `find tgg-core/src/main/java -name '*.java' | wc -l`），因为「模块一」本身就是横切的接入与调度层。

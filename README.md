@@ -22,7 +22,7 @@ tgg-core        模块一：Webhook 接入 / 中间件链 / 命令分发 / 限�
 tgg-credit      模块七：信用分体系（三套信用分 / 规则引擎 / 处罚令）
 tgg-federation  模块八：联邦治理（对等节点广播 / 入站验签 / 跨群封禁 / 申诉）
 tgg-listing     模块五/六：收录（群组收录 / 商家收录与保证金）
-tgg-admin       模块十一：Web 后台（审批中心 REST API；无界面）
+tgg-admin       模块十一：Web 后台（审批中心 REST API + frontend/ Vue 3 控制台）
 tgg-app         Spring Boot 启动器（打成单一可运行 jar）
 ```
 
@@ -43,7 +43,7 @@ flowchart LR
 **前置**：JDK 21、Maven 3.9+、MySQL。运行时用库 `tgg`（`utf8mb4`）；**测试连独立库 `tgg_test`**——
 `mvn verify` 的集成测试会用 `deleteAll()` 重置数据，必须与运行库隔离（测试 URL 带 `createDatabaseIfNotExist=true`；
 若用户无建库权限，需由管理员 `CREATE DATABASE tgg_test` 并 `GRANT ALL ON tgg_test.* TO 'tgg'@'localhost'`）。
-详见 `docs/LESSONS.md` 坑 9。
+详见 `docs/LESSONS.md` 的「可复用的取证手法」一节（**测试必须连独立的库/schema**）。
 
 ```bash
 # 构建与全量测试（*IT 由 failsafe 在 verify 阶段执行）
