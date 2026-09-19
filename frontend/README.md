@@ -38,6 +38,32 @@ pnpm test          # vitest（当前覆盖 src/theme.ts 的纯逻辑：未选过
 pnpm test:watch
 ```
 
+## 渲染验收（`pnpm build` 通过 ≠ 页面能看）
+
+构建只证明「能打包」——白屏、主题没生效、首访 404 它一个都发现不了。用探针补上：
+
+```bash
+pnpm build
+pnpm preview --port 4173 &                     # 或任意静态服务器
+CHROME_PATH="<chromium 系浏览器可执行文件>" node tools/screenshot-probe.mjs
+```
+
+探针用**真实 Chromium**，对三个场景各出一张截图（`/tmp/tgg-shot/`）并打印 JSON：
+系统深色 / 系统浅色 / **系统浅色但用户显式选了深色**。
+
+**判据看 JSON，不要只看截图**：
+
+| 字段 | 说明 |
+|---|---|
+| `bodyBg` | `body` 的**计算**背景色——最硬的一条：证明主题变量真的应用到渲染，而不是"CSS 里写了那行字"。深色应为 `rgb(11, 11, 20)`、浅色 `rgb(255, 255, 255)` |
+| `errors` | console 错误（白屏与资源 404 都落这里） |
+| `appHtmlLength` / `hasTitle` | 是否真渲染出门禁页而非白屏 |
+
+任一场景失败 → 脚本以**非 0 退出码**结束，便于接进 CI。
+`CHROME_PATH` 省略时用 playwright 记录的浏览器路径；本机已装 Edge/Chrome 也可直接指向。
+
+> 这个探针抓到过一次真实的 `/favicon.ico` 404——构建与单测都发现不了。
+
 ## 开发
 
 ```bash
