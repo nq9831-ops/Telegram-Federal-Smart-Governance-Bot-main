@@ -34,9 +34,20 @@
 ## 测试
 
 ```bash
-pnpm test          # vitest（当前覆盖 src/theme.ts 的纯逻辑：未选过 / 选过 / 存储值非法 / 互切可逆）
+pnpm test          # vitest
 pnpm test:watch
 ```
+
+当前覆盖三类、共 **25** 个用例：
+
+- `src/theme.ts` —— 主题解析纯逻辑（未选过 / 选过 / 存储值非法 / 互切可逆）；
+- `src/api/client.ts` —— 凭据存取、请求拦截器补两层鉴权头、响应拦截器 401 清凭据、`describeError` 六分支；
+- `src/components/DecisionDrawer.vue` —— **裁决路径**：推翻时取消二次确认**绝不发请求**、确认才发；
+  维持不弹框；`ALREADY_DECIDED` 不谎报成功。这是全前端唯一有**不可逆对外后果**的地方（推翻＝立即解封当事人），
+  所以判据成对断言——只测「确认后发了请求」是测不出二次确认的（把 confirm 整个删掉它照样绿）。
+
+⚠️ 组件测试需要 DOM：该文件用 `// @vitest-environment jsdom` **逐文件**开启（另两个是纯逻辑，留在默认 node 环境）。
+依赖 `@vue/test-utils` + `jsdom`（devDependencies）。
 
 ## 渲染验收（`pnpm build` 通过 ≠ 页面能看）
 
@@ -113,9 +124,9 @@ K8s 下的写法见 `../k8s/app.yaml` 里 `/admin` 那段注释。
 
 ## 已知限制
 
-- **渲染未经真实浏览器验证**：交付时只跑了 `pnpm build`（类型检查 + 打包）与 `pnpm preview` 的
-  HTTP 探测（200、`<title>` 正确、入口脚本可达、`<div id="app">` 存在）。
-  界面在浏览器里的**实际呈现与交互未验证**。
+- **渲染已验，观感仍待人工看图**：`tools/screenshot-probe.mjs` 用**真实 Chromium** 验过三场景
+  （主题生效、非白屏、console 无错误，见上「渲染验收」）。但探针给的是**数字判据**——
+  排版与配色**好不好看**仍须人看截图确认（截图归档在 `.rivet/artifacts/frontend-render/`，本地资产、不进 git）。
 - **产物偏大**：JS ≈ 1.05 MB（gzip 341 KB），因为 Element Plus 是**全量引入**。内部工具可接受；
   要优化就上 `unplugin-vue-components` 做按需引入。
 - **范围**：待办列表 + 详情 + 裁决 + 统计卡。**不含**历史趋势图、规则可视化配置、合规监控
