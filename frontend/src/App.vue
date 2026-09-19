@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSession } from './stores/session'
+import { validateGate } from './gate'
 import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
 
@@ -10,21 +11,15 @@ const form = reactive({ token: '', operatorId: '' })
 const submitting = ref(false)
 
 function submit(): void {
-  const token = form.token.trim()
-  const operatorId = form.operatorId.trim()
-
-  if (token === '' || operatorId === '') {
-    ElMessage.warning('API 令牌与操作人 ID 都要填')
-    return
-  }
-  // 后端 X-Operator-Id 解析失败就是 401/403，这里先挡一道，避免"填错了却不知道错在哪"
-  if (!/^\d+$/.test(operatorId)) {
-    ElMessage.warning('操作人 ID 应是数字（Telegram userId）')
+  // 校验抽在 gate.ts（纯逻辑，可独立测）——这里只负责反馈与落地。
+  const check = validateGate(form)
+  if (!check.ok) {
+    ElMessage.warning(check.reason)
     return
   }
 
   submitting.value = true
-  session.signIn({ token, operatorId })
+  session.signIn({ token: check.token, operatorId: check.operatorId })
   submitting.value = false
   ElMessage.success('凭据已保存在本浏览器')
 }
