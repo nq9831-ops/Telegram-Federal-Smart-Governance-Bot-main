@@ -14,14 +14,7 @@ import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.middleware.AuthenticationMiddleware;
 import com.tg.heyisheng.bot.core.middleware.GroupConfigMiddleware;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
-import com.tg.heyisheng.bot.core.notify.DeferredNotificationFlusher;
-import com.tg.heyisheng.bot.core.notify.DeferredNotificationJob;
-import com.tg.heyisheng.bot.core.notify.DeferredNotificationRepository;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
-import com.tg.heyisheng.bot.core.notify.NotificationPreferenceService;
-import com.tg.heyisheng.bot.core.notify.NotificationRateLimiter;
-import com.tg.heyisheng.bot.core.notify.NotificationSender;
-import com.tg.heyisheng.bot.core.notify.TelegramNotificationSender;
 import com.tg.heyisheng.bot.core.retention.RetentionJob;
 import com.tg.heyisheng.bot.core.retention.RetentionProperties;
 import com.tg.heyisheng.bot.core.retention.RetentionService;
@@ -233,52 +226,6 @@ public class TggCoreConfiguration {
         return new TaughtRuleDetector(taughtRuleService);
     }
 
-    /**
-     * 通知出口（模块十 §11.1）。
-     *
-     * <p><b>按 bot token 分流</b>（照 listing 的 {@code SubmitterNotifier} 范式）：有 token →
-     * 经主动通道私聊真投递；无 token → 日志实现并打 <b>WARN</b>，不做静默。
-     * 频率门用内存窗口（本项目未引 Redis，理由同 {@code InMemoryRateLimiter}）。
-     */
-    @Bean
-    public NotificationDispatcher notificationDispatcher(ModerationActionSender moderationActionSender,
-                                                         NotificationPreferenceService notificationPreferences,
-                                                         DeferredNotificationRepository deferredNotifications,
-                                                         WebhookProperties webhookProperties) {
-        NotificationSender sender;
-        // 复用 WebhookProperties 而非再解析一次 @Value：同一个键在三个 bean 里各写一遍
-        // 字符串占位符，拼错不报错、也无类型校验。
-        String botToken = webhookProperties.getBotToken();
-        if (botToken == null || botToken.isBlank()) {
-            log.warn("未配置 TGG_BOT_TOKEN：通知退化为日志实现——用户不会在自己的私聊里收到任何通知"
-                    + "（含「你被禁言了」这类权益变动）。注入 token 后自动切换为真实投递。");
-            sender = NotificationSender.logging();
-        } else {
-            sender = new TelegramNotificationSender(moderationActionSender);
-        }
-        // 免打扰（§11.1）：非紧急通知暂存到时段结束；紧急（封禁/解封）不受影响。
-        return new NotificationDispatcher(sender, new NotificationRateLimiter(Clock.systemUTC()),
-                notificationPreferences, deferredNotifications, Clock.systemUTC());
-    }
-
-    /**
-     * 延迟通知冲刷器 + 每分钟一次的调度任务（§11.1：免打扰结束即发）。
-     *
-     * <p>用 {@code @Scheduled} 而非 Kafka——本项目明确不引消息队列（见 HANDOFF 非目标）。
-     */
-    @Bean
-    public DeferredNotificationFlusher deferredNotificationFlusher(
-            DeferredNotificationRepository deferredNotifications,
-            NotificationPreferenceService notificationPreferences,
-            NotificationDispatcher notificationDispatcher) {
-        return new DeferredNotificationFlusher(deferredNotifications, notificationPreferences,
-                notificationDispatcher, Clock.systemUTC());
-    }
-
-    @Bean
-    public DeferredNotificationJob deferredNotificationJob(DeferredNotificationFlusher flusher) {
-        return new DeferredNotificationJob(flusher);
-    }
 
     /**
      * 数据保留策略（模块十 §11.2）——<b>默认只报告不清理</b>（{@code tgg.retention.enabled=false}）。
