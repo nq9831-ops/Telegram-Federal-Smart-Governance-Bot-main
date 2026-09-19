@@ -160,6 +160,14 @@ python3 tools/security/scan_dependencies.py
 | `TGG_OPENAPI_ENABLED` | `false` | 启用 Swagger / OpenAPI 文档（`/swagger-ui.html`、`/v3/api-docs`）。**默认关闭**——springdoc 会暴露全部端点清单与参数结构，属信息面；启用后**不要裸露公网**（见 `ADMIN-GUIDE.md`） |
 | `TGG_MODERATION_SENSITIVE_GRADING_ENABLED` | `false` | 敏感话题分级（§10.5）：按群分级、受标签豁免。用 `/group_tag add\|remove\|list <标签>`（需群内管理员）管理。**可豁免话题**：`politics` / `intl_politics` / `religionism`；**不可豁免**：恐怖活动 / 极端主义 / 煽动战争 |
 
+> 🟢 **想一次全开？** 用 **[`tools/deploy/all-on.env.example`](tools/deploy/all-on.env.example)**：10 个模块开关
+> + 5 把必填密钥 + 5 份白名单，可直接 `set -a; . <该文件>; set +a` 或 `docker compose --env-file`。
+> 本机已实测「全开可启动」：10 开关全开 → `Started TggApplication`；`/actuator/health`=UP、
+> `/v3/api-docs`=200、`/admin/approvals` 无 token→401 / 白名单外→403。
+> ⚠️ 两个必知的坑：① 值里含 `&`/`|` 的变量（`TGG_DB_URL`、`TGG_FEDERATION_NODES`）**必须加引号**——
+> 否则 shell 静默把它们设成空，实测后果是应用**连到默认库 `tgg`**（不是你想连的那个）；
+> ② 有 5 个开关打开即要求对应密钥（deepseek / credit / federation 缺失是**启动失败**，不是降级）。
+
 > 📘 **模块五/六 的部署验证步骤**见 `docs/DEPLOYMENT-VERIFICATION.md` N 段与配套的 `docs/DEPLOYMENT-RUNBOOK.md`（后者含可照抄的命令、预期输出与失败排查表）。
 
 ## 已实现 / 未实现
