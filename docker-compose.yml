@@ -11,7 +11,9 @@
 # 说明：
 #   - 数据库**只绑 127.0.0.1**，不对公网暴露；应用通过 compose 内网 `db` 主机名连它。
 #   - 应用监听 8080 并暴露到宿主机；webhook 上线前需放行/反代该端口（见 docs/DEPLOYMENT-RUNBOOK.md）。
-#   - 本项目未引入 Actuator：健康检查探的是 TCP 端口，不代表业务已就绪（迁移/装配可能仍在进行）。
+#   - 健康检查探 **/actuator/health**（Actuator 已引入，原文 §15.2）：DB 不可达时它返回 503、
+#     容器随之判为 unhealthy——比「只探端口」更贴近「业务就绪」。
+#     首次启动的迁移/装配窗口由 Dockerfile 的 --start-period=45s 覆盖。
 name: tgg
 
 services:

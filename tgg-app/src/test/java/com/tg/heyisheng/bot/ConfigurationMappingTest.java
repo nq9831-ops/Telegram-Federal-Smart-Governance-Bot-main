@@ -130,4 +130,27 @@ class ConfigurationMappingTest {
                 .as("UI 同样默认关闭（只关 JSON 而 UI 开着，仍是同一条信息面）")
                 .isEqualTo("${TGG_OPENAPI_ENABLED:false}");
     }
+
+    /**
+     * Actuator（原文 §15.2「**Actuator 锁定**」）：生产 yml 里必须显式收敛暴露面。
+     *
+     * <p>⚠️ <b>同 springdoc 那条，只能写在这里</b>：{@code src/test/resources/application.yml} 遮蔽生产 yml，
+     * 故 {@code ActuatorLockedIT} 跑的是**测试**配置——它守得住「默认锁定」，
+     * 守不住「生产那份被某人顺手改成 {@code include: "*"}」。后者是本测试存在的全部理由。
+     */
+    @Test
+    void actuatorIsLockedDownInProduction() throws Exception {
+        PropertySource<?> yml = yaml();
+
+        assertThat(yml.getProperty("management.endpoints.web.exposure.include"))
+                .as("只暴露 health；改成 \"*\" 会把 env/beans/configprops 一起挂到未鉴权路径上")
+                .isEqualTo("health");
+        assertThat(yml.getProperty("management.endpoint.health.show-details"))
+                .as("health 不得回分项——未鉴权端点上的分项等于一张内部结构图")
+                .isEqualTo("never");
+        // ⚠️ yml 里的裸 false 会被解析成 Boolean（不是字符串），故这里走 String.valueOf 归一。
+        assertThat(String.valueOf(yml.getProperty("management.endpoint.health.probes.enabled")))
+                .as("显式关掉 K8s 探针子组，避免暴露面随部署环境漂移")
+                .isEqualTo("false");
+    }
 }

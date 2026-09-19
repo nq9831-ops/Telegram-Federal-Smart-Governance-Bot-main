@@ -12,6 +12,27 @@ springdoc:
   swagger-ui:
     enabled: ${TGG_OPENAPI_ENABLED:false}
 
+# ── Actuator（原文 §15.2「应用：OWASP ASVS、**Actuator 锁定**、CSP/HSTS」）──────────────
+# 引入它的**唯一**目的：让容器/K8s 的健康检查反映**业务就绪**（含 DB 连通性），
+# 而不是「端口在听就算健康」（Dockerfile 此前用 /dev/tcp 探端口，README 已注明不代表业务就绪）。
+# ⚠️ **必须锁定**——下面三行都是「把暴露面压到最小」的刻意设置，不要放宽：
+management:
+  endpoints:
+    web:
+      exposure:
+        # 只暴露 health。**不要**改成 "*"，也不要加上 env / beans / configprops / heapdump /
+        # threaddump / loggers —— 它们会泄漏配置值、环境变量、bean 依赖图与堆内存内容。
+        include: health
+  endpoint:
+    health:
+      # never：health 只回 {"status":"UP"}，不回 DB / 磁盘等分项。
+      # 分项在**未鉴权**的端点上等于一张内部结构图（哪个组件挂了、连的什么库）。
+      show-details: never
+      probes:
+        # 关掉 K8s 的 liveness/readiness 子组。Boot 检测到 Kubernetes 会**自动打开**它们，
+        # 使暴露面随部署环境漂移；本项目的 k8s 清单用 tcpSocket 探针，不需要这两个端点。
+        enabled: false
+
 spring:
   application:
     name: tgg

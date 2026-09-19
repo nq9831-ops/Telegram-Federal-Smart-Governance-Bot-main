@@ -50,10 +50,16 @@ EXPOSE 8080
 # 容器内存感知：按 cgroup 限额取 75%，而不是按宿主机物理内存
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"
 
-# 存活探测：直接探监听端口。本项目**未引入 Actuator**，故没有 /actuator/health 可探。
-# ⚠️ 若改了监听端口（SERVER_PORT），这里要同步改。
+# 存活探测：探 **/actuator/health**（业务就绪，含 DB 连通性），不再只探监听端口。
+# 用 bash 的 /dev/tcp 手写一个 HTTP/1.1 请求，**不依赖镜像里是否有 curl/wget**
+# （eclipse-temurin 的 JRE 镜像不保证带它们；bash 已由原探针证明存在）。
+# 判据是状态行含 " 200 "：DB 不可达时 Boot 的 health 返回 503 → 本探针判定不健康，
+# 这正是「端口在听 ≠ 业务就绪」那条注明的修正。
+# ⚠️ 若关了 Actuator 或改了 management.endpoints.web.base-path，这里要同步改；
+#    若改了监听端口（SERVER_PORT）也要改。
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' || exit 1
+  CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && read -r -t 3 line <&3 && case "$line" in *" 200 "*) exit 0;; *) exit 1;; esac' \
+  || exit 1
 
 # shell 形式以便 JAVA_OPTS 可被外部覆盖；exec 保证信号直达 JVM（SIGTERM 能优雅停机）。
 # 注意：应用对 TGG_WEBHOOK_SECRET 等关键变量 fail-fast（缺失即启动失败）——这是**刻意**的，

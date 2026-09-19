@@ -55,6 +55,17 @@
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
     </dependency>
 
+    <!-- Actuator（原文 §15.2「应用：OWASP ASVS、**Actuator 锁定**、CSP/HSTS」）。
+         ⚠️ 引入它的**唯一**目的是让容器/K8s 的健康检查反映**业务就绪**（含 DB 连通性），
+         此前 HEALTHCHECK 只探 TCP 端口、端口在听就算健康（见 Dockerfile 与 README 的注明）。
+         **必须锁定**：只暴露 health，其余端点（env/beans/configprops/heapdump…）一律关闭——
+         它们会泄漏配置、环境变量与 bean 图。锁定值写在 application.yml 的 management 段，
+         并由 ConfigurationMappingTest + ActuatorLockedIT 两层守门。 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
