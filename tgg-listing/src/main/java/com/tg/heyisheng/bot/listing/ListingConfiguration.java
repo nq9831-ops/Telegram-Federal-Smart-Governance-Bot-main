@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.listing;
 
+import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import com.tg.heyisheng.bot.listing.notify.LoggingSubmitterNotifier;
 import com.tg.heyisheng.bot.listing.notify.SubmitterNotifier;
 import com.tg.heyisheng.bot.listing.notify.TelegramSubmitterNotifier;
@@ -11,7 +12,6 @@ import com.tg.heyisheng.bot.listing.verification.VerificationRecordRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -65,7 +65,8 @@ public class ListingConfiguration {
      * 真实探测能力属部署后验证项。
      */
     @Bean
-    public GroupLinkVerifier groupLinkVerifier(@Value("${tgg.webhook.bot-token:}") String botToken) {
+    public GroupLinkVerifier groupLinkVerifier(WebhookProperties webhookProperties) {
+        String botToken = webhookProperties.getBotToken();
         if (botToken == null || botToken.isBlank()) {
             log.warn("未配置 TGG_BOT_TOKEN：群链接探针在运行期只会产出 ERROR（不会误判失效），"
                     + "收录验证的「真失效判定」需部署方注入 token 后才生效。");
@@ -114,7 +115,8 @@ public class ListingConfiguration {
      * 「提交者不会收到任何告知」，避免运维误以为通知已生效。
      */
     @Bean
-    public SubmitterNotifier submitterNotifier(@Value("${tgg.webhook.bot-token:}") String botToken) {
+    public SubmitterNotifier submitterNotifier(WebhookProperties webhookProperties) {
+        String botToken = webhookProperties.getBotToken();
         if (botToken == null || botToken.isBlank()) {
             log.warn("未配置 TGG_BOT_TOKEN：下架通知退化为日志实现——提交者不会收到任何告知；"
                     + "注入 token 后自动切换为 Bot API 真实投递（需提交者曾与 bot 私聊过）。");

@@ -244,8 +244,11 @@ public class TggCoreConfiguration {
     public NotificationDispatcher notificationDispatcher(ModerationActionSender moderationActionSender,
                                                          NotificationPreferenceService notificationPreferences,
                                                          DeferredNotificationRepository deferredNotifications,
-                                                         @Value("${tgg.webhook.bot-token:}") String botToken) {
+                                                         WebhookProperties webhookProperties) {
         NotificationSender sender;
+        // 复用 WebhookProperties 而非再解析一次 @Value：同一个键在三个 bean 里各写一遍
+        // 字符串占位符，拼错不报错、也无类型校验。
+        String botToken = webhookProperties.getBotToken();
         if (botToken == null || botToken.isBlank()) {
             log.warn("未配置 TGG_BOT_TOKEN：通知退化为日志实现——用户不会在自己的私聊里收到任何通知"
                     + "（含「你被禁言了」这类权益变动）。注入 token 后自动切换为真实投递。");

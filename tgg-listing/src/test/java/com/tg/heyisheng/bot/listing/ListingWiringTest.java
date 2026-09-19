@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.listing;
 
+import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import com.tg.heyisheng.bot.listing.command.ListingAddCommandHandler;
 import com.tg.heyisheng.bot.listing.command.ListingAppealCommandHandler;
 import com.tg.heyisheng.bot.listing.command.ListingListCommandHandler;
@@ -66,6 +67,14 @@ class ListingWiringTest {
     }
 
     private final ApplicationContextRunner listingRunner = new ApplicationContextRunner()
+            // WebhookProperties 由 core 的 TggCoreConfiguration 注册，而 runner 不加载它——
+            // 不补这一手的话，groupLinkVerifier / submitterNotifier 的构造参数就没有候选 bean
+            // （原先它们用 @Value 自给自足，换成类型安全的 Properties 后才成为 bean 依赖）。
+            .withBean(WebhookProperties.class, () -> {
+                WebhookProperties properties = new WebhookProperties();
+                properties.setSecret("listing-wiring-test");   // @PostConstruct 会校验非空
+                return properties;
+            })
             .withUserConfiguration(ListingConfiguration.class, RepositoryStub.class,
                     // 命令处理器靠 @BotCommand（元注解 @Component）进入组件扫描；ApplicationContextRunner
                     // 不做扫描，故在此显式注册——它们自持 @ConditionalOnProperty，门的两个方向照样被断言。
