@@ -11,8 +11,14 @@
 #   * 每条命中都打印 file:line 与**脱敏后的**片段：日志里不留明文密钥。
 #
 # 用法：
-#   tools/security/scan_secrets.sh              # 扫入库文件（CI 用）
-#   tools/security/scan_secrets.sh <path>...    # 扫指定路径（自测用）
+#   bash tools/security/scan_secrets.sh              # 扫入库文件（CI 用）
+#   bash tools/security/scan_secrets.sh <path>...    # 扫指定路径（自测用）
+#
+# ⚠️ **必须用 `bash` 显式调用**，两个原因（都是实测踩到的）：
+#   ① 脚本用了 bash 的进程替换 `< <(...)`，`sh` 跑会报语法错（exit 2）；
+#   ② 某些受限环境对「直接 exec 脚本」（`./scan_secrets.sh`）会 SIGKILL（exit 137），
+#      而 `bash <脚本>` 正常——入库模式仍是 100755（Linux/CI 下可直接执行），
+#      但文档与 CI 一律用 `bash` 前缀，免得在受限环境里踩这个坑。
 
 set -uo pipefail
 
