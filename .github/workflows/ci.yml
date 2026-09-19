@@ -140,13 +140,16 @@ jobs:
       - name: Locate a Chromium-based browser
         run: |
           for c in google-chrome google-chrome-stable chromium chromium-browser; do
-            if command -v "$c" >/dev/null 2>&1; then
-              echo "CHROME_PATH=$(command -v "$c")" >> "$GITHUB_ENV"
-              echo "Using browser: $(command -v "$c")"
+            BIN="$(command -v "$c" 2>/dev/null || true)"
+            # `command -v` 只证明「文件存在」——Ubuntu 上 chromium/chromium-browser 常是 snap 包装脚本，
+            # 存在但不可启动。必须真的能打印版本才算数，否则会把「显式失败」退化成浏览器启动处的困惑报错。
+            if [ -n "$BIN" ] && "$BIN" --version >/dev/null 2>&1; then
+              echo "CHROME_PATH=$BIN" >> "$GITHUB_ENV"
+              echo "Using browser: $BIN — $("$BIN" --version)"
               exit 0
             fi
           done
-          echo "::error::Runner 上找不到 Chromium 系浏览器，无法做渲染验收"
+          echo "::error::Runner 上找不到可启动的 Chromium 系浏览器，无法做渲染验收"
           exit 1
 
       # preview 与探针必须在**同一个 step** 内：`&` 起的后台进程随 step 的 shell 退出而结束。
@@ -154,11 +157,19 @@ jobs:
         env:
           OUT_DIR: ${{ runner.temp }}/tgg-shot
         run: |
-          pnpm preview --host 127.0.0.1 &
+          # --strictPort：端口被占时**直接失败**，而不是漂移到别的端口——否则探针硬编码的 4173
+          # 会连不上，报错指向「连不上」而非根因「端口漂移」。
+          pnpm preview --host 127.0.0.1 --strictPort &
+          ready=""
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then ready=1; break; fi
             sleep 1
           done
+          # 就绪探测超时必须**显式失败**：否则探针会去连一个不存在的服务，报错不指向真正的原因。
+          if [ -z "$ready" ]; then
+            echo "::error::preview 服务 30s 内未在 http://127.0.0.1:4173/ 就绪"
+            exit 1
+          fi
           mkdir -p "$OUT_DIR"
           TARGET_URL=http://127.0.0.1:4173/ node tools/screenshot-probe.mjs
 
