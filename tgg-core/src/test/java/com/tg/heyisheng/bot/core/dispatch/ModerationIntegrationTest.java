@@ -122,8 +122,9 @@ class ModerationIntegrationTest {
             captured[0] = ctx;
             return true;
         }));
-        UpdateDispatcher dispatcher = new UpdateDispatcher(
-                capturing, noopDispatcher, new MessageScrubber(), null);
+        UpdateDispatcher dispatcher = UpdateDispatcher.builder()
+                .middlewareChain(capturing).commandDispatcher(noopDispatcher)
+                .scrubber(new MessageScrubber()).build();
 
         dispatcher.dispatch(messageUpdate("快来 888casino 玩"));
 
@@ -205,8 +206,10 @@ class ModerationIntegrationTest {
     void hardLineProducesBothDeleteAndBan() throws Exception {
         List<BotApiMethod<?>> sent = new ArrayList<>();
         MiddlewareChain capturing = new MiddlewareChain(List.of((ctx, chain) -> true));
-        UpdateDispatcher dispatcher = new UpdateDispatcher(
-                capturing, noopDispatcher, new MessageScrubber(), layer, IdHasher.fromEnvironment(), sent::add);
+        UpdateDispatcher dispatcher = UpdateDispatcher.builder()
+                .middlewareChain(capturing).commandDispatcher(noopDispatcher)
+                .scrubber(new MessageScrubber()).moderationLayer(layer)
+                .idHasher(IdHasher.fromEnvironment()).actionSender(sent::add).build();
 
         Optional<BotApiMethod<?>> action = dispatcher.dispatch(messageUpdateWithId("send me your private key", 77));
 
@@ -265,25 +268,24 @@ class ModerationIntegrationTest {
     /** 与 {@link #dispatcherCapturing} 同构，但注入一个记录入队的复核通道。 */
     private UpdateDispatcher dispatcherRecording(List<ModerationVerdict> sink) {
         MiddlewareChain capturing = new MiddlewareChain(List.of((ctx, chain) -> true));
-        return new UpdateDispatcher(capturing, noopDispatcher, new MessageScrubber(), layer,
-                IdHasher.fromEnvironment(), ModerationActionSender.noop(),
-                (ctx, verdict) -> sink.add(verdict));
+        return UpdateDispatcher.builder()
+                .middlewareChain(capturing).commandDispatcher(noopDispatcher)
+                .scrubber(new MessageScrubber()).moderationLayer(layer)
+                .idHasher(IdHasher.fromEnvironment()).actionSender(ModerationActionSender.noop())
+                .reviewRecorder((ctx, verdict) -> sink.add(verdict)).build();
     }
 
     /** 与 {@link #dispatcherCapturing} 同构，但注入反刷屏检测器。 */
     private UpdateDispatcher dispatcherWithFlood() {
-        return new UpdateDispatcher(
-                new MiddlewareChain(List.of()),
-                noopDispatcher,
-                new MessageScrubber(),
-                layer,
-                IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(),
-                ModerationReviewRecorder.noop(),
-                null,
-                new com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector(
+        return UpdateDispatcher.builder()
+                .middlewareChain(new MiddlewareChain(List.of())).commandDispatcher(noopDispatcher)
+                .scrubber(new MessageScrubber()).moderationLayer(layer)
+                .idHasher(IdHasher.fromEnvironment()).actionSender(ModerationActionSender.noop())
+                .reviewRecorder(ModerationReviewRecorder.noop())
+                .repeatedMessageDetector(new com.tg.heyisheng.bot.core.moderation.RepeatedMessageDetector(
                         new com.tg.heyisheng.bot.core.ratelimit.InMemoryRateLimiter(3,
-                                java.time.Duration.ofSeconds(60))));
+                                java.time.Duration.ofSeconds(60))))
+                .build();
     }
 
     /**
@@ -314,7 +316,9 @@ class ModerationIntegrationTest {
             sink[0] = ctx;
             return true;
         }));
-        return new UpdateDispatcher(capturing, noopDispatcher, new MessageScrubber(), layer);
+        return UpdateDispatcher.builder()
+                .middlewareChain(capturing).commandDispatcher(noopDispatcher)
+                .scrubber(new MessageScrubber()).moderationLayer(layer).build();
     }
 
     private static Update mediaMessageWithCaption(String caption) {

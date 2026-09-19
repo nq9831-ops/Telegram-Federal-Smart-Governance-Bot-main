@@ -76,8 +76,11 @@ public class UpdateDispatcher {
     private final MemberJoinRecorder memberJoinRecorder;
 
     /**
-     * 构造器已增至 9 个参数，继续叠加会难以维护——新增装配一律走 {@link #builder()}；
-     * 下列重载保留给既有测试与"只需要一部分能力"的场景。
+     * <b>唯一的公开装配入口</b>。
+     *
+     * <p>构造重载已全部移除：它们逐参递增（最多到 10 个），每加一个审核能力就得再加一个重载，
+     * 形成「加能力 = 加重载」的循环，而生产侧自始至终只走 {@code builder()}。
+     * 现在新增能力只需在 Builder 上加一个字段，既有装配点一律不受影响。
      */
     public static Builder builder() {
         return new Builder();
@@ -215,106 +218,6 @@ public class UpdateDispatcher {
         this.memberJoinRecorder = b.memberJoinRecorder;
     }
 
-    public UpdateDispatcher(MiddlewareChain middlewareChain, CommandDispatcher commandDispatcher) {
-        this(middlewareChain, commandDispatcher, new MessageScrubber(), null, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
-    }
-
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber) {
-        this(middlewareChain, commandDispatcher, scrubber, null, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
-    }
-
-    /**
-     * @param moderationLayer 审核层；为 null 表示不启用审核（此时不会挂载判定结果）
-     */
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber,
-                            ModerationLayer moderationLayer) {
-        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
-    }
-
-    /**
-     * @param idHasher 日志脱敏用的标识哈希器——用户/群 id 不得以明文进日志
-     */
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber,
-                            ModerationLayer moderationLayer,
-                            IdHasher idHasher) {
-        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher,
-                ModerationActionSender.noop(), ModerationReviewRecorder.noop(), null);
-    }
-
-    /**
-     * @param actionSender 硬红线封禁等额外动作的主动通道；未装配场景应传 {@link ModerationActionSender#noop()}
-     */
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber,
-                            ModerationLayer moderationLayer,
-                            IdHasher idHasher,
-                            ModerationActionSender actionSender) {
-        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
-                ModerationReviewRecorder.noop(), null);
-    }
-
-    /**
-     * @param reviewRecorder 中高风险命中的复核入队通道；未装配场景应传 {@link ModerationReviewRecorder#noop()}
-     */
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber,
-                            ModerationLayer moderationLayer,
-                            IdHasher idHasher,
-                            ModerationActionSender actionSender,
-                            ModerationReviewRecorder reviewRecorder) {
-        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
-                reviewRecorder, null);
-    }
-
-    /**
-     * @param bannedWordDetector 按群违禁词检测器；为 null 表示该能力未装配
-     */
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber,
-                            ModerationLayer moderationLayer,
-                            IdHasher idHasher,
-                            ModerationActionSender actionSender,
-                            ModerationReviewRecorder reviewRecorder,
-                            BannedWordDetector bannedWordDetector) {
-        this(middlewareChain, commandDispatcher, scrubber, moderationLayer, idHasher, actionSender,
-                reviewRecorder, bannedWordDetector, null);
-    }
-
-    /**
-     * @param repeatedMessageDetector 反刷屏（重复内容）检测器；为 null 表示该能力未装配
-     */
-    public UpdateDispatcher(MiddlewareChain middlewareChain,
-                            CommandDispatcher commandDispatcher,
-                            MessageScrubber scrubber,
-                            ModerationLayer moderationLayer,
-                            IdHasher idHasher,
-                            ModerationActionSender actionSender,
-                            ModerationReviewRecorder reviewRecorder,
-                            BannedWordDetector bannedWordDetector,
-                            RepeatedMessageDetector repeatedMessageDetector) {
-        this(builder()
-                .middlewareChain(middlewareChain)
-                .commandDispatcher(commandDispatcher)
-                .scrubber(scrubber)
-                .moderationLayer(moderationLayer)
-                .idHasher(idHasher)
-                .actionSender(actionSender)
-                .reviewRecorder(reviewRecorder)
-                .bannedWordDetector(bannedWordDetector)
-                .repeatedMessageDetector(repeatedMessageDetector));
-    }
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
         try {

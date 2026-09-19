@@ -116,15 +116,16 @@ class BannedWordDispatchTest {
     }
 
     private UpdateDispatcher dispatcher() {
-        return new UpdateDispatcher(
-                new MiddlewareChain(List.of()),
-                new CommandDispatcher(new CommandRegistry(List.of())),
-                new MessageScrubber(),
-                null,                       // 不启用 L1，隔离出违禁词这一条路径
-                IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(),
-                ModerationReviewRecorder.noop(),
-                detector);
+        return UpdateDispatcher.builder()
+                .middlewareChain(new MiddlewareChain(List.of()))
+                .commandDispatcher(new CommandDispatcher(new CommandRegistry(List.of())))
+                .scrubber(new MessageScrubber())
+                // 不启用 L1（moderationLayer 留空），隔离出违禁词这一条路径
+                .idHasher(IdHasher.fromEnvironment())
+                .actionSender(ModerationActionSender.noop())
+                .reviewRecorder(ModerationReviewRecorder.noop())
+                .bannedWordDetector(detector)
+                .build();
     }
 
     /**
@@ -161,15 +162,16 @@ class BannedWordDispatchTest {
 
     /** 权限判定可注入：同一套装配，只换权限来源，才能隔离出"豁免条件是否正确"。 */
     private UpdateDispatcher dispatcherWith(PermissionChecker permissionChecker) {
-        return new UpdateDispatcher(
-                new MiddlewareChain(List.of()),
-                new CommandDispatcher(new CommandRegistry(List.of(new DelWordCommandHandler(service))), permissionChecker),
-                new MessageScrubber(),
-                null,
-                IdHasher.fromEnvironment(),
-                ModerationActionSender.noop(),
-                ModerationReviewRecorder.noop(),
-                detector);
+        return UpdateDispatcher.builder()
+                .middlewareChain(new MiddlewareChain(List.of()))
+                .commandDispatcher(new CommandDispatcher(
+                        new CommandRegistry(List.of(new DelWordCommandHandler(service))), permissionChecker))
+                .scrubber(new MessageScrubber())
+                .idHasher(IdHasher.fromEnvironment())
+                .actionSender(ModerationActionSender.noop())
+                .reviewRecorder(ModerationReviewRecorder.noop())
+                .bannedWordDetector(detector)
+                .build();
     }
 
     private static Update commandUpdate(String text, int commandLength) {

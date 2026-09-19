@@ -57,7 +57,7 @@ class UpdateDispatcherTest {
             return true;
         }));
 
-        new UpdateDispatcher(chain, new CommandDispatcher(capturingRegistry))
+        dispatcher(chain, new CommandDispatcher(capturingRegistry))
                 .dispatch(update("/capture", 42L, -100L));
 
         assertThat(seenByHandler[0]).as("handler 必须收到中间件链上那个上下文").isSameAs(seenByMiddleware[0]);
@@ -65,7 +65,7 @@ class UpdateDispatcherTest {
 
     @Test
     void middlewareInterruptionSkipsCommandDispatch() throws Exception {
-        UpdateDispatcher dispatcher = new UpdateDispatcher(
+        UpdateDispatcher dispatcher = dispatcher(
                 new MiddlewareChain(List.of(new AuthenticationMiddleware())),
                 new CommandDispatcher(registry));
 
@@ -78,7 +78,7 @@ class UpdateDispatcherTest {
     void scrubsMessageTextAfterSuccessfulDispatch() throws Exception {
         Update update = update("/echo", 42L, -100L);
 
-        new UpdateDispatcher(new MiddlewareChain(List.of()), new CommandDispatcher(registry))
+        dispatcher(new MiddlewareChain(List.of()), new CommandDispatcher(registry))
                 .dispatch(update);
 
         assertThat(update.getMessage().getText()).as("处理后不得残留消息原文").isNull();
@@ -89,7 +89,7 @@ class UpdateDispatcherTest {
     void scrubsMessageTextWhenChainInterrupted() throws Exception {
         Update update = update("/echo", null, -100L);
 
-        new UpdateDispatcher(new MiddlewareChain(List.of(new AuthenticationMiddleware())),
+        dispatcher(new MiddlewareChain(List.of(new AuthenticationMiddleware())),
                 new CommandDispatcher(registry))
                 .dispatch(update);
 
@@ -174,12 +174,17 @@ class UpdateDispatcherTest {
         }
     }
 
+    /** 装配入口统一走 builder——生产侧已不提供构造重载（见 {@code UpdateDispatcher#builder}）。 */
+    private static UpdateDispatcher dispatcher(MiddlewareChain chain, CommandDispatcher commands) {
+        return UpdateDispatcher.builder().middlewareChain(chain).commandDispatcher(commands).build();
+    }
+
     private UpdateDispatcher dispatcherCapturing(UpdateContext[] sink) {
         MiddlewareChain chain = new MiddlewareChain(List.of((ctx, c) -> {
             sink[0] = ctx;
             return true;
         }));
-        return new UpdateDispatcher(chain, new CommandDispatcher(registry));
+        return dispatcher(chain, new CommandDispatcher(registry));
     }
 
     private static Update update(String commandText, Long fromId, Long chatId) {
