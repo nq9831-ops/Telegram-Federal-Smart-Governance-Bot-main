@@ -73,6 +73,28 @@ docker compose logs -f app     # 期望：末行 Started TggApplication in N.NNN
 ⚠️ CSP / HSTS **仍归反向代理层**（HSTS 必须由 TLS 终止方下发），见 `docs/DEPLOYMENT-VERIFICATION.md` S 段。
 首次就绪仍建议以日志里那行 `Started TggApplication` 判断。详见 `docs/DEPLOYMENT-RUNBOOK.md` §0.2b。
 
+### 服务器规格（部署前选型，**实测基线**）
+
+下表是**实测**值（2026-09-19：本机 `java -jar` 真实进程 + `mysql:8.4` 容器），不是估算：
+
+| 组件 | 空载占用 |
+|---|---|
+| 应用（JVM） | **约 314 MB** RSS（启动 3.7 s） |
+| MySQL 8.4 | **约 527 MB** |
+| 库数据（空库） | < 1 MB |
+| 镜像 | 应用 **594 MB** + `mysql:8.4` **1.12 GB** |
+
+**推荐**：应用与 MySQL 同机 → **2 vCPU / 4 GB 内存 / 20 GB 磁盘**；
+MySQL 用托管实例（应用单独部署）→ **1 vCPU / 1 GB** 足够。
+
+⚠️ **同机 2 GB 是紧的下限**：容器默认 `JAVA_OPTS=-XX:MaxRAMPercentage=75`（按 cgroup 限额算），
+在 1 GB 机器上 JVM 会按 750 MB 上限规划，再加 MySQL 的约 530 MB 就越界了。
+
+其余要求：Linux（x86_64 / arm64 皆可）+ Docker / Compose；
+入站 **80 / 443**（Telegram webhook **强制 HTTPS**）、出站可达 `api.telegram.org`；
+**建议 `TZ=UTC`**（免打扰时段按服务器时区解释，跨时区部署须统一，见 `docs/DEPLOYMENT-VERIFICATION.md` O-6 段）。
+若要在服务器上**构建**（而非直接传 `tgg-app/target/*.jar`，66 MB），另需 JDK 21 + Maven 与约 2 GB 的 Maven 本地仓库空间。
+
 ### 依赖安全（SBOM + 漏洞扫描）
 
 ```bash
