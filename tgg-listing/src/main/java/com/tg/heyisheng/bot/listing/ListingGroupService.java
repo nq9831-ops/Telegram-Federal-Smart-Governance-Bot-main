@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -75,6 +76,34 @@ public class ListingGroupService {
     /** 待验证条目：{@code status=ACTIVE}，按 id 升序（分批限速的取数入口）。 */
     public List<ListingGroup> activeGroups() {
         return groups.findByStatusOrderByIdAsc(ListingGroup.Status.ACTIVE.name());
+    }
+
+    /**
+     * 从给定条目中挑出「长期未成功验证」的那些（模块五 §3.2 的补充告警，**只读、不改任何状态**）。
+     *
+     * <p><b>它抓的是什么</b>：{@code ERROR} 既不累加 {@code failCount}、也不改变业务状态
+     * （见 {@link #recordOutcome} 的空分支），所以「探测层持续不可用」（缺 {@code TGG_BOT_TOKEN} /
+     * 网络不通 / 被限流）的条目会**永远安静地**停在 ACTIVE；而一直 {@code FAIL} 的条目会累积到
+     * {@code SUSPENDED}、由既有流程处理。因此「ACTIVE 且长期没有验证成功」正好等价于
+     * 「连续多轮 ERROR」——这正是既有流程**不会**发现的失败形态。
+     *
+     * <p><b>基准的选取</b>：取 {@code lastVerifiedAt}；从未成功验证过的回落到 {@code createdAt}——
+     * 否则「提交后一直没验成功」这类最该被发现的条目反而漏掉。
+     *
+     * @param entries   待筛选条目（通常是 {@link #activeGroups()} 的结果）
+     * @param staleDays 阈值天数；最后一次成功（或创建）**严格早于** {@code now - staleDays} 才算 stale
+     * @return 保序的 stale 条目（调用方可据此打出稳定的日志）
+     */
+    public List<ListingGroup> staleAmong(List<ListingGroup> entries, int staleDays) {
+        Instant cutoff = clock.instant().minus(Duration.ofDays(staleDays));
+        return entries.stream()
+                .filter(entry -> {
+                    Instant baseline = entry.getLastVerifiedAt() != null
+                            ? entry.getLastVerifiedAt()
+                            : entry.getCreatedAt();
+                    return baseline != null && baseline.isBefore(cutoff);
+                })
+                .toList();
     }
 
     /**

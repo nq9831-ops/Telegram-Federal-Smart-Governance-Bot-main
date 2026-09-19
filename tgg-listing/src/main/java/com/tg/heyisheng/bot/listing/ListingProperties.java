@@ -41,6 +41,15 @@ public class ListingProperties {
     /** 失效异议期（天，V5.0：7）。 */
     private int disputeWindowDays = 7;
 
+    /**
+     * 「长期未成功验证」告警阈值（天，默认 3；**本项目新增，非 V5.0 规格**）。
+     *
+     * <p>用途：某条 ACTIVE 收录超过该天数没有**验证成功**过（含从未成功），说明探测层可能持续不可用
+     * （缺 {@code TGG_BOT_TOKEN} / 网络不通 / 被限流）——这种情况**不会**触发任何既有流程，
+     * 因为 {@code ERROR} 既不累加 {@code failCount} 也不改变状态。只告警，不改变任何状态。
+     */
+    private int staleVerifyDays = 3;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -87,5 +96,13 @@ public class ListingProperties {
 
     public void setDisputeWindowDays(int disputeWindowDays) {
         this.disputeWindowDays = disputeWindowDays;
+    }
+
+    public int getStaleVerifyDays() {
+        return staleVerifyDays;
+    }
+
+    public void setStaleVerifyDays(int staleVerifyDays) {
+        this.staleVerifyDays = staleVerifyDays;
     }
 }

@@ -76,6 +76,18 @@ public class GroupLinkVerificationJob {
             }
         }
         log.info("链接验证完成：本轮校验 {} 条，新增失效（SUSPENDED）{} 条。", active.size(), suspended);
+
+        // 补充告警（模块五 §3.2）：ERROR 不累加 failCount、也不改变任何状态，故「探测层持续不可用」的
+        // 条目会永远安静地停在 ACTIVE —— 既有流程**不会**发现这种失败形态。这里按「长期没有验证成功」
+        // 把它捞出来。**只告警、不处置**：是否真的失效需要人看，自动下架会误伤（本模块最危险的失败模式）。
+        List<ListingGroup> stale = service.staleAmong(active, properties.getStaleVerifyDays());
+        if (!stale.isEmpty()) {
+            log.warn("收录库有 {} 条 ACTIVE 条目已超过 {} 天未验证成功：{}。"
+                            + "这通常意味着探测链路持续不可用（未配置 TGG_BOT_TOKEN / 网络不通 / 被限流），"
+                            + "而不是这些群真的失效——请先查探测链路，再考虑人工处置。",
+                    stale.size(), properties.getStaleVerifyDays(),
+                    stale.stream().map(ListingGroup::getId).toList());
+        }
     }
 
     /**

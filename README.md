@@ -125,6 +125,7 @@ python3 tools/security/scan_dependencies.py
 | `TGG_FEDERATION_ADMINS` | 空 | 联邦管理员 userId（**全局**白名单，逗号分隔）；为空则 `/pending`·`/approve`·`/reject` 不可用 |
 | `TGG_LISTING_ENABLED` | `false` | 模块五 · 群组收录；启用后 `/listing_add`·`/listing_list`·`/listing_appeal` 与每日链接验证任务才装配 |
 | `TGG_LISTING_VERIFY_CRON` | `0 0 3 * * *` | 收录链接的定时验证 cron（到点扫描全库、连续 3 次失败转软删下架） |
+| `TGG_LISTING_STALE_VERIFY_DAYS` | `3` | 收录条目超过该天数**未验证成功**时打 WARN（**本项目新增，非 V5.0 规格**）。抓的是「探测层持续不可用」——这类条目**不累加失败次数**，既有流程发现不了它。**只告警、不下架** |
 | `TGG_MERCHANT_ENABLED` | `false` | 模块六 · 商家收录；启用后 `/merchant_*` 四个命令与保证金账本才装配 |
 | `TGG_MERCHANT_REVIEWERS` | 空 | 资质复核人与保证金操作人 userId（**全局**白名单，逗号分隔）；为空则 `/merchant_review`·`/merchant_deposit` 对任何人不可用 |
 | `TGG_MERCHANT_INITIAL_SCORE` | `500` | 商家入驻成功时写入的初始信用分（需同时 `TGG_CREDIT_ENABLED=true`，否则信用分不初始化） |

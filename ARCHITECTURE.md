@@ -166,6 +166,12 @@ Schema 由 Flyway 管理（15 个迁移，`ddl-auto: validate`——JPA 只校�
 
 > 本模块**最危险**的失败模式是「把网络抖动误判成群失效而误下架」，三态分离正是为此。
 
+**`ERROR` 的代价与补偿**：正因为它不改状态，一直 `ERROR` 的条目会**永远安静地**停在 `ACTIVE`——
+既有流程发现不了（而一直 `FAIL` 的会累积到 `SUSPENDED`）。故每轮验证末尾补一条**只告警不处置**的检查：
+`status=ACTIVE` 且「最后一次成功验证（或创建）早于 `now - tgg.listing.stale-verify-days`（默认 3 天）」
+的条目会被打 `WARN` 并列出 id（`ListingGroupService.staleAmong`）。基准取 `lastVerifiedAt`，
+从未成功过的回落到 `createdAt`——否则「提交后一直没验成功」这类最该被发现的条目反而漏掉。
+
 ### 7.3 「大额扣分需双人审批」——**未实现**（规格缺失）
 
 原文 §12.2 的约束要求「大额扣分需双人审批」，但**全文未定义「大额」是多少分**（§10.5 只给了敏感话题的
