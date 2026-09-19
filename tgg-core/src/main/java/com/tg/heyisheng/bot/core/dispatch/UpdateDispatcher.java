@@ -302,13 +302,18 @@ public class UpdateDispatcher {
     /**
      * 执行审核并把<b>判定结果</b>（不含原文）挂到上下文。
      *
+     * <p><b>为什么拆成四段</b>：本方法原先是约百行的过程，混了三件<b>正交</b>的事——
+     * ①并列检测、②判定留痕与入队、③信用事件发布。任一件改动都要通读整段才能确认影响面。
+     *
+     * <p><b>这里聚合的是「调用侧编排」，不是检测器的契约</b>：各检测器仍各自独立
+     * （见 {@link BannedWordDetector} 关于「不统一为单一接口」的理由——「按群词库」与
+     * 「通用规则层」是两类不同的东西，强行统一会迫使改签名并波及既有层与测试）。
+     *
      * <p>未命中时也挂载 {@link ModerationVerdict#clean()}——这样下游能区分
      * 「审过且干净」与「压根没审」，避免把"没审核"误当成"审核通过"。
      */
     private void moderateInto(UpdateContext ctx, Message message) {
-        if (message == null || (moderationLayer == null && moderationPipeline == null
-                && bannedWordDetector == null && repeatedMessageDetector == null
-                && taughtRuleDetector == null && sensitiveTopicGuard == null)) {
+        if (message == null || !hasAnyDetector()) {
             return;
         }
 
@@ -326,6 +331,34 @@ public class UpdateDispatcher {
 
         String content = contentOf(message);
 
+        // 敏感话题是**唯一带副作用**的检测（命中即发警告 / 禁言），故不并入并列检测，
+        // 只把它的判定结果并入「取最严重」。
+        SensitiveTopicGuard.Outcome sensitive = sensitiveTopicOutcome(ctx, content);
+
+        ModerationVerdict verdict = worseOf(detectAll(ctx, content), sensitiveVerdict(sensitive));
+        if (verdict == null) {
+            // 有审核能力但都没命中：仍挂 clean，让下游能区分「审过且干净」与「压根没审」。
+            verdict = ModerationVerdict.clean();
+        }
+
+        ctx.attach(verdict);
+        recordIfNeeded(ctx, verdict);
+        publishCreditEventIfNeeded(ctx, verdict, sensitive);
+    }
+
+    /** 是否装配了任一检测能力——都没装就不必走审核这一段。 */
+    private boolean hasAnyDetector() {
+        return moderationLayer != null || moderationPipeline != null || bannedWordDetector != null
+                || repeatedMessageDetector != null || taughtRuleDetector != null
+                || sensitiveTopicGuard != null;
+    }
+
+    /**
+     * 并列检测：各检测器独立判定，取最严重的一条（无命中时为 null）。
+     *
+     * <p>书写顺序与既有实现一致（L1/流水线 → 词库 → 反刷屏 → 教学规则），便于与历史行为对照。
+     */
+    private ModerationVerdict detectAll(UpdateContext ctx, String content) {
         // 四层审核（模块九）：优先用流水线（L1→L2→L3→L4 按序、命中即短路）；
         // 未装配流水线时回落到单层——保持既有调用方行为逐字不变。
         Optional<ModerationLayer.LayerHit> layerHit = moderationPipeline != null
@@ -346,56 +379,70 @@ public class UpdateDispatcher {
         ModerationVerdict taught = taughtRuleDetector == null
                 ? null
                 : taughtRuleDetector.inspect(ctx.chatId(), content).orElse(null);
-        // 敏感话题分级 + **递进处置**（模块九 §10.5）：按群 + 群标签豁免，故需要 chatId；
-        // 无群 id（服务类更新）时跳过。警告 / 禁言等主动动作在 guard 内完成；这里拿到的 verdict
-        // 仍走「删消息保底 + 入队复核 + 信用事件」——删除统一由 enforcer 负责，不重复。
-        SensitiveTopicGuard.Outcome sensitiveOutcome = (sensitiveTopicGuard == null || ctx.chatId() == null)
+
+        return worseOf(worseOf(worseOf(l1, bannedWord), flood), taught);
+    }
+
+    /**
+     * 敏感话题分级 + <b>递进处置</b>（模块九 §10.5）：按群 + 群标签豁免，故需要 chatId；
+     * 无群 id（服务类更新）时跳过。警告 / 禁言等主动动作在 guard 内完成；其判定结果仍走
+     * 「删消息保底 + 入队复核 + 信用事件」——删除统一由 enforcer 负责，不重复。
+     */
+    private SensitiveTopicGuard.Outcome sensitiveTopicOutcome(UpdateContext ctx, String content) {
+        return (sensitiveTopicGuard == null || ctx.chatId() == null)
                 ? null
                 : sensitiveTopicGuard.handle(ctx.chatId(), ctx.userId(), content).orElse(null);
-        ModerationVerdict sensitive = sensitiveOutcome == null ? null : sensitiveOutcome.verdict();
+    }
 
-        ModerationVerdict verdict = worseOf(worseOf(worseOf(worseOf(l1, bannedWord), flood), taught), sensitive);
-        if (verdict == null) {
-            // 有审核能力但都没命中：仍挂 clean，让下游能区分「审过且干净」与「压根没审」。
-            verdict = ModerationVerdict.clean();
+    private static ModerationVerdict sensitiveVerdict(SensitiveTopicGuard.Outcome outcome) {
+        return outcome == null ? null : outcome.verdict();
+    }
+
+    /**
+     * 判定留痕与复核入队（仅命中时）。
+     *
+     * <p>中高风险与硬红线<b>都入队</b>：clean 无需复核；硬红线虽已「立即删除 + 封禁」、
+     * 不走放行复核，但须留痕以支持操作员<b>事后推翻误封</b>（解封）——这是「推翻权」
+     * 最有分量的一半（§10.4.4）。入队失败不影响主链路（recorder 实现 fail-open）。
+     */
+    private void recordIfNeeded(UpdateContext ctx, ModerationVerdict verdict) {
+        if (!verdict.needsReview()) {
+            return;
         }
+        // 审计日志：不记正文、不记命中片段（避免经日志这条侧路泄露原文）。
+        // 用户/群标识**必须哈希化**——V5.0 明确要求，明文 id 属个人数据处理。
+        log.info("审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
+                verdict.matchedRuleIds(), verdict.riskLevel(), verdict.hardLine(),
+                idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
+        reviewRecorder.record(ctx, verdict);
+    }
 
-        ctx.attach(verdict);
-
-        if (verdict.needsReview()) {
-            // 审计日志：不记正文、不记命中片段（避免经日志这条侧路泄露原文）。
-            // 用户/群标识**必须哈希化**——V5.0 明确要求，明文 id 属个人数据处理。
-            log.info("审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
-                    verdict.matchedRuleIds(), verdict.riskLevel(), verdict.hardLine(),
-                    idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
+    /**
+     * 信用事件（模块七）：与复核入队<b>并列</b>发布，互不影响。
+     *
+     * <p>硬红线与中高风险都发布——分值差异由规则引擎按 hardLine 判定，不在此处区分。
+     * userId 为空（服务类更新）时跳过，不让信用事件成为新的空指针源。
+     */
+    private void publishCreditEventIfNeeded(UpdateContext ctx,
+                                            ModerationVerdict verdict,
+                                            SensitiveTopicGuard.Outcome sensitive) {
+        if (!verdict.needsReview() || ctx.userId() == null) {
+            return;
         }
-
-        // 中高风险与硬红线**都入队**：clean 无需复核；硬红线虽已「立即删除 + 封禁」、
-        // 不走放行复核，但须留痕以支持操作员**事后推翻误封**（解封）——这是「推翻权」
-        // 最有分量的一半（§10.4.4）。入队失败不影响主链路（recorder 实现 fail-open）。
-        if (verdict.needsReview()) {
-            reviewRecorder.record(ctx, verdict);
-        }
-
-        // 信用事件（模块七）：与复核入队**并列**发布，互不影响。
-        // 硬红线与中高风险都发布——分值差异由规则引擎按 hardLine 判定，不在此处区分。
-        // userId 为空（服务类更新）时跳过，不让信用事件成为新的空指针源。
-        if (verdict.needsReview() && ctx.userId() != null) {
-            // 敏感话题第 3 档 → **显式**要求上报联邦（§10.5「三次联邦标记」）。
-            // 不能指望分数阈值：原文的 100−5−15−30 = 50，永远到不了 ≤0 的触发线。
-            boolean federationReport = sensitiveOutcome != null
-                    && sensitiveOutcome.strike() >= SensitiveTopicGuard.FEDERATION_STRIKE;
-            // 幂等键 = 「群 + 消息」这一**稳定业务标识**：Telegram 重投同一条 update 时它不变，
-            // 故信用分不会被二次扣减（§3.3）。注意不可用 eventId（每次新 UUID）做去重。
-            // messageId 缺失（频道帖等）时退化为 null —— 即不去重，宁可多记也不误杀。
-            String idempotencyKey = ctx.messageId()
-                    .map(mid -> "moderation:" + ctx.chatId() + ":" + mid)
-                    .orElse(null);
-            creditEventSink.publish(CreditEvent.of(
-                    CreditSubjectType.INDIVIDUAL, ctx.userId(),
-                    CreditEventType.MODERATION_HIT, verdict.riskLevel(),
-                    verdict.hardLine(), "moderation", federationReport, idempotencyKey));
-        }
+        // 敏感话题第 3 档 → **显式**要求上报联邦（§10.5「三次联邦标记」）。
+        // 不能指望分数阈值：原文的 100−5−15−30 = 50，永远到不了 ≤0 的触发线。
+        boolean federationReport = sensitive != null
+                && sensitive.strike() >= SensitiveTopicGuard.FEDERATION_STRIKE;
+        // 幂等键 = 「群 + 消息」这一**稳定业务标识**：Telegram 重投同一条 update 时它不变，
+        // 故信用分不会被二次扣减（§3.3）。注意不可用 eventId（每次新 UUID）做去重。
+        // messageId 缺失（频道帖等）时退化为 null —— 即不去重，宁可多记也不误杀。
+        String idempotencyKey = ctx.messageId()
+                .map(mid -> "moderation:" + ctx.chatId() + ":" + mid)
+                .orElse(null);
+        creditEventSink.publish(CreditEvent.of(
+                CreditSubjectType.INDIVIDUAL, ctx.userId(),
+                CreditEventType.MODERATION_HIT, verdict.riskLevel(),
+                verdict.hardLine(), "moderation", federationReport, idempotencyKey));
     }
 
     /**
