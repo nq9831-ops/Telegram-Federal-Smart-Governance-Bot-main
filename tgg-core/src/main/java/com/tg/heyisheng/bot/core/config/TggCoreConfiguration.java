@@ -45,6 +45,7 @@ import com.tg.heyisheng.bot.core.permission.RoleGrantParser;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
 import com.tg.heyisheng.bot.core.ratelimit.InMemoryRateLimiter;
 import com.tg.heyisheng.bot.core.ratelimit.RateLimitMiddleware;
+import com.tg.heyisheng.bot.core.web.SecurityHeadersFilter;
 import com.tg.heyisheng.bot.core.webhook.SecretTokenFilter;
 import com.tg.heyisheng.bot.core.webhook.SecretTokenVerifier;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
@@ -61,6 +62,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.core.Ordered;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -478,6 +480,24 @@ public class TggCoreConfiguration {
         FilterRegistrationBean<SecretTokenFilter> registration =
                 new FilterRegistrationBean<>(new SecretTokenFilter(verifier, properties.getPath()));
         registration.addUrlPatterns(properties.getPath());
+        return registration;
+    }
+
+    /**
+     * 安全响应头（原文 §15.2）。作用于**全部**路径——包括 /webhook、/admin/* 与错误响应。
+     *
+     * <p>用 {@code HIGHEST_PRECEDENCE} 让它先于 {@link SecretTokenFilter} 执行，
+     * 使「401 直接短路、不再走链路」的响应也带上这些头——只在成功响应上加头等于漏掉一半
+     * （有 {@code SecurityHeadersIT} 覆盖这条路径）。
+     *
+     * <p>CSP / HSTS 刻意不在这里：前者归静态站托管方，后者归 TLS 终止方，理由见类 javadoc。
+     */
+    @Bean
+    public FilterRegistrationBean<SecurityHeadersFilter> securityHeadersFilter() {
+        FilterRegistrationBean<SecurityHeadersFilter> registration =
+                new FilterRegistrationBean<>(new SecurityHeadersFilter());
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return registration;
     }
 }
