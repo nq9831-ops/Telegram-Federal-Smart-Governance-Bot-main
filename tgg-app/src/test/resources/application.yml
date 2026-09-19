@@ -1,32 +1,21 @@
-# ⚠️ 本文件会**遮蔽** src/main/resources/application.yml（测试 classpath 优先 test-classes）。
-# 因此生产 yml 的键在这里**看不到**——守门生产配置的断言请写在 ConfigurationMappingTest
-# （它用 FileSystemResource 直读 src/main/resources 那份）。
-
-# 与生产一致：OpenAPI 文档默认关闭。不写这一段的话，springdoc 自带的默认值 true 会生效，
-# 于是「引入依赖」就等于「暴露全部端点清单」——OpenApiDocsDisabledIT 正是在守这条契约。
+# Test-only configuration
+#
+# Credentials and tokens are intentionally supplied by the test environment.
+# Do not add literal passwords, API tokens, private keys, or real identifiers.
 springdoc:
   api-docs:
     enabled: false
   swagger-ui:
     enabled: false
-
 spring:
   datasource:
-    # 测试直连本机 MySQL 的【独立测试库 tgg_test】——刻意不用 H2：H2 的 MySQL 兼容模式不等于 MySQL，
-    # 用它会掩盖方言差异（utf8mb4、时间戳默认值、负数 bigint 主键等）。
-    # 隔离靠【独立库】而非事务回滚：多个 IT 会跑真实分发链与 @Scheduled 作业（各自开事务），
-    # @Transactional 回滚对它们无效，故这些 IT 用 deleteAll() 重置——那必须只作用在独立库上，
-    # 否则一次 mvn verify 会清空同库的业务表（曾发生，见 docs/LESSONS.md）。createDatabaseIfNotExist 让权限足够时自动建库。
-    url: jdbc:mysql://localhost:3306/tgg_test?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai&createDatabaseIfNotExist=true
-    username: tgg
-    password: tggdev
+    url: ${TGG_TEST_DB_URL:jdbc:mysql://localhost:3306/tgg_test?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai&createDatabaseIfNotExist=true}
+    username: ${TGG_TEST_DB_USER:}
+    password: ${TGG_TEST_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      # 测试会缓存多个 @SpringBootTest 上下文，每个上下文各持一个池——默认 10 会迅速打满
-      # MySQL 的 max_connections（实测报 Error 1040 Too many connections）。测试无需并发余量。
       maximum-pool-size: 2
       minimum-idle: 0
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -34,27 +23,19 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-
   flyway:
     enabled: true
     locations: classpath:db/migration
-
 tgg:
-  # 测试**不跑**后台维护任务：它们会在每个缓存上下文里周期性借连接，
-  # 是「Too many connections」的主要来源（实测）。把周期推到永不触发。
   retention:
     cron: "0 0 0 1 1 *"
   notify:
     flush-interval-ms: 86400000
   webhook:
     path: /webhook
-    secret: test-secret-value
-    bot-token: test-bot-token
+    secret: ${TGG_TEST_WEBHOOK_SECRET:}
+    bot-token: ${TGG_TEST_BOT_TOKEN:}
   command-menu:
-    # 注册命令菜单是**启动期外呼**（真的打 api.telegram.org）——测试里关掉，
-    # 否则每个缓存的 @SpringBootTest 上下文都会向外网发一次请求。
     enabled: false
   permission:
-    # 端到端测试需要真实授权才能执行 /enable 与 /disable（均需 MANAGE_CONFIG）。
-    # 格式：<chatId>:<userId>[:role]
-    admins: "-777003:42:ADMIN"
+    admins: ${TGG_TEST_PERMISSION_ADMINS:}
