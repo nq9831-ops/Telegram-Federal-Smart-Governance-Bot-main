@@ -34,15 +34,15 @@ public class PollingFallbackCoordinator {
     /**
      * 执行一次健康探测，必要时触发降级。
      *
+     * <p>只有 {@link WebhookHealth#UNHEALTHY}（Telegram 明确答复 webhook 不健康）才推进降级计数；
+     * {@link WebhookHealth#UNKNOWN}（探测通道故障，无可信结论）不推进也不清零——
+     * 详见 {@link HealthTracker#record(WebhookHealth)}。
+     *
      * @return {@code true} 表示本次调用触发了降级
      */
     public boolean probeOnce() {
-        boolean healthy = probe.isHealthy();
-        if (healthy) {
-            healthTracker.record(true);
-            return false;
-        }
-        if (healthTracker.record(false)) {
+        WebhookHealth health = probe.probe();
+        if (healthTracker.record(health)) {
             return degrade();
         }
         return false;
