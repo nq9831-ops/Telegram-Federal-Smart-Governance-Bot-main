@@ -83,6 +83,57 @@ jobs:
           path: '**/target/*-reports/*.txt'
           if-no-files-found: ignore
 
+  secret-scan:
+    name: Secret scan（入库文件里的凭据）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 自研扫描器（无第三方依赖，可本地复现：`bash tools/security/scan_secrets.sh`）。
+      # 覆盖 Telegram bot token 格式、PEM 私钥块、长 base64 凭据赋值、AWS AK。
+      # 退出码：0=干净、1=发现可疑（本 step 失败）、2=用法错。
+      # 豁免写在 tools/security/secret-scan-allow.txt（逐条给理由），**不改宽正则**。
+      - name: Scan tracked files for credentials
+        run: bash tools/security/scan_secrets.sh
+
+  docker-build:
+    name: Docker build（镜像可构建 + 非 root）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Dockerfile 是多阶段构建（maven 构建 → JRE 运行）。用 GHA 层缓存，否则每次都要
+      # 在容器里重下一次 Maven 依赖（首次几分钟，之后走缓存）。
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: tgg-app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 「能构建」不等于「以非 root 运行」——后者是容器化交付的硬要求（原文 §15.2 口径），
+      # 而它只体现在 image config 里，构建成功看不出来。这里断言 uid 10001 的 app 用户。
+      - name: Assert non-root runtime user
+        run: |
+          user="$(docker image inspect tgg-app:ci --format '{{.Config.User}}')"
+          echo "Config.User = ${user:-<空=默认 root>}"
+          if [ "$user" != "app" ]; then
+            echo "::error::镜像必须以非 root 用户运行（期望 app，实际 '${user}'）"
+            exit 1
+          fi
+
+      # compose 文件里的 `${VAR:?必填}` 语法只有在解析时才暴露——本机 `docker compose config`
+      # 已验过，这里固化成 CI 步骤，避免以后编辑 compose 时把必填校验写坏。
+      - name: docker-compose.yml is parseable
+        run: |
+          TGG_WEBHOOK_SECRET=x MYSQL_ROOT_PASSWORD=x TGG_DB_PASSWORD=x docker compose config >/dev/null
+          echo "docker compose config 通过"
+
   dependency-scan:
     name: Dependency scan (SBOM → OSV)
     runs-on: ubuntu-latest
