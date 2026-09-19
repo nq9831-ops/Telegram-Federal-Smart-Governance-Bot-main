@@ -72,6 +72,9 @@ class TeachGateCompositionWiringTest {
         return new ApplicationContextRunner()
                 .withUserConfiguration(CreditConfiguration.class, CoreAggregator.class)
                 .withBean(CreditScoreRepository.class, () -> repository)
+                // ApplicationContextRunner 不加载 JPA，故流水仓库需替身——
+                // 否则 creditService 的第三个参数无候选 bean，整个上下文启动失败。
+                .withBean(CreditEventRecordRepository.class, () -> mock(CreditEventRecordRepository.class))
                 .withBean(IdHasher.class, IdHasher::fromEnvironment);
     }
 

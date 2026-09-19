@@ -76,8 +76,9 @@ public class CreditConfiguration {
     @Bean
     public CreditService creditService(CreditRuleEngine creditRuleEngine,
                                        CreditScoreRepository creditScoreRepository,
+                                       CreditEventRecordRepository creditEventRecordRepository,
                                        IdHasher idHasher) {
-        return new CreditService(creditRuleEngine, creditScoreRepository, idHasher);
+        return new CreditService(creditRuleEngine, creditScoreRepository, creditEventRecordRepository, idHasher);
     }
 
     /**

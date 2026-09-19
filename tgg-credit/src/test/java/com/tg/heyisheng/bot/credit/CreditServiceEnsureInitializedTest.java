@@ -27,8 +27,9 @@ class CreditServiceEnsureInitializedTest {
 
     private final CreditRuleEngine ruleEngine = mock(CreditRuleEngine.class);
     private final CreditScoreRepository repository = mock(CreditScoreRepository.class);
+    private final CreditEventRecordRepository eventRecords = mock(CreditEventRecordRepository.class);
     private final CreditService service =
-            new CreditService(ruleEngine, repository, new IdHasher("test-salt"));
+            new CreditService(ruleEngine, repository, eventRecords, new IdHasher("test-salt"));
 
     @Test
     void writesConfiguredScoreForNewSubject() {

@@ -67,6 +67,7 @@ class CreditWiringTest {
     void enabledWithValidKeyWiresSinkBean() {
         runner.withPropertyValues("tgg.credit.enabled=true", "tgg.credit.private-key=" + VALID_PRIVATE_KEY)
                 .withBean(CreditScoreRepository.class, () -> mock(CreditScoreRepository.class))
+                .withBean(CreditEventRecordRepository.class, () -> mock(CreditEventRecordRepository.class))
                 .withBean(IdHasher.class, IdHasher::fromEnvironment)
                 .run(context -> {
                     assertThat(context).hasSingleBean(CreditEventSink.class);
@@ -79,6 +80,7 @@ class CreditWiringTest {
     void enabledRegistersTheTeachingGateSoCoreAggregatorCanPickItUp() {
         runner.withPropertyValues("tgg.credit.enabled=true", "tgg.credit.private-key=" + VALID_PRIVATE_KEY)
                 .withBean(CreditScoreRepository.class, () -> mock(CreditScoreRepository.class))
+                .withBean(CreditEventRecordRepository.class, () -> mock(CreditEventRecordRepository.class))
                 .withBean(IdHasher.class, IdHasher::fromEnvironment)
                 .run(context -> {
                     assertThat(context).hasSingleBean(TeachGate.class);

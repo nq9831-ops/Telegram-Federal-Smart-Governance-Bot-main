@@ -11,6 +11,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -26,13 +28,18 @@ class CreditServiceFederationReportTest {
 
     private final CreditRuleEngine rules = mock(CreditRuleEngine.class);
     private final CreditScoreRepository repository = mock(CreditScoreRepository.class);
+    private final CreditEventRecordRepository eventRecords = mock(CreditEventRecordRepository.class);
     private final IdHasher hasher = mock(IdHasher.class);
-    private final CreditService service = new CreditService(rules, repository, hasher);
+    private final CreditService service = new CreditService(rules, repository, eventRecords, hasher);
 
     private void scoreIs(int score) {
         CreditScore row = mock(CreditScore.class);
         when(row.getScore()).thenReturn(score);
         when(repository.findBySubjectTypeAndSubjectId(any(), anyLong())).thenReturn(Optional.of(row));
+        // 流水写入「首次」：Mockito 对 int 方法默认返回 0，会被读成「重复事件」而不扣分
+        // ——那不是本类要测的语义，必须显式 stub 成 1。
+        when(eventRecords.insertIfAbsent(any(), anyLong(), any(), any(), anyBoolean(),
+                anyInt(), anyInt(), anyInt(), any(), any(), any(), any())).thenReturn(1);
     }
 
     @Test

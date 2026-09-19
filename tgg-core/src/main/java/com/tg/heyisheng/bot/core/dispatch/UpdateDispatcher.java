@@ -482,10 +482,16 @@ public class UpdateDispatcher {
             // 不能指望分数阈值：原文的 100−5−15−30 = 50，永远到不了 ≤0 的触发线。
             boolean federationReport = sensitiveOutcome != null
                     && sensitiveOutcome.strike() >= SensitiveTopicGuard.FEDERATION_STRIKE;
+            // 幂等键 = 「群 + 消息」这一**稳定业务标识**：Telegram 重投同一条 update 时它不变，
+            // 故信用分不会被二次扣减（§3.3）。注意不可用 eventId（每次新 UUID）做去重。
+            // messageId 缺失（频道帖等）时退化为 null —— 即不去重，宁可多记也不误杀。
+            String idempotencyKey = ctx.messageId()
+                    .map(mid -> "moderation:" + ctx.chatId() + ":" + mid)
+                    .orElse(null);
             creditEventSink.publish(CreditEvent.of(
                     CreditSubjectType.INDIVIDUAL, ctx.userId(),
                     CreditEventType.MODERATION_HIT, verdict.riskLevel(),
-                    verdict.hardLine(), "moderation", federationReport));
+                    verdict.hardLine(), "moderation", federationReport, idempotencyKey));
         }
     }
 

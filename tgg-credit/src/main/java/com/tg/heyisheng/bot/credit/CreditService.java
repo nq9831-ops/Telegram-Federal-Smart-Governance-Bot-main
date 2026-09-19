@@ -17,12 +17,19 @@ import java.time.Instant;
  * 组件扫描会在开关关闭时也实例化它，而其依赖（规则引擎）未装配即导致整个应用上下文启动失败
  * （本项目实测踩过：连累既有的 {@code TggApplicationContextTest}）。
  *
- * <p><b>记账流程</b>：取增量 → 确保账本行存在（首次建行）→ 数据库侧原子应用增量 → 回读新分 → 判阈值。
+ * <p><b>记账流程</b>：取增量 → 确保账本行存在（首次建行）→ <b>写流水（幂等判定）</b> →
+ * 数据库侧原子应用增量 → 回读新分 → 判阈值。
+ *
+ * <p><b>幂等（§3.3）</b>：流水表的 {@code idempotency_key} 唯一约束是去重的唯一依据。
+ * 同键已存在 = 这条业务事实已经记过账（典型来源：Telegram 重投同一条 update）→
+ * 直接返回、<b>不再扣分、不再产出处罚</b>。没有它，一次 webhook 重投就会二次扣分、
+ * 甚至二次广播联邦封禁。
  *
  * <p><b>失败策略</b>：本方法在事务内执行；调用方（信用事件适配器）负责吞掉异常，
  * 使得"记账失败"不会中断消息处理主链路——信用分是增强，不是消息处理的必要环节。
  *
- * <p>日志中的主体标识<b>经 {@link IdHasher} 哈希</b>（Telegram userId 空间小，明文进日志属个人数据处理）。
+ * <p>日志中的主体标识<b>经 {@link IdHasher} 哈希</b>（Telegram userId 空间小，明文进日志属个人数据处理）；
+ * 幂等键含明文 chatId/messageId，同样不打日志。
  */
 public class CreditService {
 
@@ -37,16 +44,21 @@ public class CreditService {
 
     private final CreditRuleEngine ruleEngine;
     private final CreditScoreRepository repository;
+    private final CreditEventRecordRepository eventRecordRepository;
     private final IdHasher idHasher;
 
-    public CreditService(CreditRuleEngine ruleEngine, CreditScoreRepository repository, IdHasher idHasher) {
+    public CreditService(CreditRuleEngine ruleEngine,
+                         CreditScoreRepository repository,
+                         CreditEventRecordRepository eventRecordRepository,
+                         IdHasher idHasher) {
         this.ruleEngine = ruleEngine;
         this.repository = repository;
+        this.eventRecordRepository = eventRecordRepository;
         this.idHasher = idHasher;
     }
 
     /**
-     * 应用一条信用事件：记账并返回结果。
+     * 应用一条信用事件：记账（含流水）并返回结果。
      *
      * @param event 信用事件；为 null 时返回 null
      * @return 记账结果（含最新分值与应触发的处罚档位）；event 为 null 时为 null
@@ -63,6 +75,35 @@ public class CreditService {
 
         // 首次记账时建行（幂等）；随后原子应用增量。
         repository.insertIfAbsent(subjectType, event.subjectId(), INITIAL_SCORE, now);
+
+        int scoreBefore = repository.findBySubjectTypeAndSubjectId(event.subjectType(), event.subjectId())
+                .map(CreditScore::getScore)
+                .orElse(INITIAL_SCORE);
+
+        // 流水先行——它是幂等的判定依据。同键已存在 = 这条业务事实已记过账
+        // （典型来源：Telegram 重投同一条 update）→ 直接返回，不扣分、不产出处罚。
+        // ⚠️ 用 INSERT IGNORE 而非 catch 唯一约束异常：flush 失败会让 Hibernate session 不可用。
+        // ⚠️ 单测里若把本仓库 mock 掉，int 方法默认返回 0，会被读成「重复」——须显式 stub 成 1。
+        int inserted = eventRecordRepository.insertIfAbsent(
+                subjectType,
+                event.subjectId(),
+                event.eventType().name(),
+                event.severity() == null ? null : event.severity().name(),
+                event.hardLine(),
+                scoreBefore,
+                delta,
+                clamp(scoreBefore + delta),
+                event.source(),
+                event.idempotencyKey(),
+                event.occurredAt(),
+                now);
+        if (inserted == 0) {
+            // 幂等键含明文 chatId/messageId，不打日志；只打哈希化后的主体标识。
+            log.info("重复信用事件已忽略（同幂等键，不重复扣分）：subjectType={} subjectHash={}",
+                    event.subjectType(), idHasher.hash(event.subjectId()));
+            return new CreditOutcome(event.subjectType(), event.subjectId(), scoreBefore, PenaltyType.NONE);
+        }
+
         if (delta != 0) {
             repository.applyDelta(subjectType, event.subjectId(), delta, MIN_SCORE, MAX_SCORE, now);
         }
@@ -70,6 +111,12 @@ public class CreditService {
         int newScore = repository.findBySubjectTypeAndSubjectId(event.subjectType(), event.subjectId())
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
+
+        // 回填真实分值：写入流水时的 scoreAfter 是预测值，而 applyDelta 会在库侧按 [MIN,MAX] 夹取
+        // ——「触底」（如连续硬红线）时两者不同，流水必须记实际结果。
+        if (event.idempotencyKey() != null && newScore != clamp(scoreBefore + delta)) {
+            eventRecordRepository.updateScoreAfter(event.idempotencyKey(), newScore);
+        }
 
         // 显式联邦上报优先于分数阈值：生产侧声明「这就是要上报联邦」时，不因分数还没到线而静默不报
         // （模块九 §10.5 的「三次联邦标记」即此——100−5−15−30=50 永远到不了 ≤0 的触发线）。
@@ -125,5 +172,10 @@ public class CreditService {
         return repository.findBySubjectTypeAndSubjectId(subjectType, subjectId)
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
+    }
+
+    /** 与 {@code CreditScoreRepository#applyDelta} 的 SQL 夹取口径保持一致（下界防负）。 */
+    private static int clamp(int score) {
+        return Math.max(MIN_SCORE, Math.min(MAX_SCORE, score));
     }
 }
