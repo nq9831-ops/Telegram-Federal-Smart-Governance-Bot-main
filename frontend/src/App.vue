@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSession } from './stores/session'
+import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
 
 const session = useSession()
@@ -40,7 +41,10 @@ function signOut(): void {
   <div v-if="!session.authenticated" class="gate">
     <el-card class="gate-card pixel-card">
       <template #header>
-        <h1 class="page-title">TGG 治理后台</h1>
+        <div class="gate-head">
+          <h1 class="page-title">TGG 治理后台</h1>
+          <ThemeToggle />
+        </div>
       </template>
 
       <el-alert type="info" :closable="false" show-icon title="两层鉴权">
@@ -83,6 +87,11 @@ function signOut(): void {
 }
 .gate-card {
   width: 460px;
+}
+.gate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .gate-alert {
   margin: 4px 0 0;

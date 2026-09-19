@@ -6,6 +6,31 @@
     <!-- 内部运营工具：不应被搜索引擎收录 -->
     <meta name="robots" content="noindex, nofollow" />
     <title>TGG 治理后台</title>
+    <!--
+      首屏前定主题，避免闪烁（FOUC）。
+      - 必须是**同步的普通脚本**：加 defer 或改成 type="module" 都会在首次绘制之后才跑，
+        于是深色用户会先看到一帧白底。
+      - 判定规则必须与 src/theme.ts 的 resolveInitialTheme 一致：显式选择 > 系统偏好 > 浅色。
+    -->
+    <script>
+      (function () {
+        var theme = 'light'
+        try {
+          var stored = localStorage.getItem('tgg.theme')
+          if (stored === 'light' || stored === 'dark') {
+            theme = stored
+          } else if (
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+          ) {
+            theme = 'dark'
+          }
+        } catch (e) {
+          /* localStorage 被禁用（隐私模式等）：回落浅色，不阻断渲染 */
+        }
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

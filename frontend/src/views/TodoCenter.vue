@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { describeError, fetchApprovals, fetchStats } from '../api/client'
 import type { ApprovalItem, ApprovalStats, ReviewStatus } from '../api/types'
 import DecisionDrawer from '../components/DecisionDrawer.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
 
 defineProps<{ operator: string }>()
 const emit = defineEmits<{ 'sign-out': [] }>()
@@ -85,6 +86,7 @@ onMounted(load)
       <div class="topbar-right">
         <span class="who">操作人 <b>{{ operator }}</b></span>
         <el-button size="small" :loading="loading" @click="load">刷新</el-button>
+        <ThemeToggle />
         <el-button size="small" @click="emit('sign-out')">退出</el-button>
       </div>
     </el-header>

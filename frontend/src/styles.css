@@ -1,42 +1,25 @@
 /*
- * 视觉语言取自产品方指定的参考站（tianshuharness.com）的设计 token —— 已实测提取：
- *   底色分层：surface-0 #0b0b14（页面）→ 1 #161625（卡片）→ 2 #1f1f33 → 3 #2e2e44
- *   文字层级：star-white #e6e6f0 → silver #9a9ab0 → dim #8a8aa0
- *   主色    ：tianshu-600 #4dd0e1（青）／强调 amber-600 #ffc93c ／危险 #ff5c5c ／正常 #3ddc84
- *   形状    ：卡片圆角 1rem；**像素硬阴影 4px 4px 0（无模糊）**——这是该站最可辨识的特征
- *   字体    ：Cubic 11（像素字体）→ 回退到系统中文字体
+ * 视觉语言取自产品方指定的参考站（tianshuharness.com），token 为**实测提取**；
+ * 主题策略由产品方选定：**跟随系统 + 可手动切换**（2026-09-19）。
  *
- * 用法：本文件只提供 token 与基础样式；组件外观尽量交给 Element Plus，
- * 通过覆盖它的 `--el-*` 变量对齐主题（不引它的 dark css-vars，少一个文件、少一处漂移）。
+ * 机制：
+ *   1. index.html 的**内联同步脚本**在首次绘制前把 `data-theme` 写到 <html> 上（避免闪烁）；
+ *      判定规则与 `src/theme.ts` 的 resolveInitialTheme 一致（显式选择 > 系统偏好 > 浅色）。
+ *   2. 本文件只按 `html[data-theme=...]` 切换变量；`:root` 那套是**兜底**（脚本被禁时用浅色）。
+ *   3. Element Plus 的 `--el-*` 全部引用 `--tgg-*`，因此自动跟随主题，无需第二份配置。
  */
 
+/* ── 与主题无关的共享 token ───────────────────────────────────────────── */
 :root {
   --font-sans: 'Cubic 11', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-
-  --tgg-surface-0: #0b0b14;
-  --tgg-surface-1: #161625;
-  --tgg-surface-2: #1f1f33;
-  --tgg-surface-3: #2e2e44;
-
-  --tgg-fg: #e6e6f0;
-  --tgg-fg-silver: #9a9ab0;
-  --tgg-fg-dim: #8a8aa0;
-
-  --tgg-primary: #4dd0e1;
-  --tgg-primary-strong: #7fc4f0;
-  --tgg-amber: #ffc93c;
-  --tgg-danger: #ff5c5c;
-  --tgg-ok: #3ddc84;
 
   --tgg-radius-md: 0.375rem;
   --tgg-radius-lg: 0.5rem;
   --tgg-radius-xl: 0.75rem;
   --tgg-radius-2xl: 1rem;
 
-  --tgg-shadow-pixel: 4px 4px 0 #05050a;
-
-  /* ── Element Plus 主题对齐 ── */
+  /* Element Plus 主题映射（引用 --tgg-* ⇒ 自动跟随主题） */
   --el-color-primary: var(--tgg-primary);
   --el-color-danger: var(--tgg-danger);
   --el-color-error: var(--tgg-danger);
@@ -61,6 +44,48 @@
   --el-border-radius-base: var(--tgg-radius-lg);
   --el-border-radius-small: var(--tgg-radius-md);
   --el-font-family: var(--font-sans);
+}
+
+/* ── 浅色（默认／兜底）───────────────────────────────────────────────── */
+:root {
+  --tgg-surface-0: #fff;
+  --tgg-surface-1: #f4f6fa;
+  --tgg-surface-2: #e8edf4;
+  --tgg-surface-3: #d2dae5;
+
+  --tgg-fg: #131a28;
+  --tgg-fg-silver: #4b5566;
+  --tgg-fg-dim: #5c6878;
+
+  --tgg-primary: #0e7c8a;
+  --tgg-primary-strong: #07505a;
+  --tgg-amber: #ffc93c;
+  --tgg-danger: #c42c2c;
+  --tgg-ok: #14883f;
+
+  --tgg-shadow-pixel: 4px 4px 0 #131a2829;
+
+  color-scheme: light;
+}
+
+/* ── 深色 ────────────────────────────────────────────────────────────── */
+html[data-theme='dark'] {
+  --tgg-surface-0: #0b0b14;
+  --tgg-surface-1: #161625;
+  --tgg-surface-2: #1f1f33;
+  --tgg-surface-3: #2e2e44;
+
+  --tgg-fg: #e6e6f0;
+  --tgg-fg-silver: #9a9ab0;
+  --tgg-fg-dim: #8a8aa0;
+
+  --tgg-primary: #4dd0e1;
+  --tgg-primary-strong: #7fc4f0;
+  --tgg-amber: #ffc93c;
+  --tgg-danger: #ff5c5c;
+  --tgg-ok: #3ddc84;
+
+  --tgg-shadow-pixel: 4px 4px 0 #000;
 
   color-scheme: dark;
 }
@@ -80,7 +105,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 卡片：大圆角 + 硬阴影（参考站的特征） */
+/* 卡片：大圆角；硬阴影由 .pixel-card 施加（参考站最可辨识的特征） */
 .el-card {
   border-radius: var(--tgg-radius-2xl);
   border-color: var(--tgg-surface-2);
@@ -97,7 +122,7 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* 表格：贴合深色底，去掉默认的浅色斑马纹 */
+/* 表格贴合当前主题底色 */
 .el-table {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
@@ -113,15 +138,4 @@ body {
 
 .el-table .row-overdue > td:first-child {
   box-shadow: inset 3px 0 0 var(--tgg-amber);
-}
-
-/* 语义数字（统计卡） */
-.num-danger {
-  color: var(--tgg-danger);
-}
-.num-warn {
-  color: var(--tgg-amber);
-}
-.num-primary {
-  color: var(--tgg-primary);
 }
