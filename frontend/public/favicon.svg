@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TGG 治理后台">
+  <!-- 与参考站同一套视觉语言：近黑底 + 青色（tianshu-600 #4dd0e1）的星 -->
+  <rect width="32" height="32" rx="7" fill="#0b0b14" />
+  <path
+    d="M16 5.5l2.72 7.06 7.28 2.15-7.28 2.15L16 24l-2.72-7.14L6 14.71l7.28-2.15z"
+    fill="#4dd0e1"
+  />
+</svg>
