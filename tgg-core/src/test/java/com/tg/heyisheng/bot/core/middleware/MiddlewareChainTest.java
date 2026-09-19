@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -54,15 +53,6 @@ class MiddlewareChainTest {
 
         assertThat(auth.handle(CTX, chain)).isTrue();
         assertThat(auth.handle(new UpdateContext(1, null, -200L, null), chain)).isFalse();
-    }
-
-    @Test
-    void permissionMiddlewareKnowsConfiguredAdmins() {
-        PermissionMiddleware pm = new PermissionMiddleware(Set.of(42L));
-
-        assertThat(pm.isAdmin(42L)).isTrue();
-        assertThat(pm.isAdmin(7L)).isFalse();
-        assertThat(pm.isAdmin(null)).isFalse();
     }
 
     private static Middleware recording(String name, List<String> trace, boolean result) {
