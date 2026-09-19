@@ -2,7 +2,7 @@
 # ⚠️ **默认关闭**。springdoc 会扫描全部 @RestController，把端点清单与参数结构暴露成
 # JSON（/v3/api-docs）与界面（/swagger-ui.html）——那是一条信息面。与项目
 # 「未启用即零影响」的纪律一致，默认 false；启用后**不要**裸露到公网，
-# 应只在内网开放或加来源 IP 白名单（做法见 ADMIN-GUIDE.md）。
+# 应只在内网开放或加来源 IP 白名单。
 #
 # 变量名显式映射：多词键的宽松绑定会去掉连字符（TGG_OPENAPI_ENABLED 之外的写法易踩坑），
 # 故这里写死映射，与 README 的配置表保持一致。
@@ -41,7 +41,8 @@ spring:
     # 生产环境必须用环境变量覆盖，尤其密码
     url: ${TGG_DB_URL:jdbc:mysql://localhost:3306/tgg?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai}
     username: ${TGG_DB_USER:tgg}
-    password: ${TGG_DB_PASSWORD:tggdev}
+    # 无默认值：绝不用开发密码兜底。未注入即连接失败（fail-fast），避免生产误用弱口令。
+    password: ${TGG_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -76,7 +77,7 @@ tgg:
     # 模块九 §10.3 教学门槛 · 入群时长（默认 30 天）。数据来自 chat_member 事件采集（V15）。
     # ⚠️ 该门槛依赖「bot 是群管理员 + webhook 的 allowed_updates 含 chat_member」——
     #    两者缺一则一条记录都不会有；此时无记录者一律放行（历史入群时间在 Telegram 侧不可回收，
-    #    拒绝无记录者会永久误伤 bot 上线前入群的成员）。部署要求见 docs/DEPLOYMENT-VERIFICATION.md。
+    #    拒绝无记录者会永久误伤 bot 上线前入群的成员）。
     min-membership-days: ${TGG_TEACH_MIN_MEMBERSHIP_DAYS:30}
   moderation:
     # 复核人 userId 全局白名单（逗号分隔）。复核是**平台层**动作，与群内管理员不是同一套

@@ -24,7 +24,7 @@ import java.util.Optional;
  *
  * <p><b>这条门槛的实际强度取决于部署</b>：bot 若不是群管理员，或 webhook 的
  * {@code allowed_updates} 未包含 {@code chat_member}，则一条记录都不会产生、门槛恒为放行。
- * 部署要求写在 {@code docs/DEPLOYMENT-VERIFICATION.md}。
+ * 部署方须确保 bot 为群管理员，且 webhook 的 {@code allowed_updates} 含 {@code chat_member}。
  */
 public class MembershipDurationTeachGate implements TeachGate {
 

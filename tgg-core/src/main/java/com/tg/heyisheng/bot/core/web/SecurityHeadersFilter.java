@@ -20,7 +20,7 @@ import java.io.IOException;
  *       应用若在反代之后仍以明文 HTTP 收请求，由它发 HSTS 在语义上是错的
  *       （应用看到的 scheme 并非 https，也不该替反代承诺升级）。</li>
  *   <li>{@code Content-Security-Policy} 主要约束**页面**的加载行为，而本项目的后台静态站
- *       由 nginx / Ingress 托管、**不由 Spring 托管**（见 {@code frontend/README.md}），
+ *       由 nginx / Ingress 托管、**不由 Spring 托管**（`frontend/` 是独立静态站），
  *       应用加 CSP 对它毫无作用。故 CSP 同样归反代层。</li>
  * </ul>
  * 因此本类刻意**只**加前三条；后两条的落地位置写进部署文档与 nginx 示例。

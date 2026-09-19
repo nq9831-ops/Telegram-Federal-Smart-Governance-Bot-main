@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  *
  * <p><b>本机不可用是已知事实</b>：没有真实 bot token、没有公网通路时，
  * 本实现必然走 {@code ERROR} 分支（token 为空时直接短路，连请求都不发）。
- * 真实探针的端到端行为<b>只能部署后验证</b>（见 {@code docs/DEPLOYMENT-VERIFICATION.md}）。
+ * 真实探针的端到端行为<b>只能由部署方在真实环境验证</b>。
  *
  * <p><b>日志不许出现 token</b>：请求 URL 内嵌 bot token，故任何日志都只打印条目 id 与状态码，
  * 绝不打印 URL。

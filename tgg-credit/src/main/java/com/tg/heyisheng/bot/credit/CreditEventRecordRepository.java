@@ -12,7 +12,7 @@ import java.time.Instant;
  *
  * <p>写入用 native {@code INSERT IGNORE}，与 {@link CreditScoreRepository#insertIfAbsent} 同一模式
  * ——<b>不用 catch 唯一约束异常</b>：Hibernate 在 flush 失败后 session 即不可用，同事务后续操作全崩
- * （本项目实测踩过，见 {@code docs/LESSONS.md}）。数据库侧的静默跳过才是可组合的幂等。
+ * （本项目实测踩过）。数据库侧的静默跳过才是可组合的幂等。
  *
  * <p>枚举以 {@code String} 传入（native query 认不了 {@code @Enumerated}），由服务层用
  * {@code name()} 转换。

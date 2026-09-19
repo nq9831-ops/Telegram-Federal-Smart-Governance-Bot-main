@@ -302,8 +302,8 @@ public class TggCoreConfiguration {
      *
      * <p><b>必须由部署侧配合才不空转</b>：Telegram 仅在 webhook 的 {@code allowed_updates} 显式包含
      * {@code chat_member}、<b>且</b> bot 是群管理员时，才会推送成员状态变化。二者缺一，表里一条都不会有
-     * ——而且不会有任何报错（这就是「采集上线了却查不到数据」的形态）。部署要求已写入
-     * {@code docs/DEPLOYMENT-VERIFICATION.md}。
+     * ——而且不会有任何报错（这就是「采集上线了却查不到数据」的形态）。部署方须确保
+     * bot 为群管理员，且 webhook 的 {@code allowed_updates} 含 {@code chat_member}。
      *
      * <p><b>不挂功能开关</b>：它是「入群时长」门槛的唯一数据源，关掉等于让该门槛无声失效；
      * 而它自身的代价很小——只写一行窄数据，且退群即删（见 V15 迁移的说明）。

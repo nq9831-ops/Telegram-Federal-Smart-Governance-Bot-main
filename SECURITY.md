@@ -2,7 +2,6 @@
 
 > 面向**部署方与审计者**：本项目**实际**做了哪些安全控制、为什么这么做、以及**哪些没做**。
 > 未实现的部分一律明写——请勿假定本项目提供了未列出的能力。
-> 合规视角见 `COMPLIANCE.md`；架构视角见 `ARCHITECTURE.md`。
 
 ## 一、威胁模型与范围
 
@@ -15,7 +14,7 @@
 | 服务的**可用性** | 消息洪泛、管理员可写正则导致的 ReDoS | 三级令牌桶限流、正则三道闸门 |
 | **审计链** | 处置记录被篡改或删除 | `audit_log` 应用层无删除入口 |
 
-**不在范围内**：资金托管、制裁名单筛查、KYC/旅行规则、未成年人年龄核验。逐条见 `COMPLIANCE.md` 开篇。
+**不在范围内**：资金托管、制裁名单筛查、KYC/旅行规则、未成年人年龄核验。运营者须自行确认其运营行为满足所在法域的相应要求。
 
 ## 二、认证
 
@@ -121,7 +120,7 @@
 |---|---|
 | 依赖版本统一 | 父 POM 的 `dependencyManagement` + 属性覆盖 |
 | **SBOM** | `mvn package` 生成聚合 `target/bom.json`（CycloneDX 1.5，`cyclonedx-maven-plugin`） |
-| **漏洞扫描** | `tools/security/scan_dependencies.py` 读 SBOM 查 OSV；**网络失败 fail-closed**（绝不给「0 漏洞」假绿灯）；CI 中退出码 1 即失败 |
+| **漏洞扫描** | `mvn package` 产出聚合 SBOM（`target/bom.json`，CycloneDX），可交任意 OSV 兼容扫描器。**建议**接入 CI，并对网络失败 fail-closed（绝不给「0 漏洞」假绿灯） |
 | 已处置 | tomcat-embed-core 10.1.55→10.1.60、jackson-databind 2.21.4→2.21.5、commons-lang3 3.17.0→3.18.0、log4j-api 2.24.3→2.25.5（3×CRITICAL + 5×MEDIUM → 重扫 0 命中） |
 | ⚠️ 边界 | 扫描只覆盖**公开收录**的漏洞；**基础镜像的 OS 包未扫**（需 trivy/grype 等，未接） |
 
@@ -136,9 +135,8 @@
   `Referrer-Policy: no-referrer`（`SecurityHeadersFilter`），含 401 等短路路径（`SecurityHeadersIT` 覆盖）。
 - ⚠️ **CSP / HSTS 仍不在应用层**，且这是刻意的：`Strict-Transport-Security` 必须由 **TLS 终止方**
   （反向代理 / Ingress）下发；`Content-Security-Policy` 约束页面加载，而后台静态站**不由 Spring 托管**
-  （见 `frontend/README.md`），应用加它对页面无效。两者落地在反向代理配置，见 `docs/DEPLOYMENT-VERIFICATION.md` S 段。
-- ⚠️ **K8s 清单已提供但未在集群验证**（`k8s/`，原文 §17 要求）：本机无 `kubectl`，交付时只做了
-  YAML 结构解析，**未经任何集群验证**——见 `docs/DEPLOYMENT-VERIFICATION.md` Q-2 段。
+  （`frontend/` 是独立静态站，不经 Spring 托管），应用加它对页面无效；两者均须在**反向代理**配置中落地。
+- ⚠️ **K8s 清单已提供但未经集群验证**（`k8s/`）：交付时只做了 YAML 结构解析，**未在任何集群上验证过**。
 
 ## 十一、报告安全问题
 

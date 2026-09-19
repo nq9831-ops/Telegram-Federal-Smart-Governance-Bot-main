@@ -19,7 +19,7 @@
  * ```
  *
  * ⚠️ 脚本本体放在 `tools/`（**不是** `scripts/`）：根 `.git/info/exclude` 忽略**任意层级**的
- * 同名目录，`frontend/scripts/` 也会被静默排除出 git（见 `docs/LESSONS.md` 与交接文档坑 2）。
+ * 同名目录，`frontend/scripts/` 也会被静默排除出 git。
  *
  * 输出的 JSON 里，`bodyBg`（**计算样式**）是判据最硬的一条：它证明主题变量真的应用到了渲染，
  * 而不只是"CSS 文件里有那行字"。`errors` 与 `appHtmlLength` 用来抓白屏与资源 404。

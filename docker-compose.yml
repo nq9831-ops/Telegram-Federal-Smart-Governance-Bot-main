@@ -5,17 +5,17 @@
 #        export TGG_WEBHOOK_SECRET='<Telegram webhook 的 secret token>'
 #        export MYSQL_ROOT_PASSWORD='<自定义>'
 #        export TGG_DB_PASSWORD='<自定义>'
-#      ▶ 想把**所有模块**一次打开：照抄 tools/deploy/all-on.env.example（10 个开关 + 5 把密钥 + 5 份白名单），
-#        或 cp 成 .env.all-on 后 `docker compose --env-file .env.all-on up -d --build`。
-#        ⚠️ 该文件里的值**必须带引号**：TGG_DB_URL 含 `&`、TGG_FEDERATION_NODES 含 `|`，
-#        不加引号会被 shell 当控制符 → 变量静默为空 → 应用连到默认库（实测踩到）。
+#      ▶ 想把**所有模块**一次打开：把所有开关与密钥写进一个 .env 文件，
+#        `docker compose --env-file <该文件> up -d --build`。
+#        ⚠️ 值里含 `&` 或 `|` 的变量（TGG_DB_URL、TGG_FEDERATION_NODES）**必须带引号**，
+#        否则会被 shell 当控制符 → 变量静默为空 → 应用连到默认库。
 #   2) docker compose up -d --build
 #   3) 查看状态：docker compose ps / docker compose logs -f app
 #
 # 说明：
 #   - 数据库**只绑 127.0.0.1**，不对公网暴露；应用通过 compose 内网 `db` 主机名连它。
 #     （注意：下面 app 的 TGG_DB_URL 指向内网 `db`，若用 all-on 清单请同步替换其中的 host。）
-#   - 应用监听 8080 并暴露到宿主机；webhook 上线前需放行/反代该端口（见 docs/DEPLOYMENT-RUNBOOK.md）。
+#   - 应用监听 8080 并暴露到宿主机；webhook 上线前需放行/反代该端口。
 #   - 健康检查探 **/actuator/health**（Actuator 已引入，原文 §15.2）：DB 不可达时它返回 503、
 #     容器随之判为 unhealthy——比「只探端口」更贴近「业务就绪」。
 #     首次启动的迁移/装配窗口由 Dockerfile 的 --start-period=45s 覆盖。
@@ -28,7 +28,7 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      # 应用按 UTC 读写（见 docs/LESSONS.md 的时区教训），容器时区显式对齐
+      # 应用按 UTC 读写，容器时区显式对齐
       - --default-time-zone=+00:00
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MYSQL_ROOT_PASSWORD}

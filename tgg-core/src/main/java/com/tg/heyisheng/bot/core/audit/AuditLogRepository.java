@@ -16,7 +16,7 @@ import java.util.Optional;
  *
  * <p>⚠️ <b>这仍不是全部</b>：它挡得住本项目代码，挡不住运维直接执行 SQL。
  * 数据层的硬保证（触发器或回收 DELETE/UPDATE 权限）属部署侧，且触发器在受限 MySQL 上建不了
- * （缺 SUPER / binlog 开启时会报 ERROR 1419）——详见 {@code docs/DEPLOYMENT-VERIFICATION.md}。
+ * （缺 SUPER / binlog 开启时会报 ERROR 1419），故不写进迁移。
  */
 public interface AuditLogRepository extends Repository<AuditEntry, Long> {
 

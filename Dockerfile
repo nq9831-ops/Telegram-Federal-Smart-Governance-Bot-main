@@ -63,5 +63,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
 
 # shell 形式以便 JAVA_OPTS 可被外部覆盖；exec 保证信号直达 JVM（SIGTERM 能优雅停机）。
 # 注意：应用对 TGG_WEBHOOK_SECRET 等关键变量 fail-fast（缺失即启动失败）——这是**刻意**的，
-#       不要在此设默认值，按 docs/DEPLOYMENT-RUNBOOK.md 注入。
+#       不要在此设默认值，由部署方在运行时注入。
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

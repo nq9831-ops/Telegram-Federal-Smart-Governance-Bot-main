@@ -82,9 +82,15 @@ class CreditEndToEndIT {
     @Autowired
     private CreditScoreRepository repository;
 
+    @Autowired
+    private CreditEventRecordRepository eventRecords;
+
     @BeforeEach
     void clear() {
         CAPTURED.clear();
+        // 流水表也必须清：本测试用固定 messageId，而幂等键由 messageId 派生——
+        // 不清流水的话，上一轮跑留下的同键行会让本次触发被判为「重复事件」而不再扣分。
+        eventRecords.deleteAll();
         repository.deleteAll();
     }
 

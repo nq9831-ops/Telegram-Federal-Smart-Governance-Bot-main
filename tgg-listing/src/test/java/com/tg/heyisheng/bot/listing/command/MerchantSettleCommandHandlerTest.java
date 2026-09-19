@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
  * {@link MerchantDepositService#settle} 此前**只有测试调用方**（{@code src/main} 零调用），
  * 于是钱冻结后再无出口。这里把三个分支都钉住。
  *
- * <p>断言纪律（对齐 {@code docs/LESSONS.md}）：权限用例不能只断言「返回 null」——
+ * <p>断言纪律：权限用例不能只断言「返回 null」——
  * 「忘了写 guard」与「guard 生效」在返回值上完全一致，必须同时断言**根本没碰服务**。
  * 参数非法的用例同理：要证明它在命令层就被挡住，而不是把脏参数递进 service 再靠异常兜。
  */

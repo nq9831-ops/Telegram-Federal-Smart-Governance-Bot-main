@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>修法是让该 handler 对 {@code NoResourceFoundException} 放行（保持 404），**不动**「业务异常吞成 200」
  * 那条既有策略——Telegram 的 update 走的是 {@code /webhook}（单段，由 TelegramBots 的
- * {@code /{botPath}} 映射处理），不会落到这里。见 {@code docs/KNOWN-ISSUES.md} 模块八第 6 条。
+ * {@code /{botPath}} 映射处理），不会落到这里。
  *
  * <p><b>对照组</b>：{@link WebhookDispatchIT} 守的是 webhook 正常路径仍返回 200——本 IT 不重复它，
  * 只主张「未知路径」这一侧。

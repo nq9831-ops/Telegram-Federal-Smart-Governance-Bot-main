@@ -49,7 +49,7 @@
          ⚠️ **默认关闭**：springdoc 会扫描全部 @RestController 并把端点清单、参数结构暴露成
          JSON（/v3/api-docs）与 UI（/swagger-ui.html）——那是一条信息面。与项目
          「未启用即零影响」的纪律一致，由 `TGG_OPENAPI_ENABLED` 控制，默认 false；
-         启用后**不要**把它裸露到公网（做法见 ADMIN-GUIDE.md）。 -->
+         启用后**不要**把它裸露到公网。 -->
     <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

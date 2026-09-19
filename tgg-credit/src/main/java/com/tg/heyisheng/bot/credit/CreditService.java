@@ -144,7 +144,7 @@ public class CreditService {
      *
      * <p><b>不做上下界夹取</b>：夹取只作用于增量路径 {@code CreditScoreRepository#applyDelta}；
      * 本方法的 {@code initialScore} 原样写入。商家初值 500 高于 {@link #MAX_SCORE}（150）这一
-     * 模型落差属模块七的已知缺口（见 {@code docs/KNOWN-ISSUES.md}），不在本方法内「顺手修正」。
+     * 模型落差属模块七的已知缺口，不在本方法内「顺手修正」。
      *
      * @return {@code true} = 本次真的新建了账本行；{@code false} = 已有行（分值保持不变）
      */
