@@ -21,7 +21,7 @@
 | **群内管理员** | 部署方设 `TGG_PERMISSION_ADMINS`（格式 `<chatId>:<userId>[:role]`） | **所有管理命令对任何人不可用**（不是「人人可用」） |
 | **复核人** | 部署方设 `TGG_MODERATION_REVIEWERS` | `/review_*` 无响应（不是「权限不足」提示） |
 | **联邦管理员** | 部署方设 `TGG_FEDERATION_ADMINS` | `/pending`·`/approve`·`/reject` 不可用 |
-| **商家复核人** | 部署方设 `TGG_MERCHANT_REVIEWERS` | `/merchant_review`·`/merchant_deposit` 不可用 |
+| **商家复核人** | 部署方设 `TGG_MERCHANT_REVIEWERS` | `/merchant_review`·`/merchant_deposit`·`/merchant_settle` 不可用 |
 
 **命令的「需管理员权限」指上表第一行**。你自己的 userId 怎么取：给机器人发条私聊，然后
 `curl -s "https://api.telegram.org/bot<Token>/getUpdates" | jq '.result[-1].message.from.id'`
@@ -99,6 +99,7 @@
 | `/merchant_review` | `/merchant_review <商家编号> approve\|reject\|need-more` | 商家资质复核（复核人） |
 | `/merchant_deposit` | `/merchant_deposit <商家编号> <金额>` | 确认保证金并完成入驻（平台复核人） |
 | `/merchant_exit` | `/merchant_exit <商家编号>` | 申请退出商家（触发保证金冻结） |
+| `/merchant_settle` | `/merchant_settle <商家编号> <NONE\|UNRESOLVED\|WITH_COMPENSATION> [扣款额] [理由]` | 结算已冻结的保证金（平台复核人）。无争议全额退还；有未结争议保持冻结；有赔付则扣除后退还余额（扣款额与理由**都必填**） |
 
 ### 通知与隐私
 

@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.listing.command.MerchantApplyCommandHandler;
 import com.tg.heyisheng.bot.listing.command.MerchantDepositCommandHandler;
 import com.tg.heyisheng.bot.listing.command.MerchantExitCommandHandler;
 import com.tg.heyisheng.bot.listing.command.MerchantReviewCommandHandler;
+import com.tg.heyisheng.bot.listing.command.MerchantSettleCommandHandler;
 import com.tg.heyisheng.bot.listing.command.MerchantStatusCommandHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -55,7 +56,7 @@ class MerchantWiringTest {
             .withUserConfiguration(MerchantConfiguration.class, RepositoryStub.class,
                     MerchantApplyCommandHandler.class, MerchantReviewCommandHandler.class,
                     MerchantStatusCommandHandler.class, MerchantExitCommandHandler.class,
-                    MerchantDepositCommandHandler.class);
+                    MerchantDepositCommandHandler.class, MerchantSettleCommandHandler.class);
 
     @Test
     void disabledByDefaultProducesNoMerchantBeans() {
@@ -70,6 +71,7 @@ class MerchantWiringTest {
             assertThat(context).doesNotHaveBean(MerchantStatusCommandHandler.class);
             assertThat(context).doesNotHaveBean(MerchantExitCommandHandler.class);
             assertThat(context).doesNotHaveBean(MerchantDepositCommandHandler.class);
+            assertThat(context).doesNotHaveBean(MerchantSettleCommandHandler.class);
         });
     }
 
@@ -86,6 +88,7 @@ class MerchantWiringTest {
             assertThat(context).doesNotHaveBean(MerchantStatusCommandHandler.class);
             assertThat(context).doesNotHaveBean(MerchantExitCommandHandler.class);
             assertThat(context).doesNotHaveBean(MerchantDepositCommandHandler.class);
+            assertThat(context).doesNotHaveBean(MerchantSettleCommandHandler.class);
         });
     }
 
@@ -104,6 +107,7 @@ class MerchantWiringTest {
                     assertThat(context).hasSingleBean(MerchantStatusCommandHandler.class);
                     assertThat(context).hasSingleBean(MerchantExitCommandHandler.class);
                     assertThat(context).hasSingleBean(MerchantDepositCommandHandler.class);
+                    assertThat(context).hasSingleBean(MerchantSettleCommandHandler.class);
 
                     assertThat(context.getBean(MerchantProperties.class).getInitialScore()).isEqualTo(500);
                     assertThat(context.getBean(MerchantReviewGuard.class).isReviewer(888001L))
