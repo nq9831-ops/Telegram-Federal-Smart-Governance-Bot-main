@@ -26,8 +26,11 @@ PATTERNS=(
   "telegram-bot-token|[0-9]{8,12}:[A-Za-z0-9_-]{35}"
   # 任何私钥块（PEM）
   "private-key-block|-----BEGIN [A-Z ]*PRIVATE KEY-----"
-  # 长 base64 赋值给 key/secret/token 类变量（排除 ${...} 占位与 <...> 模板）
-  "hardcoded-credential|(password|passwd|secret|token|api[_-]?key|private[_-]?key)[\"']?[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9+/=_-]{20,}[\"']"
+  # 长 token 赋值给 key/secret/token 类变量。
+  # ⚠️ **右侧不要求引号**：YAML / .properties / .env 里最常见的形态就是无引号赋值
+  #    （`password: hunter2…`），要求引号会**静默漏掉这一整类**——实测漏报过一次（2026-09-19 审查发现）。
+  #    排除占位符不靠引号，靠「${...}` / `<...>` 里的字符不在字符集内，且阈值 20 位。
+  "hardcoded-credential|(password|passwd|secret|token|api[_-]?key|private[_-]?key)[\"']?[[:space:]]*[:=][[:space:]]*[\"']?[A-Za-z0-9+/=_-]{20,}"
   # AWS 风格 AK
   "aws-access-key|AKIA[0-9A-Z]{16}"
 )
@@ -44,9 +47,11 @@ collect_files() {
 
 is_allowed() {
   # $1=相对路径 $2=pattern 名；allow 文件格式：<pattern名> <路径子串> [# 理由]
+  # ⚠️ 必须要求 NF>=2 且路径列非空：否则漏写第二列时 `index(f,"")` 恒为 1，
+  #    会**静默豁免该 pattern 的全部命中**（把门禁关掉却看不出来）。
   [ -f "$ALLOW_FILE" ] || return 1
   grep -vE '^[[:space:]]*(#|$)' "$ALLOW_FILE" 2>/dev/null |
-    awk -v p="$2" -v f="$1" '$1==p && index(f,$2)>0 {found=1} END{exit !found}'
+    awk -v p="$2" -v f="$1" 'NF>=2 && $1==p && $2!="" && index(f,$2)>0 {found=1} END{exit !found}'
 }
 
 report() {  # $1=路径 $2=行号 $3=pattern名 $4=命中片段（脱敏）

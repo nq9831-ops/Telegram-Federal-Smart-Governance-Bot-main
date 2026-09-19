@@ -96,6 +96,22 @@ jobs:
       - name: Scan tracked files for credentials
         run: bash tools/security/scan_secrets.sh
 
+      # 负向自测：**扫描器必须能报出植入的样本**——否则它可能是个永远绿的摆设。
+      # 把「正检能力」变成 CI 的自动化断言，而不是靠某次手工在 /tmp 里跑过。
+      # （首版就是因为只做了手工自测，提交信息里写「含负向自测」属于过度声称，被审查抓到。）
+      - name: Negative self-test（植入样本必须被报出）
+        run: |
+          d="$(mktemp -d)"
+          # ① 格式合法的假 Telegram bot token
+          printf 'TGG_BOT_TOKEN="%s"\n' "123456789:$(printf 'A%.0s' $(seq 1 35))" > "$d/fake.txt"
+          # ② YAML **无引号**赋值形态——曾被正则漏报的形态，在此固化防回归
+          printf 'db:\n  password: %s\n' "hunter2hunter2hunter2" >> "$d/fake.txt"
+          if bash tools/security/scan_secrets.sh "$d" >/dev/null 2>&1; then
+            echo "::error::扫描器漏报：植入的假凭据未被报出（门禁形同虚设）"
+            exit 1
+          fi
+          echo "✓ 扫描器正确报出植入样本（两种形态）"
+
   docker-build:
     name: Docker build（镜像可构建 + 非 root）
     runs-on: ubuntu-latest
@@ -124,6 +140,17 @@ jobs:
           echo "Config.User = ${user:-<空=默认 root>}"
           if [ "$user" != "app" ]; then
             echo "::error::镜像必须以非 root 用户运行（期望 app，实际 '${user}'）"
+            exit 1
+          fi
+
+      # 上面的 Config.User 只证明**配置写了 app**——名称可以在 /etc/passwd 里被改成 uid 0，
+      # 那样断言会骗过自己。这一步真起容器读运行期 uid，是「非 root」的硬证据。
+      - name: Assert runtime uid is 10001 (not 0)
+        run: |
+          uid="$(docker run --rm --entrypoint id tgg-app:ci -u)"
+          echo "运行期 uid = ${uid}"
+          if [ "$uid" != "10001" ]; then
+            echo "::error::容器运行期 uid 应为 10001（非 root），实际 '${uid}'"
             exit 1
           fi
 
