@@ -33,7 +33,7 @@ class ConfigurationMappingTest {
      * <p>⚠️ <b>必须读文件、不能走 classpath</b>：{@code src/test/resources/application.yml} 会
      * <b>遮蔽</b> {@code src/main/resources} 的同名文件（测试 classpath 优先 test-classes），
      * 用它读会得到测试专用配置——本测试要守的生产键一个都看不到。这一点由探针实测确认
-     * （classpath 读到的是 `test-secret-value`，且 `tgg.listing.*` 全为 null）。
+     * （classpath 读到的是测试专用值，且 {@code tgg.listing.*} 全为 null）。
      */
     private static final Path PRODUCTION_YML = Paths.get("src/main/resources/application.yml");
 

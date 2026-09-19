@@ -7,6 +7,7 @@ import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -31,7 +32,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class WebhookDispatchIT {
 
     private static final String SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
-    private static final String SECRET = "test-secret-value";
+
+    /**
+     * 校验值<b>从配置读取</b>（测试环境由 {@code TGG_TEST_WEBHOOK_SECRET} 注入）。
+     *
+     * <p>刻意不硬编码：硬编码会让测试期望与配置各自漂移（改了一边另一边静默失败），
+     * 且仓库里会留下字面凭据。
+     */
+    @Value("${tgg.webhook.secret}")
+    private String secret;
     /** 本测试专用的群 ID——刻意不同于人工验收常用的 -100，避免与手工数据相撞。 */
     private static final long TEST_CHAT_ID = -777001L;
 
@@ -73,7 +82,7 @@ class WebhookDispatchIT {
     @Test
     void validSecretInvokesHandlerAndReturnsItsReply() throws Exception {
         mockMvc.perform(post("/webhook")
-                        .header(SECRET_HEADER, SECRET)
+                        .header(SECRET_HEADER, secret)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson("/echo")))
                 .andExpect(status().isOk())
@@ -93,7 +102,7 @@ class WebhookDispatchIT {
     @Test
     void wrongSecretReturns401() throws Exception {
         mockMvc.perform(post("/webhook")
-                        .header(SECRET_HEADER, "not-the-secret")
+                        .header(SECRET_HEADER, secret + "-wrong")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson("/echo")))
                 .andExpect(status().isUnauthorized());
@@ -102,7 +111,7 @@ class WebhookDispatchIT {
     @Test
     void handlerExceptionStillReturns200() throws Exception {
         mockMvc.perform(post("/webhook")
-                        .header(SECRET_HEADER, SECRET)
+                        .header(SECRET_HEADER, secret)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson("/boom")))
                 .andExpect(status().isOk());
