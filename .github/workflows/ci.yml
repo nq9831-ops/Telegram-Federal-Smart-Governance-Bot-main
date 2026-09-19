@@ -41,14 +41,27 @@ jobs:
           - 3306:3306
         # GitHub Actions 会等健康检查通过后才启动 steps，故不需要额外的等待脚本
         # （runner 上也没有 mysql client 可用）。
+        #
+        # ⚠️ `options` 里的每一项都会被**原样传给 `docker create`**——只能写 docker 参数，
+        # **不能写 mysqld 参数**。此前这里挂着 `--character-set-server` / `--collation-server` /
+        # `--default-time-zone`，CI 首次实跑即死在 `unknown flag: --character-set-server`（exit 125），
+        # 整个 build job 在**服务创建阶段**就失败——注意这不是「测试挂了」，而是服务压根没起来。
+        #
+        # 那三项**不需要**，本机起 `mysql:8.4`（不带任何参数）实测 @@ 变量为：
+        #   character_set_server = utf8mb4 ｜ collation_server = utf8mb4_0900_ai_ci
+        #   time_zone = SYSTEM ｜ system_time_zone = UTC ｜ NOW() == UTC_TIMESTAMP()
+        #   · charset：默认已是 utf8mb4；且本项目**每张表**都显式声明 charset/collate
+        #     （20 个 CREATE TABLE ↔ 20 个 COLLATE，逐文件核对无遗漏），服务端默认值影响不到表；
+        #   · collation：容器默认是 utf8mb4_0900_ai_ci，与文档惯写的 utf8mb4_unicode_ci 不同，
+        #     但同样因表级显式声明而不生效（包括依赖大小写不敏感唯一性的 banned_words）；
+        #   · time_zone：SYSTEM 而 system_time_zone=UTC，与原先想设的 +00:00 等价。
+        # 将来若确需改服务端变量，正确做法是挂载 /etc/mysql/conf.d/*.cnf
+        # （GitHub Actions 的 services 不支持给容器传 command 参数），而不是往 options 里塞 mysqld 开关。
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=12
-          --character-set-server=utf8mb4
-          --collation-server=utf8mb4_unicode_ci
-          --default-time-zone=+00:00
     steps:
       - uses: actions/checkout@v4
 
