@@ -149,7 +149,7 @@ python3 tools/security/scan_dependencies.py
 | 九 · AI 审核（L1 正则 + 四层流水线 + 复核队列 + L3 云端 / L2·L4 接入位） | 已完成（L2/L3/L4 默认关闭） |
 | **五/六 · 收录（群组收录、商家收录与保证金）** | **已完成（默认关闭）** |
 | 十 · 通知与审计（三级分类 / 免打扰 / 全链路审计 / 保留策略 / 72h 泄露通报） | 已完成（默认关闭） |
-| 十一 · Web 后台（**仅后端审批中心**，无界面） | 已完成（默认关闭） |
+| 十一 · Web 后台（审批中心后端 + **Vue 3 控制台**） | 已完成（默认关闭） |
 | 十二 · TON 担保交易 | 未开始（链上不可达，既定非目标） |
 
 ## 文档
@@ -169,6 +169,7 @@ python3 tools/security/scan_dependencies.py
 | `ADMIN-GUIDE.md` | **管理员手册**：审批中心 REST API、复核流程、运营者日常清单 |
 | `DPIA-TEMPLATE.md` | **数据保护影响评估模板**（GDPR 第 35 条）；含本项目实际处理的数据清单，运营者填写并签署 |
 | `k8s/` | Kubernetes 清单（Deployment / Service / Ingress / ConfigMap / Secret 模板）+ 应用说明 |
+| `frontend/` | **Web 后台控制台**（Vue 3 + TypeScript + Element Plus）：审批中心的待办列表 / 详情 / 裁决 / 统计。独立构建为静态站点，经反向代理调后端 `/admin/*`。详见 `frontend/README.md` |
 
 ## 许可
 

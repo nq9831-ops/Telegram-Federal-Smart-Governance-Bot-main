@@ -31,3 +31,8 @@ logs/
 # 外部参考项目克隆（体积大，仅本地研读；保留索引）
 references/*
 !references/INDEX.md
+
+# 前端（frontend/）：依赖与构建产物都不入库
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

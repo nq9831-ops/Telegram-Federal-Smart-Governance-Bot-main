@@ -1,0 +1,24 @@
+{
+  "name": "tgg-admin-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TGG 治理后台控制台（模块十一 · 审批中心的前端）。对应原文 §12.2 的「Vue 3 前端」。",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "axios": "^1.20.0",
+    "element-plus": "^2.14.5",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.9",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vue-tsc": "^3.3.11"
+  }
+}
