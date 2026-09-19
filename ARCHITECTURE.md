@@ -49,7 +49,7 @@ flowchart TD
 | `tgg-admin` | 审批中心 REST API（十一，**无界面**） |
 | `tgg-app` | Spring Boot 启动器：把各模块放进组件扫描范围，打成单一 jar |
 
-`tgg-core` 体量最大（140 个类、20 个子包），因为「模块一」本身就是横切的接入与调度层。
+`tgg-core` 体量最大（143 个源文件——判据 `find tgg-core/src/main/java -name '*.java' | wc -l`），因为「模块一」本身就是横切的接入与调度层。
 业务模块一律不反向依赖。
 
 ## 三、一次更新的生命周期
@@ -112,7 +112,7 @@ AuthenticationMiddleware → GroupConfigMiddleware → RateLimitMiddleware
 
 ## 五、数据模型
 
-Schema 由 Flyway 管理（15 个迁移，`ddl-auto: validate`——JPA 只校验不建表）。21 张表按模块归属：
+Schema 由 Flyway 管理（15 个迁移，`ddl-auto: validate`——JPA 只校验不建表）。20 张表按模块归属：
 
 | 归属 | 表 |
 |---|---|

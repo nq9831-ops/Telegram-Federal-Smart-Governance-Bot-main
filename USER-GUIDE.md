@@ -27,7 +27,7 @@
 `curl -s "https://api.telegram.org/bot<Token>/getUpdates" | jq '.result[-1].message.from.id'`
 （应用日志里的 id 是**哈希**过的，看不出来）。
 
-## 三、命令一览（28 个）
+## 三、命令一览（29 个）
 
 ### 基础
 

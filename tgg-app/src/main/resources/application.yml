@@ -65,7 +65,8 @@ tgg:
     # 模块十一 · Web 后台（审批中心）：默认**不装配**——api-token 未配置（或为空白）时端点根本不存在。
     # 鉴权是两层：Authorization: Bearer <token>（本项）+ X-Operator-Id（须落在 TGG_MODERATION_REVIEWERS
     # 白名单内，与 /review_* 同一套「谁能审批」的定义）。
-    # ⚠️ 本波只交付后端 API，**无界面**；原文的 Vue 前端 / RulEuler 设计器 / Grafana 均不在范围内。
+    # ⚠️ 后端 REST API + `frontend/`（Vue 3 控制台，**独立静态站、不经 Spring 托管**，需自配反代）；
+    # 原文要求的 RulEuler 规则设计器 / Grafana 合规监控仍不在范围内。
     api-token: ${TGG_ADMIN_API_TOKEN:}
     # 待办超时提醒：超过 N 小时提醒、超过 M 小时升级（**跳过硬红线**——它们已由 §10.6 的 2h SLA 通道负责）。
     overdue-remind-hours: ${TGG_ADMIN_OVERDUE_REMIND_HOURS:24}

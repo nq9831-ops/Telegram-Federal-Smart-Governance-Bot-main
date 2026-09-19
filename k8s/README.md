@@ -23,8 +23,9 @@ kubectl logs -l app.kubernetes.io/name=tgg --tail=50
 ```
 
 **判定「起来了」的依据是日志里那行 `Started TggApplication in N.NNN seconds`**，不是 Pod 变成 `Running`——
-后者只说明容器进程还在，不代表 Flyway 迁移与组件装配已完成（本项目**未引入 Actuator**，
-探针只能用 `tcpSocket`，它只证明端口在监听）。
+后者只说明容器进程还在，不代表 Flyway 迁移与组件装配已完成（本项目**已引入 Actuator**（锁定，只暴露
+`/actuator/health`），但本清单的探针仍用 `tcpSocket`——它只证明端口在监听。要覆盖业务就绪，请照 §3 改成
+`httpGet: /actuator/health`）。
 
 ## 前置条件
 

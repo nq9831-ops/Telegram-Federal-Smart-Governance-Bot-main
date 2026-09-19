@@ -17,7 +17,7 @@
 | TON 链上托管 / USDT 支付 | **未实现**（模块十二） | 无资金托管、无链上转账、无智能合约。`DepositGateway` 当前是 noop 实现，每次调用只打 WARN 日志 |
 | OFAC / SDN 制裁筛查、KYT | **未实现** | 无任何名单筛查能力 |
 | KYC / FATF 旅行规则 | **未实现** | 不采集、不传输发起人/受益人身份信息 |
-| Web 后台界面 | **未实现**（模块十一只交付了后端 REST API） | 无面向运营者的可视化界面 |
+| Web 后台界面 | **已交付**（后端 REST API + `frontend/` Vue 3 静态控制台） | 静态站需自行部署并配反向代理；渲染只在本机探针验证过，未在真实浏览器人工确认观感 |
 | 设备指纹 / 行为序列 / 图计算等风控 | **未实现** | — |
 
 **若你的业务涉及虚拟资产转移，本项目当前不满足相关合规要求。**
@@ -77,7 +77,7 @@
 | 依赖版本统一管理 | **已实现**：版本由父 POM 统一管理（含下列几项漏洞修复的版本覆盖） |
 | SBOM（软件物料清单） | **已实现**：`mvn package` 生成聚合 `target/bom.json`（CycloneDX 1.5，`cyclonedx-maven-plugin`），覆盖全部模块与编译/运行期传递依赖 |
 | 依赖漏洞扫描 | **已实现且可复现**：`tools/security/scan_dependencies.py` 读 SBOM 查 OSV（osv.dev）。本仓库最近一次扫描（2026-09-19）**0 命中**——此前发现的 3×CRITICAL/5×MEDIUM 已通过版本覆盖处置，记录见 `docs/KNOWN-ISSUES.md`。⚠️ **扫描只覆盖公开收录的漏洞，不等于安全保证**；上线环境应把它接进 CI 持续跑 |
-| 容器化部署 | **已实现**：`Dockerfile`（多阶段构建 + 非 root 运行）+ `docker-compose.yml`（应用 + MySQL）。**未**提供 K8s 清单 |
+| 容器化部署 | **已实现**：`Dockerfile`（多阶段构建 + 非 root 运行）+ `docker-compose.yml`（应用 + MySQL）。**并**提供 K8s 清单（`k8s/`，未经集群验证） |
 | Token 定期轮换 | **未实现**（属运营流程，非代码能力） |
 | Vault 集成 | **未实现**（用环境变量替代） |
 | Actuator 锁定 / 安全响应头 | **已实现**（原文 §15.2）：Actuator 只暴露 `/actuator/health`（其余端点关闭、`show-details=never`）；应用补 `nosniff` / `X-Frame-Options: DENY` / `Referrer-Policy` |

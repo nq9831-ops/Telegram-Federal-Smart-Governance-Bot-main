@@ -25,7 +25,13 @@ public @interface BotCommand {
     /** 主命令名，不含前导斜杠，例如 {@code "echo"}。 */
     String value();
 
-    /** 命令描述（供 /help 等展示，切片 1 暂未使用）。 */
+    /**
+     * 命令描述。
+     *
+     * <p>消费者是 **Telegram 客户端的命令菜单**——启动期由 {@link CommandMenuRegistrar}
+     * 经 {@code setMyCommands} 注册（详见 {@code CommandMenuConfiguration}）。
+     * ⚠️ 描述为空的命令**不会进菜单**（客户端会渲染成空白行），故新增命令务必填它。
+     */
     String description() default "";
 
     /** 别名，例如 {@code {"ping"}}。 */

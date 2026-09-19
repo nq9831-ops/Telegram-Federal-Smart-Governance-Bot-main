@@ -142,6 +142,7 @@ python3 tools/security/scan_dependencies.py
 |---|---|---|
 | `TGG_PERMISSION_ADMINS` | 空 | 群内管理员授权，格式 `<chatId>:<userId>[:role]`。**为空则所有管理命令对任何人不可用**（启动会 WARN） |
 | `TGG_HASH_SALT` | 空 | 标识哈希用盐。不设会退回开发兜底盐（userId 空间小，固定盐可被枚举反推） |
+| `TGG_COMMAND_MENU_ENABLED` | **`true`** | 启动期把 `@BotCommand` 声明的命令清单注册到 Telegram（**客户端输入 `/` 时的提示菜单**）。这是**唯一默认开启**的开关——不注册的话命令在客户端里毫无提示。缺 `TGG_BOT_TOKEN` 时跳过并 WARN；注册失败只记日志、不影响启动 |
 | `TGG_FAILOVER_ENABLED` | `false` | Webhook 失效后降级长轮询 |
 | `TGG_ADMISSION_ENABLED` | `false` | 入群验证 + 观察期；启用时要求 `TGG_BOT_TOKEN` |
 | `TGG_AI_DEEPSEEK_ENABLED` | `false` | L3 云端审核；启用后**消息正文会发送至 DeepSeek**（详见 `PRIVACY.md`），缺 `TGG_DEEPSEEK_API_KEY` 即启动失败 |

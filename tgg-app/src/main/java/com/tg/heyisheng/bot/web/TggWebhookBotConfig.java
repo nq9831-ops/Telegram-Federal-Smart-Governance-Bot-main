@@ -43,8 +43,8 @@ public class TggWebhookBotConfig {
                         throw new IllegalStateException("更新分发失败", ex);
                     }
                 })
-                .setWebhook(() -> log.info("SetWebhook 尚未接入（需公网地址，属切片 2 范围）"))
-                .deleteWebhook(() -> log.info("DeleteWebhook 尚未接入（属切片 2 范围）"))
+                .setWebhook(() -> log.info("SetWebhook 未接入程序（当前由部署时手工设置 webhook）"))
+                .deleteWebhook(() -> log.info("DeleteWebhook 未接入程序（当前由部署时手工撤销）"))
                 .build();
     }
 }
