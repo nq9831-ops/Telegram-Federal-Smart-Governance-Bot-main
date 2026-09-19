@@ -33,9 +33,10 @@ import java.util.Map;
  * 「某个端点漏判」这种最典型的越权。
  *
  * <p><b>状态码显式设置（重要）</b>：本项目有一个全局 {@code @RestControllerAdvice}
- * 把异常统一吞成 200（为 Telegram 避免重试风暴的既有设计）。若这里抛异常来表达 404/403，
- * 调用方会收到 200 —— 而模块八的第 6 条已知问题正是在说这件事。故本类<b>一律用
- * {@code ResponseEntity} 返回状态码，不靠异常</b>，并把它写进集成测试。
+ * 把**业务异常**统一吞成 200（为 Telegram 避免重试风暴的既有设计）。若这里抛异常来表达 404/403，
+ * 调用方会收到 200 —— 故本类<b>一律用 {@code ResponseEntity} 返回状态码，不靠异常</b>，
+ * 并把它写进集成测试。（唯一的例外是**未知路径**：{@code NoResourceFoundException} 已由该处理器
+ * 放行为 404，见 {@code UnknownPathIT}——但那是「路径不存在」，不是本类要表达的「资源不存在」。）
  */
 @RestController
 @Conditional(AdminApiTokenCondition.class)

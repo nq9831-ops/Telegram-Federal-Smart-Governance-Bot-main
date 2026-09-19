@@ -17,9 +17,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * 于是一张含配置值、环境变量与 bean 依赖图的内部结构被挂到一个**未鉴权**的路径上，
  * 而这一切**不会有任何报错**。本测试把「只有 health」钉死。
  *
- * <p><b>不硬断言 404</b>：本项目有一个全局 {@code @RestControllerAdvice} 把异常统一吞成 200
- * （为 Telegram 避免重试风暴的既有设计，见 {@code OpenApiDocsDisabledIT}），未知路径因此可能是 200。
- * 要证明的命题是「这些端点没有对外提供内容」，断言**响应体不含其特征**更贴近该命题。
+ * <p><b>为什么断言响应体而非状态码</b>：要证明的命题是「这些端点没有对外提供内容」——断言**响应体
+ * 不含其特征**最贴近它，也最稳固。状态码会随路由细节变动（未暴露的 {@code /actuator/env} 可能落到
+ * 静态资源处理器而给 404，见 {@code UnknownPathIT}），拿它当判据会把「路由变了」误读成「暴露了」。
  *
  * <p><b>对照组</b>：{@link #healthIsExposedAndReportsUp()} 在**同一上下文**里证明 MockMvc 确实
  * 能取到 Actuator 的内容——否则「env 端点没内容」也可能只是测试装置坏了（恒真断言）。

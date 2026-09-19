@@ -17,9 +17,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * 引入依赖这一动作就等于把全部端点清单与参数结构暴露出去。项目纪律是「未启用即零影响」，
  * 故本测试锁住「**默认**不暴露」这一契约。
  *
- * <p><b>不硬断言状态码</b>：本项目有一个全局 {@code @RestControllerAdvice} 把异常统一吞成
- * 200（为 Telegram 避免重试风暴的既有设计），未知路径因此可能是 200 而非 404。
- * 断言「响应体里没有文档特征」比断言状态码更贴近要证明的命题。
+ * <p><b>为什么断言响应体而非状态码</b>：要证明的命题是「默认不暴露文档」（响应体里没有文档特征），
+ * 而不是「某条路径返回某个状态码」——状态码会随路由细节变动。
+ * 断言响应体比断言状态码更贴近命题、也更稳固。
  */
 @SpringBootTest
 @AutoConfigureMockMvc

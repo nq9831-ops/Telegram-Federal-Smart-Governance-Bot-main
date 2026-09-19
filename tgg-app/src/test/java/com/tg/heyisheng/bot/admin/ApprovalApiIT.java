@@ -29,8 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p><b>两个务必靠 IT 才能守住的点</b>：
  * <ol>
- *   <li><b>404 必须真是 404</b>：本项目有全局 {@code @RestControllerAdvice} 把异常统一吞成 200
- *       （为 Telegram 避免重试风暴的既有设计，见 KNOWN-ISSUES 模块八第 6 条）。若控制器靠抛异常表达 404，
+ *   <li><b>404 必须真是 404</b>：本项目有全局 {@code @RestControllerAdvice} 把**业务异常**统一吞成 200
+ *       （为 Telegram 避免重试风暴的既有设计）。若控制器靠抛异常表达 404，
  *       调用方会拿到 200 空体——这条只有端到端能发现。</li>
  *   <li><b>「不可自审」要在真实白名单下成立</b>：888 既是被判定者又在复核人白名单内，
  *       于是它能过门禁、却必须在裁决前被拦下。</li>

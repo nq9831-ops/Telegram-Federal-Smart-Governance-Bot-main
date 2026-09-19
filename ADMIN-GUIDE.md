@@ -98,7 +98,7 @@ curl -s "${AUTH[@]}" "$BASE/admin/approvals/stats" | jq
 curl -s "${AUTH[@]}" "$BASE/admin/approvals/123" | jq
 ```
 
-**不存在 → 404**（不是 200 空体）。本项目有一个全局异常处理器把异常吞成 200（为 Telegram 避免重试风暴），
+**不存在 → 404**（不是 200 空体）。本项目有一个全局异常处理器把**业务异常**吞成 200（为 Telegram 避免重试风暴），
 故这些端点的状态码一律由 `ResponseEntity` 显式设置，不靠抛异常。
 
 ### 4. 裁决
@@ -162,4 +162,5 @@ curl -s -X POST "${AUTH[@]}" -H 'Content-Type: application/json' \
 - **「大额扣分需双人审批」未实现**：会改变模块七现有的即时扣分行为，属产品决策，**已拍板（2026-09-19）：本阶段不做**（理由见 `ARCHITECTURE.md` §7.3）。
 - **Actuator 已引入（锁定）**：只暴露 `/actuator/health`，可供容器/K8s 探**业务就绪**；
   其余端点（env / beans / configprops …）一律关闭。**CSP / HSTS 仍归反向代理层**（HSTS 须由 TLS 终止方下发）。
-- **文本状态码**：`/admin/approvals` 之外的未知路径返回 200（全局异常处理器的既有行为）。
+- **文本状态码**：`/admin/approvals` 之外的**未知路径返回 404**（`WebhookExceptionHandler` 已对 `NoResourceFoundException` 放行）。
+  ⚠️ **业务异常仍被吞成 200**（为 Telegram 避免重试风暴的既有设计），故本模块的状态码一律由 `ResponseEntity` 显式设置，不靠抛异常。
