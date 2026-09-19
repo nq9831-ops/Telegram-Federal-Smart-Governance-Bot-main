@@ -80,7 +80,8 @@
 | 容器化部署 | **已实现**：`Dockerfile`（多阶段构建 + 非 root 运行）+ `docker-compose.yml`（应用 + MySQL）。**未**提供 K8s 清单 |
 | Token 定期轮换 | **未实现**（属运营流程，非代码能力） |
 | Vault 集成 | **未实现**（用环境变量替代） |
-| Actuator 锁定 / CSP / HSTS | **未实现**（本项目未引入 Actuator；建议在反向代理层加固） |
+| Actuator 锁定 / 安全响应头 | **已实现**（原文 §15.2）：Actuator 只暴露 `/actuator/health`（其余端点关闭、`show-details=never`）；应用补 `nosniff` / `X-Frame-Options: DENY` / `Referrer-Policy` |
+| CSP / HSTS | **不在应用层，且在反代层落地**：HSTS 必须由 TLS 终止方下发；CSP 约束页面加载而后台静态站不由 Spring 托管。见 `docs/DEPLOYMENT-VERIFICATION.md` S 段 |
 | 灾备演练 / 混沌工程 | **未实现** |
 
 ---

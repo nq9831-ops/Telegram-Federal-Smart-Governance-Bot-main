@@ -129,9 +129,16 @@
 
 - 容器以 **非 root（uid 10001）** 运行；`Dockerfile` 多阶段构建（构建工具不进运行镜像）。
 - 数据库端口在 `docker-compose.yml` 中**只绑 `127.0.0.1`**，不对公网暴露。
-- ⚠️ **Actuator / CSP / HSTS 未实现**：本项目**未引入 Actuator**（容器健康检查只探 TCP 端口），
-  CSP/HSTS 建议在**反向代理层**终止 TLS 时统一配置。
-- ⚠️ **无 K8s 清单**（原文 §17 要求；Compose 已覆盖单机场景）。
+- ✅ **Actuator 已引入并锁定**（原文 §15.2）：只暴露 `/actuator/health`（其余端点一律关闭，
+  `show-details=never`），容器 `HEALTHCHECK` 因此探的是**业务就绪**而非仅端口在听。
+  由 `ActuatorLockedIT`（行为）与 `ConfigurationMappingTest.actuatorIsLockedDownInProduction`（生产配置）两层守门。
+- ✅ **安全响应头**：应用对所有响应补 `X-Content-Type-Options: nosniff` / `X-Frame-Options: DENY` /
+  `Referrer-Policy: no-referrer`（`SecurityHeadersFilter`），含 401 等短路路径（`SecurityHeadersIT` 覆盖）。
+- ⚠️ **CSP / HSTS 仍不在应用层**，且这是刻意的：`Strict-Transport-Security` 必须由 **TLS 终止方**
+  （反向代理 / Ingress）下发；`Content-Security-Policy` 约束页面加载，而后台静态站**不由 Spring 托管**
+  （见 `frontend/README.md`），应用加它对页面无效。两者落地在反向代理配置，见 `docs/DEPLOYMENT-VERIFICATION.md` S 段。
+- ⚠️ **K8s 清单已提供但未在集群验证**（`k8s/`，原文 §17 要求）：本机无 `kubectl`，交付时只做了
+  YAML 结构解析，**未经任何集群验证**——见 `docs/DEPLOYMENT-VERIFICATION.md` Q-2 段。
 
 ## 十一、报告安全问题
 

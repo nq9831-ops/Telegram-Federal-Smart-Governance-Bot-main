@@ -67,8 +67,11 @@ docker compose logs -f app     # 期望：末行 Started TggApplication in N.NNN
 
 `Dockerfile` 是多阶段构建（Maven 构建 → JRE 运行，**非 root**，uid 10001）；
 `docker-compose.yml` 编排应用 + MySQL 8.4，数据库端口**只绑 `127.0.0.1`**。
-⚠️ 本项目**未引入 Actuator**，容器 `HEALTHCHECK` 只探 TCP 端口，**不代表业务就绪**——
-判定以日志里那行 `Started TggApplication` 为准。详见 `docs/DEPLOYMENT-RUNBOOK.md` §0.2b。
+✅ 已引入 **Actuator**（原文 §15.2「Actuator 锁定」）：容器 `HEALTHCHECK` 探 **`/actuator/health`**
+（真实业务就绪，含 DB 连通性），不再只探端口——DB 不可达时它返回 503，容器随之判为 unhealthy。
+只暴露 health，其余端点一律关闭（锁定值见 `tgg-app/src/main/resources/application.yml` 的 `management` 段）。
+⚠️ CSP / HSTS **仍归反向代理层**（HSTS 必须由 TLS 终止方下发），见 `docs/DEPLOYMENT-VERIFICATION.md` S 段。
+首次就绪仍建议以日志里那行 `Started TggApplication` 判断。详见 `docs/DEPLOYMENT-RUNBOOK.md` §0.2b。
 
 ### 依赖安全（SBOM + 漏洞扫描）
 
@@ -126,7 +129,7 @@ python3 tools/security/scan_dependencies.py
 | `TGG_LISTING_ENABLED` | `false` | 模块五 · 群组收录；启用后 `/listing_add`·`/listing_list`·`/listing_appeal` 与每日链接验证任务才装配 |
 | `TGG_LISTING_VERIFY_CRON` | `0 0 3 * * *` | 收录链接的定时验证 cron（到点扫描全库、连续 3 次失败转软删下架） |
 | `TGG_LISTING_STALE_VERIFY_DAYS` | `3` | 收录条目超过该天数**未验证成功**时打 WARN（**本项目新增，非 V5.0 规格**）。抓的是「探测层持续不可用」——这类条目**不累加失败次数**，既有流程发现不了它。**只告警、不下架** |
-| `TGG_MERCHANT_ENABLED` | `false` | 模块六 · 商家收录；启用后 `/merchant_*` 四个命令与保证金账本才装配 |
+| `TGG_MERCHANT_ENABLED` | `false` | 模块六 · 商家收录；启用后 `/merchant_*` 六个命令（apply / review / status / deposit / settle / exit）与保证金账本才装配 |
 | `TGG_MERCHANT_REVIEWERS` | 空 | 资质复核人与保证金操作人 userId（**全局**白名单，逗号分隔）；为空则 `/merchant_review`·`/merchant_deposit` 对任何人不可用 |
 | `TGG_MERCHANT_INITIAL_SCORE` | `500` | 商家入驻成功时写入的初始信用分（需同时 `TGG_CREDIT_ENABLED=true`，否则信用分不初始化） |
 | `TGG_MODERATION_REVIEWERS` | 空 | 复核人 userId（**全局**白名单，逗号分隔）。为空则 `/review_list`·`/review_approve`·`/review_reject` 对任何人不可用 |
