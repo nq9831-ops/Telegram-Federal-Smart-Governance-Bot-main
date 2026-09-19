@@ -32,7 +32,11 @@ logs/
 references/*
 !references/INDEX.md
 
-# 前端（frontend/）：依赖与构建产物都不入库
-frontend/node_modules/
+# 依赖目录：**任何层级**都不入库。
+# 根级 node_modules 曾逃逸（在 frontend/ 之外跑 npx/vite 会往那里写 .cache），
+# 而 `git status --short` 会把整个目录折叠成 1 行，直接提交会带进数万文件（见交接文档坑 3）。
+node_modules/
+
+# 前端（frontend/）：构建产物与工具缓存不入库
 frontend/dist/
 frontend/.vite/

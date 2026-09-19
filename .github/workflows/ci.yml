@@ -99,3 +99,73 @@ jobs:
           name: dependency-scan
           path: target/security/
           if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (vitest + render probe)
+    runs-on: ubuntu-latest
+    # 本 job 全部命令在 frontend/ 下执行（package.json 与 pnpm-lock.yaml 都在那里）
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # version 与本机一致（12.4.2）——本机 pnpm-lock.yaml 是它生成的（lockfileVersion 9.0）。
+      # 版本不一致时，`--frozen-lockfile` 可能因锁文件格式差异而误红。
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # 单测（主题解析 + API 层纯逻辑）。刻意独立成 step：红时一眼看出是逻辑挂了还是渲染挂了。
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      # vue-tsc 类型检查 + vite 打包。构建通过 ≠ 页面能看——渲染由下一个 step 的探针兜。
+      - name: Type-check & build (vue-tsc + vite)
+        run: pnpm build
+
+      # playwright-core **不下载**浏览器（它是 core 版），故复用 runner 预装的 Chrome/Chromium，
+      # 通过 CHROME_PATH 交给探针。找不到就显式失败——不要静默跳过渲染验收。
+      - name: Locate a Chromium-based browser
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$c" >/dev/null 2>&1; then
+              echo "CHROME_PATH=$(command -v "$c")" >> "$GITHUB_ENV"
+              echo "Using browser: $(command -v "$c")"
+              exit 0
+            fi
+          done
+          echo "::error::Runner 上找不到 Chromium 系浏览器，无法做渲染验收"
+          exit 1
+
+      # preview 与探针必须在**同一个 step** 内：`&` 起的后台进程随 step 的 shell 退出而结束。
+      - name: Serve dist + render probe
+        env:
+          OUT_DIR: ${{ runner.temp }}/tgg-shot
+        run: |
+          pnpm preview --host 127.0.0.1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          mkdir -p "$OUT_DIR"
+          TARGET_URL=http://127.0.0.1:4173/ node tools/screenshot-probe.mjs
+
+      - name: Upload render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-render
+          path: ${{ runner.temp }}/tgg-shot
+          if-no-files-found: ignore
