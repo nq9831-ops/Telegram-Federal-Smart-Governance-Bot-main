@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.retention;
 
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
@@ -41,17 +42,53 @@ public class RetentionService {
     private final MemberJoinObservationRepository memberJoinRepository;
     private final RetentionProperties properties;
     private final Clock clock;
+    /** 热读取源；静态模式为 {@code null}（回落到 {@link RetentionProperties}）。 */
+    private final RuntimeConfigService config;
 
+    /** 静态模式（单测 / 固定配置）。 */
     public RetentionService(ModerationReviewRepository reviewRepository,
                             SensitiveTopicStrikeRepository strikeRepository,
                             MemberJoinObservationRepository memberJoinRepository,
                             RetentionProperties properties,
                             Clock clock) {
+        this(reviewRepository, strikeRepository, memberJoinRepository, properties, clock, null);
+    }
+
+    /** 热模式：保留天数与开关在**调用期**读取，改配置无需重启。 */
+    public RetentionService(ModerationReviewRepository reviewRepository,
+                            SensitiveTopicStrikeRepository strikeRepository,
+                            MemberJoinObservationRepository memberJoinRepository,
+                            RetentionProperties properties,
+                            Clock clock,
+                            RuntimeConfigService config) {
         this.reviewRepository = reviewRepository;
         this.strikeRepository = strikeRepository;
         this.memberJoinRepository = memberJoinRepository;
         this.properties = properties;
         this.clock = clock;
+        this.config = config;
+    }
+
+    private int reviewedQueueDays() {
+        return days("tgg.retention.reviewed-queue-days", properties.getReviewedQueueDays());
+    }
+
+    private int strikeDays() {
+        return days("tgg.retention.strike-days", properties.getStrikeDays());
+    }
+
+    private int membershipDays() {
+        return days("tgg.retention.membership-days", properties.getMembershipDays());
+    }
+
+    private boolean enabled() {
+        return config == null
+                ? properties.isEnabled()
+                : config.getBoolean("tgg.retention.enabled", properties.isEnabled());
+    }
+
+    private int days(String key, int fallback) {
+        return config == null ? fallback : config.getInt(key, fallback);
     }
 
     /**
@@ -62,9 +99,9 @@ public class RetentionService {
     @Transactional(readOnly = true)
     public List<Finding> report() {
         Instant now = clock.instant();
-        Instant queueCutoff = now.minus(Duration.ofDays(properties.getReviewedQueueDays()));
-        Instant strikeCutoff = now.minus(Duration.ofDays(properties.getStrikeDays()));
-        Instant membershipCutoff = now.minus(Duration.ofDays(properties.getMembershipDays()));
+        Instant queueCutoff = now.minus(Duration.ofDays(reviewedQueueDays()));
+        Instant strikeCutoff = now.minus(Duration.ofDays(strikeDays()));
+        Instant membershipCutoff = now.minus(Duration.ofDays(membershipDays()));
 
         long approved = reviewRepository.countByStatusAndCreatedAtBefore(ReviewStatus.APPROVED, queueCutoff);
         long rejected = reviewRepository.countByStatusAndCreatedAtBefore(ReviewStatus.REJECTED, queueCutoff);
@@ -73,16 +110,16 @@ public class RetentionService {
 
         return List.of(
                 new Finding("moderation_review_queue",
-                        "已裁决（APPROVED）且创建于 " + properties.getReviewedQueueDays() + " 天前",
+                        "已裁决（APPROVED）且创建于 " + reviewedQueueDays() + " 天前",
                         approved, true, null),
                 new Finding("moderation_review_queue",
-                        "已裁决（REJECTED）且创建于 " + properties.getReviewedQueueDays() + " 天前",
+                        "已裁决（REJECTED）且创建于 " + reviewedQueueDays() + " 天前",
                         rejected, true, null),
                 new Finding("sensitive_topic_strikes",
-                        "最近一次违规早于 " + properties.getStrikeDays() + " 天前",
+                        "最近一次违规早于 " + strikeDays() + " 天前",
                         strikes, true, "清零后「屡犯升级」的累计重新开始（这是刻意的窗口语义）"),
                 new Finding("member_join_observations",
-                        "最后一次写入早于 " + properties.getMembershipDays() + " 天前",
+                        "最后一次写入早于 " + membershipDays() + " 天前",
                         memberships, true, "入群观察数据：退群即删，此处是兜底（如 bot 已被移出群、收不到退群事件）"),
                 new Finding(AUDIT_TABLE, "不适用（永不清理）", -1, false, AUDIT_REASON));
     }
@@ -94,14 +131,14 @@ public class RetentionService {
      */
     @Transactional
     public long purge() {
-        if (!properties.isEnabled()) {
+        if (!enabled()) {
             log.info("保留策略未启用（tgg.retention.enabled=false）——本次只报告不清理");
             return -1;
         }
         Instant now = clock.instant();
-        Instant queueCutoff = now.minus(Duration.ofDays(properties.getReviewedQueueDays()));
-        Instant strikeCutoff = now.minus(Duration.ofDays(properties.getStrikeDays()));
-        Instant membershipCutoff = now.minus(Duration.ofDays(properties.getMembershipDays()));
+        Instant queueCutoff = now.minus(Duration.ofDays(reviewedQueueDays()));
+        Instant strikeCutoff = now.minus(Duration.ofDays(strikeDays()));
+        Instant membershipCutoff = now.minus(Duration.ofDays(membershipDays()));
 
         long deleted = reviewRepository.deleteByStatusAndCreatedAtBefore(ReviewStatus.APPROVED, queueCutoff)
                 + reviewRepository.deleteByStatusAndCreatedAtBefore(ReviewStatus.REJECTED, queueCutoff)

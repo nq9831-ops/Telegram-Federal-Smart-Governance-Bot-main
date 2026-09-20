@@ -53,8 +53,9 @@ public class MerchantConfiguration {
      * 暴露，而非运行期把某个复核人静默漏掉。
      */
     @Bean
-    public MerchantReviewGuard merchantReviewGuard() {
-        return new MerchantReviewGuard(properties.parsedReviewers());
+    public MerchantReviewGuard merchantReviewGuard(
+            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig) {
+        return new MerchantReviewGuard(runtimeConfig);
     }
 
     /**
@@ -81,9 +82,10 @@ public class MerchantConfiguration {
      */
     @Bean
     public MerchantService merchantService(MerchantRepository merchants,
-                                           ObjectProvider<CreditService> creditService) {
+                                           ObjectProvider<CreditService> creditService,
+                                           com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig) {
         return new MerchantService(merchants, properties, creditService.getIfAvailable(),
-                Clock.systemUTC());
+                Clock.systemUTC(), runtimeConfig);
     }
 
     /**

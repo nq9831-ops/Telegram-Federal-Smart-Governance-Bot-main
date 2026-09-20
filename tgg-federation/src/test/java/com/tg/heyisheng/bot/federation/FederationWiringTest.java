@@ -32,7 +32,7 @@ class FederationWiringTest {
     }
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(FederationConfiguration.class)
+            .withUserConfiguration(FederationConfiguration.class, RuntimeConfigTestStub.class)
             .withBean(GroupConfigRepository.class, () -> mock(GroupConfigRepository.class))
             // ApplicationContextRunner 不加载 JPA，仓库需手工补（同 RbacWiringTest 范式）
             .withBean(FederationPenaltyRepository.class, () -> mock(FederationPenaltyRepository.class))

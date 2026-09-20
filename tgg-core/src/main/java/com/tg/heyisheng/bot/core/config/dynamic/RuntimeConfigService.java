@@ -288,6 +288,16 @@ public class RuntimeConfigService {
                     throw new IllegalArgumentException("值超长（上限 1024 字符）");
                 }
             }
+            case ROLE_GRANTS -> {
+                // 热化后 RoleGrantParser 的解析移到了调用期；格式错误必须在此拦下，
+                // 否则一条笔误会在下次启动或下次命令执行时才炸（丢失 fail-fast）。
+                try {
+                    com.tg.heyisheng.bot.core.permission.RoleGrantParser.apply(
+                            new com.tg.heyisheng.bot.core.permission.InMemoryRoleSource(), value);
+                } catch (RuntimeException ex) {
+                    throw new IllegalArgumentException("授权串格式非法：" + ex.getMessage());
+                }
+            }
         }
     }
 

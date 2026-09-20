@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.membership;
 
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.wordfilter.TeachGate;
 
 import java.time.Clock;
@@ -28,16 +29,37 @@ import java.util.Optional;
  */
 public class MembershipDurationTeachGate implements TeachGate {
 
+    /** 配置键（热读取，单位：天）。 */
+    private static final String KEY = "tgg.teach.min-membership-days";
+
     private final MemberJoinObservationRepository repository;
     private final Clock clock;
-    private final Duration minimum;
+    private final Duration fixedMinimum;
+    private final RuntimeConfigService config;
 
     public MembershipDurationTeachGate(MemberJoinObservationRepository repository,
                                        Clock clock,
                                        Duration minimum) {
+        this(repository, clock, minimum, null);
+    }
+
+    /** 热模式：门槛在**调用期**读取（默认 30 天），改配置无需重启。 */
+    public MembershipDurationTeachGate(MemberJoinObservationRepository repository,
+                                       Clock clock,
+                                       RuntimeConfigService config) {
+        this(repository, clock, null, config);
+    }
+
+    private MembershipDurationTeachGate(MemberJoinObservationRepository repository, Clock clock,
+                                        Duration fixedMinimum, RuntimeConfigService config) {
         this.repository = repository;
         this.clock = clock;
-        this.minimum = minimum;
+        this.fixedMinimum = fixedMinimum;
+        this.config = config;
+    }
+
+    private Duration minimum() {
+        return config == null ? fixedMinimum : Duration.ofDays(config.getLong(KEY, 30));
     }
 
     @Override
@@ -51,10 +73,10 @@ public class MembershipDurationTeachGate implements TeachGate {
             return Optional.empty();
         }
         Duration observed = Duration.between(observation.get().getJoinedAt(), clock.instant());
-        if (observed.compareTo(minimum) >= 0) {
+        if (observed.compareTo(minimum()) >= 0) {
             return Optional.empty();
         }
         // 不含该成员的入群时刻（那是个人数据，且回显给管理员的文案不该带别人的时间线）
-        return Optional.of("本群教学要求入群满 " + minimum.toDays() + " 天（你尚未满足）。");
+        return Optional.of("本群教学要求入群满 " + minimum().toDays() + " 天（你尚未满足）。");
     }
 }

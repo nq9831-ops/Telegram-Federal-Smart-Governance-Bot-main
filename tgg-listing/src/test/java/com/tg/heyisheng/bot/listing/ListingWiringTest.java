@@ -82,7 +82,8 @@ class ListingWiringTest {
                     ListingAppealCommandHandler.class);
 
     private final ApplicationContextRunner merchantRunner = new ApplicationContextRunner()
-            .withUserConfiguration(MerchantConfiguration.class)
+            .withUserConfiguration(MerchantConfiguration.class,
+                    com.tg.heyisheng.bot.listing.merchant.RuntimeConfigTestStub.class)
             // MerchantConfiguration 的受门控 bean 需要仓库；ApplicationContextRunner
             // 不加载 JPA，故手工补替身（与上面的 RepositoryStub 同款理由）。
             .withBean(MerchantRepository.class, () -> mock(MerchantRepository.class))

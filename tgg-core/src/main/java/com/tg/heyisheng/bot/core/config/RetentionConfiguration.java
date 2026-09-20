@@ -38,9 +38,10 @@ public class RetentionConfiguration {
     public RetentionService retentionService(ModerationReviewRepository reviewRepository,
                                              SensitiveTopicStrikeRepository strikeRepository,
                                              MemberJoinObservationRepository memberJoinRepository,
-                                             RetentionProperties retentionProperties) {
+                                             RetentionProperties retentionProperties,
+                                             com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig) {
         return new RetentionService(reviewRepository, strikeRepository, memberJoinRepository,
-                retentionProperties, Clock.systemUTC());
+                retentionProperties, Clock.systemUTC(), runtimeConfig);
     }
 
     @Bean

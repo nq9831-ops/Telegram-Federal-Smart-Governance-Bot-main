@@ -55,7 +55,8 @@ class RbacWiringTest {
                 // 里仍有依赖 NotificationDispatcher 的 bean（redLineReviewSla），而保留策略与合规域的
                 // bean 各自也需一并加载——runner 只装其中一个就会缺 bean。这些类同包，无需 import。
                 .withUserConfiguration(TggCoreConfiguration.class, NotificationConfiguration.class,
-                        RetentionConfiguration.class, ComplianceConfiguration.class)
+                        RetentionConfiguration.class, ComplianceConfiguration.class,
+                        RuntimeConfigStub.class)
                 .withBean(BanHandler.class, BanHandler::new)
                 // ApplicationContextRunner 不做组件扫描，中间件链依赖的 service 需手工提供
                 .withBean(GroupConfigService.class,
@@ -107,9 +108,31 @@ class RbacWiringTest {
                                 com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService.class))
                 // WebhookProperties 由 @EnableConfigurationProperties 创建，
                 // 不能再 withBean 注册一份（否则出现两个同类型 bean 导致注入歧义）
+                // 配置中心的热读取服务（roleSource / retentionService / teachGate / redLineReviewSla
+                // 已改为**调用期**读取）。见下方 RuntimeConfigStub：它注入 runner 自己的 Environment，
+                // 从而能看到本测试用 withPropertyValues 设的 tgg.permission.admins。
                 .withPropertyValues(
                         "tgg.webhook.secret=test-secret",
                         "tgg.permission.admins=" + adminsSpec);
+    }
+
+    /**
+     * 提供 {@code RuntimeConfigService} 替身。
+     *
+     * <p><b>关键</b>：它必须复用 runner 的 {@code Environment}（而不是另造一个空
+     * {@code MockEnvironment}）——否则热读取的消费方看不到本测试通过 withPropertyValues
+     * 设置的配置值，{@code roleOf} 会恒回落到 MEMBER。
+     */
+    @org.springframework.context.annotation.Configuration
+    static class RuntimeConfigStub {
+        @org.springframework.context.annotation.Bean
+        com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfigService(
+                org.springframework.core.env.Environment environment) {
+            return new com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService(
+                    org.mockito.Mockito.mock(
+                            com.tg.heyisheng.bot.core.config.dynamic.ConfigOverrideRepository.class),
+                    environment);
+        }
     }
 
     @Test

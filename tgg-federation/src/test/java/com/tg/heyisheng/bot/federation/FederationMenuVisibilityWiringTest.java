@@ -49,7 +49,7 @@ class FederationMenuVisibilityWiringTest {
     }
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(FederationConfiguration.class)
+            .withUserConfiguration(FederationConfiguration.class, RuntimeConfigTestStub.class)
             .withUserConfiguration(ApproveAppealCommandHandler.class, RejectAppealCommandHandler.class,
                     PendingAppealsCommandHandler.class, AppealCommandHandler.class)
             .withBean(GroupConfigRepository.class, () -> mock(GroupConfigRepository.class))

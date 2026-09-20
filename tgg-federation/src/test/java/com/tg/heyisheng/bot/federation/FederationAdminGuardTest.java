@@ -29,6 +29,21 @@ class FederationAdminGuardTest {
     @Test
     void emptyConfigAdmitsNobody() {
         assertThat(new FederationAdminGuard(List.of()).isAdmin(42L)).isFalse();
-        assertThat(new FederationAdminGuard(null).size()).isZero();
+        assertThat(new FederationAdminGuard((Iterable<Long>) null).size()).isZero();
+    }
+
+    /** 热生效：经配置服务读取时，改名单无需重启。 */
+    @Test
+    void configBackedGuardReflectsChangesWithoutRestart() {
+        com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService cfg =
+                new com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService(
+                        org.mockito.Mockito.mock(com.tg.heyisheng.bot.core.config.dynamic.ConfigOverrideRepository.class),
+                        new org.springframework.mock.env.MockEnvironment());
+        FederationAdminGuard guard = new FederationAdminGuard(cfg);
+        assertThat(guard.isAdmin(42L)).isFalse();
+
+        cfg.set(FederationAdminGuard.KEY, "42", null);
+
+        assertThat(guard.isAdmin(42L)).as("改联邦管理员名单后无需重启即生效").isTrue();
     }
 }

@@ -97,4 +97,29 @@ class ConfigCatalogTest {
             assertThat(key.restartRequired()).as("%s 应标注为热生效", hot).isFalse();
         }
     }
+
+    /**
+     * 不变量：凡「RUNTIME 类且可写」的键，必须标注为**热生效**。
+     *
+     * <p>否则总览会对运维说谎——显示「重启生效」而实际已热，或反之（后者更危险：
+     * 运维以为改完立即生效，实际要重启）。新增运行期参数时若忘了改造消费方为调用期读取，
+     * 就必须显式标 restartRequired=true，而这条测试会逼你面对这个选择。
+     */
+    @Test
+    void everyWritableRuntimeKeyIsHot() {
+        for (ConfigKey key : ConfigCatalog.keys()) {
+            if (key.category() == ConfigCategory.RUNTIME && key.writable()) {
+                assertThat(key.restartRequired())
+                        .as("%s 可写且属运行期参数，必须标注热生效（restartRequired=false）", key.key())
+                        .isFalse();
+            }
+        }
+    }
+
+    /** 保留开关不门控装配（RetentionConfiguration 的 bean 无条件创建），故属运行期参数而非装配开关。 */
+    @Test
+    void retentionEnabledIsRuntimeNotAssembly() {
+        assertThat(ConfigCatalog.find("tgg.retention.enabled").orElseThrow().category())
+                .isEqualTo(ConfigCategory.RUNTIME);
+    }
 }

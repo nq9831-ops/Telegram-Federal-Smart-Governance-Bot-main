@@ -54,6 +54,7 @@ class MerchantWiringTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(MerchantConfiguration.class, RepositoryStub.class,
+                    RuntimeConfigTestStub.class,
                     MerchantApplyCommandHandler.class, MerchantReviewCommandHandler.class,
                     MerchantStatusCommandHandler.class, MerchantExitCommandHandler.class,
                     MerchantDepositCommandHandler.class, MerchantSettleCommandHandler.class);

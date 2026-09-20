@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.notify.Notification;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
 import com.tg.heyisheng.bot.core.notify.NotificationLevel;
@@ -29,27 +30,56 @@ public class RedLineReviewSla {
 
     private static final Logger log = LoggerFactory.getLogger(RedLineReviewSla.class);
 
+    /** 配置键（热读取，单位：小时）。 */
+    public static final String SLA_KEY = "tgg.moderation.redline-review-sla-hours";
+
     private final ModerationReviewRepository repository;
     private final ModerationReviewGuard guard;
     private final NotificationDispatcher notifications;
     private final Clock clock;
-    private final Duration sla;
+    private final Duration fixedSla;
+    private final RuntimeConfigService config;
 
+    /** 静态模式（单测 / 固定 SLA）。 */
     public RedLineReviewSla(ModerationReviewRepository repository,
                             ModerationReviewGuard guard,
                             NotificationDispatcher notifications,
                             Clock clock,
                             Duration sla) {
+        this(repository, guard, notifications, clock, sla, null);
+    }
+
+    /** 热模式：SLA 在**每次扫描时**读取（默认 2 小时），改配置无需重启。 */
+    public RedLineReviewSla(ModerationReviewRepository repository,
+                            ModerationReviewGuard guard,
+                            NotificationDispatcher notifications,
+                            Clock clock,
+                            RuntimeConfigService config) {
+        this(repository, guard, notifications, clock, null, config);
+    }
+
+    private RedLineReviewSla(ModerationReviewRepository repository,
+                             ModerationReviewGuard guard,
+                             NotificationDispatcher notifications,
+                             Clock clock,
+                             Duration fixedSla,
+                             RuntimeConfigService config) {
         this.repository = repository;
         this.guard = guard;
         this.notifications = notifications;
         this.clock = clock;
-        this.sla = sla;
+        this.fixedSla = fixedSla;
+        this.config = config;
+    }
+
+    private Duration sla() {
+        return config == null ? fixedSla : config.getHours(SLA_KEY, 2);
     }
 
     /** 扫描超出 SLA 仍未裁决的硬红线条目并催办（每小时的 5 分执行）。 */
     @Scheduled(cron = "${tgg.moderation.redline-sla-cron:0 5 * * * *}")
     public void alarm() {
+        Duration sla = sla();
         Instant cutoff = clock.instant().minus(sla);
         // 入口无条件留痕：任务「没被注册」与「跑了但没数据」是完全不同的故障，
         // 没有这行日志二者在外部表现一致（都是静默）——上一轮就因此无法定案。

@@ -1,8 +1,10 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -21,39 +23,57 @@ import java.util.Set;
  *
  * <p><b>空名单 = 命令静默不可用</b>：不配即无人可复核——启动期打 WARN 说明，
  * 沿用本项目「缺失即显式降级、不静默」的口径（与 {@code tgg.merchant.reviewers} 一致）。
+ *
+ * <p><b>热生效</b>：生产构造器经 {@link RuntimeConfigService} <b>调用期</b>读取名单——
+ * 在 Web 配置中心改了 reviewers，**无需重启**即生效。（另一构造器为静态模式，供单测与
+ * 不依赖配置服务的上下文使用，行为与改造前一致。）
  */
 @Service
 public class ModerationReviewGuard {
 
     private static final Logger log = LoggerFactory.getLogger(ModerationReviewGuard.class);
 
-    private final Set<Long> reviewerIds;
+    /** 配置键（热读取）。 */
+    public static final String KEY = "tgg.moderation.reviewers";
 
-    public ModerationReviewGuard(@Value("${tgg.moderation.reviewers:}") String reviewers) {
-        this.reviewerIds = parse(reviewers);
-        if (this.reviewerIds.isEmpty()) {
-            log.warn("未配置 TGG_MODERATION_REVIEWERS：/review_list·/review_approve·/review_reject "
-                    + "对任何人不可用（不是「权限不足」，是无响应）。要启用人工复核请注入该变量。");
-        }
+    private final RuntimeConfigService config;
+    private final Set<Long> fixedIds;
+
+    /** 生产构造器：热读取。 */
+    @Autowired
+    public ModerationReviewGuard(RuntimeConfigService config) {
+        this.config = config;
+        this.fixedIds = Set.of();
+    }
+
+    /** 静态模式（单测 / 不依赖配置服务的上下文）：立即解析，行为同改造前。 */
+    public ModerationReviewGuard(String reviewers) {
+        this.config = null;
+        this.fixedIds = parse(reviewers);
     }
 
     /** 该用户是否为复核人。 */
     public boolean isReviewer(Long userId) {
-        return userId != null && reviewerIds.contains(userId);
+        return userId != null && reviewerIds().contains(userId);
+    }
+
+    /** 已配置的复核人（热读取；静态模式下为构造时解析的结果）。 */
+    public Set<Long> reviewerIds() {
+        return config == null ? fixedIds : config.getCsvIds(KEY);
     }
 
     /** 已配置的复核人数量（供装配期告警与测试使用）。 */
     public int size() {
-        return reviewerIds.size();
+        return reviewerIds().size();
     }
 
-    /**
-     * 白名单成员（供「向平台处置人广播」用，如泄露通报催办）。
-     *
-     * <p>返回只读集合；调用方<b>不得</b>用它做身份判定（那走 {@link #isReviewer}）。
-     */
-    public Set<Long> reviewerIds() {
-        return reviewerIds;
+    /** 名单为空时启动告警——否则复核命令会以「无响应」的样子静默失效。 */
+    @PostConstruct
+    void warnIfEmpty() {
+        if (reviewerIds().isEmpty()) {
+            log.warn("未配置 TGG_MODERATION_REVIEWERS：/review_list·/review_approve·/review_reject "
+                    + "对任何人不可用（不是「权限不足」，是无响应）。要启用人工复核请注入该变量。");
+        }
     }
 
     /** 解析逗号分隔的 userId 名单；非数字项忽略并告警，不因一个笔误让整条配置失效。 */

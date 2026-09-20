@@ -5,6 +5,7 @@ import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.credit.CreditEventSink;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
@@ -29,6 +30,7 @@ import com.tg.heyisheng.bot.core.moderation.SensitiveTopicDetector;
 import com.tg.heyisheng.bot.core.moderation.SensitiveTopicGuard;
 import com.tg.heyisheng.bot.core.moderation.SensitiveTopicStrikeService;
 import com.tg.heyisheng.bot.core.moderation.RegexLayer;
+import com.tg.heyisheng.bot.core.permission.ConfigBackedRoleSource;
 import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
@@ -97,18 +99,18 @@ public class TggCoreConfiguration {
      * 模块三/十一引入数据库后替换为持久化实现，判定逻辑不变。
      */
     @Bean
-    public RoleSource roleSource(@Value("${tgg.permission.admins:}") String adminsSpec) {
+    public RoleSource roleSource(RuntimeConfigService runtimeConfig) {
         // 默认空串是 fail-closed（安全），但**静默**：门控会表现为「只拒不放」，
         // 所有管理命令（/addword、/enable 等，需 MANAGE_CONFIG）对任何人都不可用，
         // 而运维者不会去设一个没文档、也不报错的配置。这里显式告警，避免功能形同虚设。
-        if (adminsSpec == null || adminsSpec.isBlank()) {
+        if (runtimeConfig.resolve(ConfigBackedRoleSource.KEY).orElse("").isBlank()) {
             log.warn("未配置 tgg.permission.admins（TGG_PERMISSION_ADMINS）：所有管理命令将对任何人不可用"
-                    + "（门控只拒不放）。要启用，请注入该环境变量，格式 <chatId>:<userId>[:role]，"
+                    + "（门控只拒不放）。要启用，请在配置中心或环境变量中配置，格式 <chatId>:<userId>[:role]，"
                     + "请见 README 的配置表。");
         }
-        InMemoryRoleSource source = new InMemoryRoleSource();
-        RoleGrantParser.apply(source, adminsSpec);
-        return source;
+        // 热驱动：授权在**调用期**从配置解析（后台改授权无需重启）；
+        // 启动期仍校验一次格式——fail-fast 不丢（见 ConfigBackedRoleSource 的 javadoc）。
+        return new ConfigBackedRoleSource(runtimeConfig);
     }
 
     @Bean
@@ -260,9 +262,9 @@ public class TggCoreConfiguration {
     @Bean
     public com.tg.heyisheng.bot.core.wordfilter.TeachGate membershipDurationTeachGate(
             com.tg.heyisheng.bot.core.membership.MemberJoinObservationRepository memberJoinRepository,
-            @Value("${tgg.teach.min-membership-days:30}") long minMembershipDays) {
+            RuntimeConfigService runtimeConfig) {
         return new com.tg.heyisheng.bot.core.membership.MembershipDurationTeachGate(
-                memberJoinRepository, Clock.systemUTC(), java.time.Duration.ofDays(minMembershipDays));
+                memberJoinRepository, Clock.systemUTC(), runtimeConfig);
     }
 
     /**
@@ -303,10 +305,9 @@ public class TggCoreConfiguration {
             com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository reviewRepository,
             com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard moderationReviewGuard,
             NotificationDispatcher notificationDispatcher,
-            @Value("${tgg.moderation.redline-review-sla-hours:2}") long slaHours) {
+            RuntimeConfigService runtimeConfig) {
         return new com.tg.heyisheng.bot.core.moderation.RedLineReviewSla(reviewRepository,
-                moderationReviewGuard, notificationDispatcher, Clock.systemUTC(),
-                java.time.Duration.ofHours(slaHours));
+                moderationReviewGuard, notificationDispatcher, Clock.systemUTC(), runtimeConfig);
     }
 
     /**

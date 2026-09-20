@@ -51,9 +51,24 @@ class MerchantReviewGuardTest {
 
     @Test
     void nullWhitelistIsTreatedAsEmpty() {
-        MerchantReviewGuard guard = new MerchantReviewGuard(null);
+        MerchantReviewGuard guard = new MerchantReviewGuard((Iterable<Long>) null);
 
         assertThat(guard.size()).isZero();
         assertThat(guard.isReviewer(42L)).isFalse();
+    }
+
+    /** 热生效：经配置服务读取时，改名单无需重启。 */
+    @Test
+    void configBackedGuardReflectsChangesWithoutRestart() {
+        com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService cfg =
+                new com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService(
+                        org.mockito.Mockito.mock(com.tg.heyisheng.bot.core.config.dynamic.ConfigOverrideRepository.class),
+                        new org.springframework.mock.env.MockEnvironment());
+        MerchantReviewGuard guard = new MerchantReviewGuard(cfg);
+        assertThat(guard.isReviewer(42L)).isFalse();
+
+        cfg.set(MerchantReviewGuard.KEY, "42", null);
+
+        assertThat(guard.isReviewer(42L)).as("改商家复核人名单后无需重启即生效").isTrue();
     }
 }

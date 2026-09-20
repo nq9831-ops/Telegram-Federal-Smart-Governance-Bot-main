@@ -59,15 +59,34 @@ public class MerchantService {
     /** 模块七的记账服务；模块七未启用时为 {@code null}（见类 javadoc）。 */
     private final CreditService creditService;
     private final Clock clock;
+    /** 热读取源（初始信用分）；静态模式为 {@code null}。 */
+    private final com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService config;
 
     public MerchantService(MerchantRepository merchants,
                            MerchantProperties properties,
                            CreditService creditService,
                            Clock clock) {
+        this(merchants, properties, creditService, clock, null);
+    }
+
+    /** 热模式：初始信用分在调用期读取，改配置无需重启。 */
+    public MerchantService(MerchantRepository merchants,
+                           MerchantProperties properties,
+                           CreditService creditService,
+                           Clock clock,
+                           com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService config) {
         this.merchants = merchants;
         this.properties = properties;
         this.creditService = creditService;
         this.clock = clock;
+        this.config = config;
+    }
+
+    /** 商家初始信用分（热读取；静态模式回落到 {@link MerchantProperties}）。 */
+    private int initialScore() {
+        return config == null
+                ? properties.getInitialScore()
+                : config.getInt("tgg.merchant.initial-score", properties.getInitialScore());
     }
 
     /**
@@ -172,7 +191,7 @@ public class MerchantService {
     /** 商家当前信用分（模块七未启用时用配置初值，理由见 {@link #evaluateTier}）。 */
     private int currentCreditScore(long merchantId) {
         if (creditService == null) {
-            return properties.getInitialScore();
+            return initialScore();
         }
         return creditService.scoreOf(CreditSubjectType.MERCHANT, merchantId);
     }
@@ -190,7 +209,7 @@ public class MerchantService {
             return;
         }
         creditService.ensureInitialized(CreditSubjectType.MERCHANT, merchant.getId(),
-                properties.getInitialScore());
+                initialScore());
     }
 
     /** 取行 → 迁移 → 落库；行不存在时返回空（由调用方决定如何提示）。 */

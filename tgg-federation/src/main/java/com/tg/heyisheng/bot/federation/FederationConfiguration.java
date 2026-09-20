@@ -54,10 +54,11 @@ public class FederationConfiguration {
         log.info("模块八 · 联邦治理已启用：对端节点 {} 个。", nodeCount);
     }
 
-    /** 联邦管理员判定（全局白名单）。 */
+    /** 联邦管理员判定（全局白名单，热读取）。 */
     @Bean
-    public FederationAdminGuard federationAdminGuard() {
-        FederationAdminGuard guard = new FederationAdminGuard(properties.parsedAdmins());
+    public FederationAdminGuard federationAdminGuard(
+            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig) {
+        FederationAdminGuard guard = new FederationAdminGuard(runtimeConfig);
         if (guard.size() == 0) {
             log.warn("未配置 tgg.federation.admins（TGG_FEDERATION_ADMINS）：联邦管理命令"
                     + "（/pending /approve /reject）将对任何人不可用。");
