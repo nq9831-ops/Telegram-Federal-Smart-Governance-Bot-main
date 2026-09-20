@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { decide, describeError } from '../api/client'
+import { decide, describeError, FORBIDDEN_APPROVAL } from '../api/client'
 import type { ApprovalItem, Decision } from '../api/types'
 
 const props = defineProps<{ visible: boolean; item: ApprovalItem | null }>()
@@ -11,6 +11,19 @@ const reason = ref('')
 const busy = ref(false)
 
 const isPending = computed(() => props.item?.status === 'PENDING')
+
+/** 风险等级的中文名——避免在详情里裸显后端英文枚举（同表的「硬红线」已是中文）。 */
+function riskText(level: string): string {
+  const names: Record<string, string> = { NONE: '无', LOW: '低', MEDIUM: '中', HIGH: '高' }
+  return names[level] ?? level
+}
+
+/** 时间戳人性化：后端给的是 ISO 串，直接展示是给机器看的。 */
+function formatTime(value: string | null): string {
+  if (value === null || value === '') return '—'
+  const t = new Date(value)
+  return Number.isNaN(t.getTime()) ? value : t.toLocaleString()
+}
 
 // 每次打开都清空理由：理由要针对**这一条**案件写，沿用上一条就是粘滞的错误内容。
 watch([() => props.visible, () => props.item?.id], ([visible]) => {
@@ -32,6 +45,18 @@ async function submit(decision: Decision): Promise<void> {
     } catch {
       return
     }
+  } else if (item.riskLevel === 'HIGH') {
+    // 维持 HIGH 会**追加 24 小时禁言**（见 ModerationReviewDecisionService）——同样是立即作用于
+    // 真人的对外动作。此前只给「推翻」加确认，却放过这条更常见的，属风险不对称。
+    try {
+      await ElMessageBox.confirm(
+        `将维持案件 #${item.id} 的违规判定，并对当事人追加 24 小时禁言。是否继续？`,
+        '确认维持',
+        { type: 'warning', confirmButtonText: '维持并禁言', cancelButtonText: '取消' },
+      )
+    } catch {
+      return
+    }
   }
 
   busy.value = true
@@ -45,7 +70,7 @@ async function submit(decision: Decision): Promise<void> {
     emit('update:visible', false)
     emit('decided')
   } catch (error) {
-    ElMessage.error(describeError(error))
+    ElMessage.error(describeError(error, FORBIDDEN_APPROVAL))
   } finally {
     busy.value = false
   }
@@ -64,16 +89,16 @@ async function submit(decision: Decision): Promise<void> {
         <el-descriptions-item label="编号">{{ item.id }}</el-descriptions-item>
         <el-descriptions-item label="风险">
           <el-tag v-if="item.hardLine" type="danger" effect="dark">硬红线</el-tag>
-          <el-tag v-else effect="plain">{{ item.riskLevel }}</el-tag>
+          <el-tag v-else effect="plain">{{ riskText(item.riskLevel) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="命中规则">{{ item.ruleIds || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="入队时间">{{ item.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="入队时间">{{ formatTime(item.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="已等待">
           {{ item.ageHours }} 小时
           <el-tag v-if="item.overdue" type="warning" size="small" class="overdue-tag">超时</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="状态">{{ item.status }}</el-descriptions-item>
-        <el-descriptions-item v-if="item.decidedAt" label="裁决时间">{{ item.decidedAt }}</el-descriptions-item>
+        <el-descriptions-item v-if="item.decidedAt" label="裁决时间">{{ formatTime(item.decidedAt) }}</el-descriptions-item>
         <el-descriptions-item v-if="item.decidedBy" label="裁决人">{{ item.decidedBy }}</el-descriptions-item>
         <el-descriptions-item v-if="item.note" label="裁决理由">{{ item.note }}</el-descriptions-item>
       </el-descriptions>

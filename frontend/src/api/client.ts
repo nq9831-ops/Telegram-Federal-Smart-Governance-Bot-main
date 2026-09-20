@@ -79,15 +79,27 @@ http.interceptors.response.use(
   },
 )
 
-/** 把 axios 错误转成能直接给运营者看的一句话。 */
-export function describeError(error: unknown): string {
+/** 审批类 403 的具体成因（不在复核人白名单内 / 不能审自己的案件）。 */
+export const FORBIDDEN_APPROVAL = '无权限（403）：当前操作人不在复核人白名单内，或该案件属于你本人。'
+
+/** 配置中心 403 的具体成因（不在配置写权限名单内）。 */
+export const FORBIDDEN_CONFIG = '无权限（403）：当前操作人不在配置写权限名单内。'
+
+/**
+ * 把 axios 错误转成能直接给运营者看的一句话。
+ *
+ * `forbidden` 覆盖 403 的具体成因——不同功能区含义不同：审批是「不在复核人白名单 / 不能审自己的
+ * 案件」，配置中心是「不在配置写权限名单」。写死一句会让其中一边指向错误的原因，
+ * 而「错误文案指向错误的原因」正是本项目列为静默失效的一类。不传时回落到中性文案。
+ */
+export function describeError(error: unknown, forbidden?: string): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status
     if (status === 401) {
       return '鉴权失败（401）：API 令牌缺失或错误，请重新填写。'
     }
     if (status === 403) {
-      return '无权限（403）：当前操作人不在复核人白名单内，或该案件属于你本人。'
+      return forbidden ?? '无权限（403）：当前操作人不在授权名单内。'
     }
     if (status === undefined) {
       return '无法连接到后端：请确认服务已启动、且反向代理/开发代理配置正确。'

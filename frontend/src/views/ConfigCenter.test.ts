@@ -21,6 +21,7 @@ vi.mock('../api/client', () => ({
   clearConfig: vi.fn(),
   restartSystem: vi.fn(),
   describeError: vi.fn((error: unknown) => `ERR:${String(error)}`),
+  FORBIDDEN_CONFIG: 'CONFIG_FORBIDDEN',
 }))
 
 // eslint-disable-next-line import/first

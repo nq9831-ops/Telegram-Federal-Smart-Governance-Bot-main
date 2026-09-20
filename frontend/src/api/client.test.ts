@@ -191,7 +191,7 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
     expect(c.describeError(err)).toBe('鉴权失败（401）：API 令牌缺失或错误，请重新填写。')
   })
 
-  it('403 → 无权限文案', async () => {
+  it('403 → 默认中性文案（不绑死某个功能区）', async () => {
     const c = await loadClient()
     const err = new AxiosError('boom', 'ERR_BAD_REQUEST', undefined, undefined, {
       status: 403,
@@ -200,7 +200,22 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
       config: {} as never,
       data: {},
     })
-    expect(c.describeError(err)).toBe('无权限（403）：当前操作人不在复核人白名单内，或该案件属于你本人。')
+    expect(c.describeError(err)).toBe('无权限（403）：当前操作人不在授权名单内。')
+  })
+
+  it('403 → 传入 forbidden 时用该功能区的具体成因（审批 / 配置中心各不同）', async () => {
+    const c = await loadClient()
+    const err = new AxiosError('boom', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status: 403,
+      statusText: '',
+      headers: {},
+      config: {} as never,
+      data: {},
+    })
+    expect(c.describeError(err, c.FORBIDDEN_APPROVAL))
+      .toBe('无权限（403）：当前操作人不在复核人白名单内，或该案件属于你本人。')
+    expect(c.describeError(err, c.FORBIDDEN_CONFIG))
+      .toBe('无权限（403）：当前操作人不在配置写权限名单内。')
   })
 
   it('无响应（连不上后端）→ 连接文案', async () => {

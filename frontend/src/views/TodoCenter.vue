@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { describeError, fetchApprovals, fetchConfig, fetchStats } from '../api/client'
+import { describeError, fetchApprovals, fetchConfig, fetchStats, FORBIDDEN_APPROVAL } from '../api/client'
 import type { ApprovalItem, ApprovalStats, ReviewStatus } from '../api/types'
 import DecisionDrawer from '../components/DecisionDrawer.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
@@ -46,6 +46,12 @@ function riskTagType(level: string): 'info' | 'warning' | 'danger' {
   return 'info'
 }
 
+/** 风险等级的中文名——与同表的「硬红线 / 待办」保持同一语言，不裸显后端英文枚举。 */
+function riskText(level: string): string {
+  const names: Record<string, string> = { NONE: '无', LOW: '低', MEDIUM: '中', HIGH: '高' }
+  return names[level] ?? level
+}
+
 function statusText(value: ReviewStatus): string {
   if (value === 'PENDING') return '待办'
   return value === 'APPROVED' ? '已维持' : '已推翻'
@@ -72,7 +78,7 @@ async function load(): Promise<void> {
     remindHours.value = readHours('tgg.admin.overdue-remind-hours')
     escalateHours.value = readHours('tgg.admin.overdue-escalate-hours')
   } catch (error) {
-    ElMessage.error(describeError(error))
+    ElMessage.error(describeError(error, FORBIDDEN_APPROVAL))
   } finally {
     loading.value = false
   }
@@ -158,7 +164,7 @@ onMounted(load)
             <template #default="{ row }">
               <el-tag v-if="row.hardLine" type="danger" effect="dark">硬红线</el-tag>
               <el-tag v-else :type="riskTagType(row.riskLevel)" effect="plain">
-                {{ row.riskLevel }}
+                {{ riskText(row.riskLevel) }}
               </el-tag>
             </template>
           </el-table-column>

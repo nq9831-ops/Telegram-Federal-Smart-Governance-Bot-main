@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import DecisionDrawer from './DecisionDrawer.vue'
-import type { ApprovalItem } from '../api/types'
+import type { ApprovalItem, RiskLevel } from '../api/types'
 
 /**
  * `DecisionDrawer` 的裁决路径测试。
@@ -24,6 +24,7 @@ import type { ApprovalItem } from '../api/types'
 vi.mock('../api/client', () => ({
   decide: vi.fn(),
   describeError: vi.fn((error: unknown) => `ERR:${String(error)}`),
+  FORBIDDEN_APPROVAL: 'APPROVAL_FORBIDDEN',
 }))
 
 // eslint-disable-next-line import/first
@@ -31,13 +32,13 @@ import { decide } from '../api/client'
 
 const decideMock = vi.mocked(decide)
 
-function pendingItem(): ApprovalItem {
+function pendingItem(riskLevel: RiskLevel = 'HIGH'): ApprovalItem {
   return {
     id: 42,
     chatId: -100,
     userId: 7,
     ruleIds: 'SCAM',
-    riskLevel: 'HIGH',
+    riskLevel,
     hardLine: false,
     status: 'PENDING',
     createdAt: '2026-09-19T00:00:00Z',
@@ -50,9 +51,9 @@ function pendingItem(): ApprovalItem {
 }
 
 /** 挂载抽屉。stub 掉 el-drawer 以免内容被 teleport 到 body、导致按钮查不到。 */
-function mountDrawer() {
+function mountDrawer(item: ApprovalItem = pendingItem()) {
   return mount(DecisionDrawer, {
-    props: { visible: true, item: pendingItem() },
+    props: { visible: true, item },
     global: {
       plugins: [ElementPlus],
       stubs: { ElDrawer: { template: '<div><slot /></div>' } },
@@ -72,7 +73,7 @@ beforeEach(() => {
   decideMock.mockResolvedValue({ result: 'DECIDED', status: 'REJECTED' })
 })
 
-describe('DecisionDrawer · 推翻需二次确认', () => {
+describe('DecisionDrawer · 有对外后果的裁决需二次确认', () => {
   it('用户取消 → 绝不发出裁决请求（这是二次确认的全部意义）', async () => {
     vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
     const wrapper = mountDrawer()
@@ -97,14 +98,36 @@ describe('DecisionDrawer · 推翻需二次确认', () => {
     expect(decideMock.mock.calls[0][1]).toMatchObject({ decision: 'REJECTED' })
   })
 
-  it('维持（无不可逆后果）不应弹确认框——否则每次维持都被多余打断', async () => {
+  it('维持非 HIGH（无禁言后果）不应弹确认框——否则每次维持都被多余打断', async () => {
     const confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
-    const wrapper = mountDrawer()
+    const wrapper = mountDrawer(pendingItem('MEDIUM'))
 
     await buttonByText(wrapper, '维持').trigger('click')
     await flushPromises()
 
     expect(confirmSpy).not.toHaveBeenCalled()
+    expect(decideMock.mock.calls[0][1]).toMatchObject({ decision: 'APPROVED' })
+  })
+
+  it('维持 HIGH 会追加 24h 禁言（对外动作）→ 必须二次确认；取消则不发出请求', async () => {
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const wrapper = mountDrawer(pendingItem('HIGH'))
+
+    await buttonByText(wrapper, '维持').trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1)
+    expect(decideMock).not.toHaveBeenCalled()
+  })
+
+  it('维持 HIGH 确认后以 APPROVED 发出裁决请求', async () => {
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const wrapper = mountDrawer(pendingItem('HIGH'))
+
+    await buttonByText(wrapper, '维持').trigger('click')
+    await flushPromises()
+
+    expect(decideMock).toHaveBeenCalledTimes(1)
     expect(decideMock.mock.calls[0][1]).toMatchObject({ decision: 'APPROVED' })
   })
 })

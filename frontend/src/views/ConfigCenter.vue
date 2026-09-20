@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { clearConfig, describeError, fetchConfig, fetchPermissions, restartSystem, updateConfig } from '../api/client'
+import { clearConfig, describeError, fetchConfig, fetchPermissions, restartSystem, updateConfig, FORBIDDEN_CONFIG } from '../api/client'
 import type { ConfigCategory, ConfigItem, WritePermission } from '../api/types'
 import ThemeToggle from '../components/ThemeToggle.vue'
 
@@ -57,7 +57,7 @@ async function load(): Promise<void> {
     writePermission.value = permissions
     drafts.value = {}
   } catch (error) {
-    ElMessage.error(describeError(error))
+    ElMessage.error(describeError(error, FORBIDDEN_CONFIG))
   } finally {
     loading.value = false
   }
@@ -77,7 +77,7 @@ async function save(item: ConfigItem): Promise<void> {
     ElMessage.success(`${item.key} 已保存${item.restartRequired ? '（重启后生效）' : ''}`)
     await load()
   } catch (error) {
-    ElMessage.error(describeError(error))
+    ElMessage.error(describeError(error, FORBIDDEN_CONFIG))
   }
 }
 
@@ -87,7 +87,7 @@ async function reset(item: ConfigItem): Promise<void> {
     ElMessage.success(`${item.key} 已恢复默认`)
     await load()
   } catch (error) {
-    ElMessage.error(describeError(error))
+    ElMessage.error(describeError(error, FORBIDDEN_CONFIG))
   }
 }
 
@@ -107,7 +107,7 @@ async function doRestart(): Promise<void> {
     await restartSystem()
     ElMessage.warning('重启已受理，页面稍后将不可用')
   } catch (error) {
-    ElMessage.error(describeError(error))
+    ElMessage.error(describeError(error, FORBIDDEN_CONFIG))
   }
 }
 
