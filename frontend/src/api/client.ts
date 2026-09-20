@@ -7,6 +7,7 @@ import type {
   DecideRequest,
   DecideSuccess,
   ReviewStatus,
+  WritePermission,
 } from './types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,6 +139,12 @@ export async function decide(id: number, body: DecideRequest): Promise<DecideSuc
 /** `GET /admin/config` —— 全量配置总览（密钥已由后端打码，前端拿不到明文）。 */
 export async function fetchConfig(): Promise<ConfigItem[]> {
   const { data } = await http.get<ConfigItem[]>('/admin/config')
+  return data
+}
+
+/** `GET /admin/config/permissions` —— 写权限名单来源（只读信息，供界面标注「现在谁有权写」）。 */
+export async function fetchPermissions(): Promise<WritePermission> {
+  const { data } = await http.get<WritePermission>('/admin/config/permissions')
   return data
 }
 

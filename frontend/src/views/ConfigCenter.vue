@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { clearConfig, describeError, fetchConfig, restartSystem, updateConfig } from '../api/client'
-import type { ConfigCategory, ConfigItem } from '../api/types'
+import { clearConfig, describeError, fetchConfig, fetchPermissions, restartSystem, updateConfig } from '../api/client'
+import type { ConfigCategory, ConfigItem, WritePermission } from '../api/types'
 import ThemeToggle from '../components/ThemeToggle.vue'
 
 defineProps<{ operator: string }>()
@@ -12,6 +12,25 @@ const loading = ref(false)
 const items = ref<ConfigItem[]>([])
 /** 各行的编辑草稿；未编辑时回落到当前生效值。 */
 const drafts = ref<Record<string, string>>({})
+/** 写权限名单来源（只读信息）。 */
+const writePermission = ref<WritePermission | null>(null)
+
+/**
+ * 「现在是谁有权写」——必须显式说出来。
+ *
+ * 回落复核人名单是**刻意的默认**（开箱即用），但它把「能审批」与「能改配置」绑在一起；
+ * 若不在界面上标注，运维会以为两者早已分离。
+ */
+const writePermissionText = computed(() => {
+  const info = writePermission.value
+  if (info === null) {
+    return '——'
+  }
+  const from = info.source === 'explicit'
+    ? '显式配置 tgg.admin.config-admins'
+    : '回落自 TGG_MODERATION_REVIEWERS（能审批的人也能改配置）'
+  return `共 ${info.count} 人有权写入；来源：${from}`
+})
 
 /** 分类的展示顺序与说明——把「能不能写、要不要重启」直接写在分组标题上。 */
 const CATEGORY_ORDER: ConfigCategory[] = ['RUNTIME', 'ASSEMBLY', 'SECRET', 'BOOTSTRAP']
@@ -33,7 +52,9 @@ const grouped = computed(() =>
 async function load(): Promise<void> {
   loading.value = true
   try {
-    items.value = await fetchConfig()
+    const [configItems, permissions] = await Promise.all([fetchConfig(), fetchPermissions()])
+    items.value = configItems
+    writePermission.value = permissions
     drafts.value = {}
   } catch (error) {
     ElMessage.error(describeError(error))
@@ -113,7 +134,16 @@ onMounted(load)
         :closable="false"
         show-icon
         title="密钥与引导态配置只读"
-        description="为防凭据经 Web 泄漏，密钥类配置在此只回显「已设 / 未设」，不可改写。装配开关的改动需重启后生效。"
+        :description="`为防凭据经 Web 泄漏，密钥类配置在此只回显「已设 / 未设」，不可改写。装配开关的改动需重启后生效。${writePermissionText}`"
+      />
+
+      <el-alert
+        class="block"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="群内自治配置不在此页管理"
+        description="违禁词、教学规则、群开关等是「按群」设置（不是键→值），入口在群内命令（/addword、/teach、/enable 等），与「群内事务由群管理员决定」的口径一致。本页只管理平台级配置。"
       />
 
       <el-card v-for="group in grouped" :key="group.category" shadow="never" class="group">

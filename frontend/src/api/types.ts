@@ -102,3 +102,14 @@ export interface ConfigItem {
   source: string
   description: string
 }
+
+/**
+ * 写权限名单来源 —— `ConfigController.WritePermission`。
+ *
+ * ⚠️ 默认 `source='reviewers'`（回落复核人名单）意味着「能审批的人也能改配置」。界面上必须显式标注，
+ * 否则运维会以为两者早已分离。
+ */
+export interface WritePermission {
+  source: 'explicit' | 'reviewers'
+  count: number
+}

@@ -47,6 +47,19 @@ public class ConfigAdminGuard {
         return userId != null && configAdmins().contains(userId);
     }
 
+    /**
+     * 当前写权限名单的**来源**——供界面标注「现在到底是谁有权写」。
+     *
+     * <p>回落是刻意的默认（开箱即用），但它把「能审批」与「能改配置」绑在一起；
+     * 若不把来源显式摆出来，运维会以为两者已经分离。启动日志已打印，但运维看的是后台页面。
+     *
+     * @return {@code "explicit"}（显式配置了 {@code tgg.admin.config-admins}）
+     *         或 {@code "reviewers"}（为空，回落复核人名单）
+     */
+    public String source() {
+        return config.getCsvIds(CONFIG_ADMINS_KEY).isEmpty() ? "reviewers" : "explicit";
+    }
+
     /** 无人可写时显式告警——否则运维会以为「后台能改配置」，实际点了按钮拿 403。 */
     @PostConstruct
     void warnIfNobodyCanWrite() {

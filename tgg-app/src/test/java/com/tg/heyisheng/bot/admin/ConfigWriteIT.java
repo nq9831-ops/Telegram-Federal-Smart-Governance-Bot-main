@@ -128,6 +128,31 @@ class ConfigWriteIT {
         assertThat(configService.getInt(HOT_KEY, 24)).isEqualTo(24);
     }
 
+    /** 审计必须能回答「原来是多少」——只记键名在事故回溯时等于没记。 */
+    @Test
+    void writeIsAuditedWithOldAndNewValues() throws Exception {
+        putAs(CONFIG_ADMIN, HOT_KEY, "6").andExpect(status().isOk());
+
+        String detail = jdbcTemplate.queryForObject(
+                "SELECT detail FROM audit_log WHERE action = 'admin.config.update' "
+                        + "ORDER BY id DESC LIMIT 1", String.class);
+
+        assertThat(detail).as("审计明细应含旧值与新值").contains("old=24").contains("new=6");
+    }
+
+    /** 写权限名单来源要能被界面读到（默认回落复核人名单）。 */
+    @Test
+    void writePermissionSourceIsExposed() throws Exception {
+        String body = mockMvc.perform(get("/admin/config/permissions")
+                        .header("Authorization", TOKEN)
+                        .header("X-Operator-Id", String.valueOf(CONFIG_ADMIN)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body).as("本测试显式配了 tgg.admin.config-admins，来源应为 explicit")
+                .contains("\"source\":\"explicit\"");
+    }
+
     // ───────────────────────── #4 装配开关改完不重启不生效 ─────────────────────────
 
     @Test

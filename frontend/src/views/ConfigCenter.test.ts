@@ -16,6 +16,7 @@ import type { ConfigItem } from '../api/types'
 
 vi.mock('../api/client', () => ({
   fetchConfig: vi.fn(),
+  fetchPermissions: vi.fn(),
   updateConfig: vi.fn(),
   clearConfig: vi.fn(),
   restartSystem: vi.fn(),
@@ -23,9 +24,10 @@ vi.mock('../api/client', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import { fetchConfig, restartSystem } from '../api/client'
+import { fetchConfig, fetchPermissions, restartSystem } from '../api/client'
 
 const fetchMock = vi.mocked(fetchConfig)
+const permissionsMock = vi.mocked(fetchPermissions)
 const restartMock = vi.mocked(restartSystem)
 
 function secretItem(): ConfigItem {
@@ -68,6 +70,7 @@ function mountView() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  permissionsMock.mockResolvedValue({ source: 'reviewers', count: 2 })
 })
 
 describe('ConfigCenter · 密钥只读', () => {
