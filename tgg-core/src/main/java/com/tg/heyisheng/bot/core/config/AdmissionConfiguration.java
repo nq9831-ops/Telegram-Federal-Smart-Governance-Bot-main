@@ -9,7 +9,6 @@ import com.tg.heyisheng.bot.core.admission.PendingVerificationRegistry;
 import com.tg.heyisheng.bot.core.admission.VerificationCallbackHandler;
 import com.tg.heyisheng.bot.core.admission.VerificationTimeoutSweeper;
 import com.tg.heyisheng.bot.core.callback.CallbackHandler;
-import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import jakarta.annotation.PostConstruct;
@@ -23,7 +22,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.List;
 
 /**
  * 模块四 · 准入与验证的装配。
@@ -106,15 +104,22 @@ public class AdmissionConfiguration {
         return new VerificationTimeoutSweeper(registry, moderationActionSender);
     }
 
+    /**
+     * 验证回调处理器。
+     *
+     * <p><b>只贡献处理器，不再自造 {@code CallbackRouter}</b>：路由已提升为**无条件装配**
+     * （见 {@code CallbackConfiguration}）。若仍把路由建在本类里，本模块关闭时交互卡片的回调
+     * 也会一起失去路由；反之若把路由建在交互开关下，则本模块关闭时「点验证」按钮失效。
+     * 路由只认「有哪些处理器」，与各模块开关无关。
+     *
+     * <p>本 bean 随类级 {@code @ConditionalOnProperty(tgg.admission)} 门控——与它的依赖
+     * （registry / idHasher / observationPeriodService）同生命周期，不会出现「处理器在、依赖不在」。
+     */
     @Bean
-    public CallbackRouter callbackRouter(PendingVerificationRegistry registry,
-                                         IdHasher idHasher,
-                                         ObservationPeriodService observationPeriodService,
-                                         AdmissionProperties properties) {
-        List<CallbackHandler> handlers = List.of(
-                new VerificationCallbackHandler(registry, idHasher, observationPeriodService));
-        log.info("准入验证已启用：回调处理器 {} 个，验证时限 {} 秒",
-                handlers.size(), properties.getTimeoutSeconds());
-        return new CallbackRouter(handlers);
+    public CallbackHandler verificationCallbackHandler(PendingVerificationRegistry registry,
+                                                       IdHasher idHasher,
+                                                       ObservationPeriodService observationPeriodService) {
+        log.info("准入验证已启用：已注册 verify 回调处理器");
+        return new VerificationCallbackHandler(registry, idHasher, observationPeriodService);
     }
 }
