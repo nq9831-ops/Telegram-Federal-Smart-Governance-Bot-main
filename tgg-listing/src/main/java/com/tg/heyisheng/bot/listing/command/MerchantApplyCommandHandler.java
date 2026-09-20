@@ -27,7 +27,7 @@ import java.util.Optional;
  * <p><b>防重复提交</b>：同一用户已有「在办」申请时拒绝新建并回显既有编号
  * （否则连续点两次就会产出两条并行申请，复核人无从判断该审哪条）。
  */
-@BotCommand(value = "merchant_apply", description = "提交商家入驻申请")
+@BotCommand(value = "merchant_apply", description = "提交商家入驻申请", publicCommand = true)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantApplyCommandHandler implements CommandHandler {
 

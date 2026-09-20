@@ -26,7 +26,7 @@ public class CommandRegistry {
 
     /** 一条命令的注册项。 */
     private record Entry(CommandHandler handler, Permission permission, boolean worksWhenDisabled,
-                         Confirm confirm, MenuCategory category) {
+                         Confirm confirm, MenuCategory category, boolean publicCommand) {
     }
 
     private final Map<String, Entry> entries;
@@ -53,7 +53,8 @@ public class CommandRegistry {
             }
             String owner = bean.getClass().getName();
             Entry entry = new Entry(handler, annotation.requiredPermission(),
-                    annotation.worksWhenDisabled(), annotation.confirm(), annotation.category());
+                    annotation.worksWhenDisabled(), annotation.confirm(), annotation.category(),
+                    annotation.publicCommand());
             register(map, annotation.value(), entry, owner);
             // 只把**主命令**收进菜单视图：别名（如 /ping）在客户端菜单里是噪声。
             // description() 自切片 1 起一直无人消费——命令菜单正是它的第一个消费者。
@@ -135,6 +136,16 @@ public class CommandRegistry {
     public MenuCategory categoryOf(String command) {
         Entry entry = entries.get(normalize(command));
         return entry == null ? MenuCategory.OTHER : entry.category();
+    }
+
+    /**
+     * 查询某命令是否**对全体成员公开**（见 {@link BotCommand#publicCommand()}）。
+     *
+     * @return 命令不存在时返回 {@code false}——未知命令本就不该被公开广播（fail-closed）
+     */
+    public boolean publicCommand(String command) {
+        Entry entry = entries.get(normalize(command));
+        return entry != null && entry.publicCommand();
     }
 
     public Set<String> registeredCommands() {

@@ -15,7 +15,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * 它是用户主动提交的管理输入，不进审核判定。
  */
 @Component
-@BotCommand(value = "appeal", description = "提交联邦申诉（解封申请）")
+@BotCommand(value = "appeal", description = "提交联邦申诉（解封申请）", publicCommand = true)
 @ConditionalOnProperty(prefix = "tgg.federation", name = "enabled", havingValue = "true")
 public class AppealCommandHandler implements CommandHandler {
 

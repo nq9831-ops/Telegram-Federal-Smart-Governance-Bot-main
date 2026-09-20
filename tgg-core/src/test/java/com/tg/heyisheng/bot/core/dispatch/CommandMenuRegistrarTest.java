@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,11 +40,22 @@ class CommandMenuRegistrarTest {
 
     // ────────────────────────── 测试用命令 ──────────────────────────
 
-    @BotCommand(value = "echo", description = "连通性测试")
+    @BotCommand(value = "echo", description = "连通性测试", publicCommand = true)
     static class EchoHandler implements CommandHandler {
         @Override
         public BotApiMethod<?> handle(UpdateContext ctx) {
             return new SendMessage(String.valueOf(ctx.chatId()), "pong");
+        }
+    }
+
+    /**
+     * 无权限点、未被接缝认领、又**没声明** {@code publicCommand}——按 fail-closed 不进任何档。
+     */
+    @BotCommand(value = "mystery", description = "谁都没管的命令")
+    static class MysteryHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            return new SendMessage(String.valueOf(ctx.chatId()), "?");
         }
     }
 
@@ -78,7 +88,8 @@ class CommandMenuRegistrarTest {
 
     private static CommandRegistry registry() {
         return new CommandRegistry(List.of(
-                new EchoHandler(), new WordsHandler(), new TeachHandler(), new ReviewListHandler()));
+                new EchoHandler(), new MysteryHandler(), new WordsHandler(), new TeachHandler(),
+                new ReviewListHandler()));
     }
 
     /** 命令名列表——避开 TelegramBots {@code BotCommand} 的类型名（见类 javadoc 的警告）。 */
@@ -89,13 +100,14 @@ class CommandMenuRegistrarTest {
                 .toList();
     }
 
-    /** 记录被发送的方法，替代真实网络调用。 */
-    private static final class CapturingSender implements Consumer<BotApiMethod<?>> {
+    /** 记录被发送的方法并**如实回报成功**，替代真实网络调用。 */
+    private static final class CapturingSender implements CommandMenuRegistrar.Sender {
         private final List<BotApiMethod<?>> sent = new ArrayList<>();
 
         @Override
-        public void accept(BotApiMethod<?> method) {
+        public boolean send(BotApiMethod<?> method) {
             sent.add(method);
+            return true;
         }
     }
 
@@ -159,6 +171,23 @@ class CommandMenuRegistrarTest {
         assertThat(menus.get(0).label()).isEqualTo("default");
         assertThat(menus.get(0).scope()).isInstanceOf(BotCommandScopeDefault.class);
         assertThat(names(menus.get(0).commands())).containsExactly("echo");
+    }
+
+    /**
+     * fail-closed：无权限点、未被接缝认领、又没声明 {@code publicCommand} 的命令**不进任何档**。
+     *
+     * <p>反过来的默认（公开）会有一个静默且危险的失效方式：有人新增一条「门控写在 handler 内、
+     * 注解权限留 {@code NONE}」的平台命令，只要忘了登记可见性接缝，它就会被默认档广播给所有人
+     * ——正是「客户端菜单向无权者暴露命令」那个原始缺陷的原样回归。
+     */
+    @Test
+    void unlistedCommandNeverAppearsInAnyTier() {
+        List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
+                registry(), SEAMED, List.of(new RoleGrant(CHAT, USER, Role.ADMIN)));
+
+        assertThat(menus).allSatisfy(menu -> assertThat(names(menu.commands()))
+                .as("档 %s 不得含未声明 publicCommand 的命令", menu.label())
+                .doesNotContain("mystery"));
     }
 
     /** 接缝类（平台白名单）不进任何档——包括管理档。 */
@@ -231,15 +260,22 @@ class CommandMenuRegistrarTest {
         assertThat(names(second.getCommands())).containsExactly("echo", "teach", "words");
     }
 
-    /** 逐档隔离：某档失败（如 bot 不是该群管理员）不得影响其余档。 */
+    /**
+     * 逐档隔离：某档发送失败不得影响其余档，**也不得被谎报为已注册**。
+     *
+     * <p>这里刻意用**真实的失败模式**——返回 {@code false} 而非抛异常：生产的 sender 是
+     * {@code TelegramApiMethodExecutor#execute}，它捕获所有异常后 {@code return false}，
+     * 从不抛出。若测试只会模拟「抛异常」，就会给「逐档隔离已生效」一个虚假的绿灯。
+     */
     @Test
-    void oneFailingTierDoesNotBlockTheOthers() {
+    void failingTierIsIsolatedAndNotReportedAsRegistered() {
         List<BotApiMethod<?>> sent = new ArrayList<>();
-        Consumer<BotApiMethod<?>> flaky = method -> {
+        CommandMenuRegistrar.Sender flaky = method -> {
             if (((SetMyCommands) method).getScope() instanceof BotCommandScopeChatMember) {
-                throw new IllegalStateException("bot is not an administrator in the chat");
+                return false;
             }
             sent.add(method);
+            return true;
         };
         CommandMenuRegistrar registrar = new CommandMenuRegistrar(
                 CommandMenuRegistrar.planMenus(registry(), SEAMED,
@@ -248,7 +284,27 @@ class CommandMenuRegistrarTest {
 
         List<String> registered = registrar.register();
 
-        assertThat(registered).as("失败的档不进结果，成功的档照旧").containsExactly("default");
+        assertThat(registered).as("失败的档既不影响其余档，也不进「已注册」").containsExactly("default");
+        assertThat(sent).hasSize(1);
+    }
+
+    /** 兜底：sender 实现若选择**抛出**（而非返回 false），同样逐档隔离。 */
+    @Test
+    void throwingSenderIsAlsoIsolated() {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        CommandMenuRegistrar.Sender throwing = method -> {
+            if (((SetMyCommands) method).getScope() instanceof BotCommandScopeChatMember) {
+                throw new IllegalStateException("boom");
+            }
+            sent.add(method);
+            return true;
+        };
+        CommandMenuRegistrar registrar = new CommandMenuRegistrar(
+                CommandMenuRegistrar.planMenus(registry(), SEAMED,
+                        List.of(new RoleGrant(CHAT, USER, Role.ADMIN))),
+                throwing);
+
+        assertThat(registrar.register()).containsExactly("default");
         assertThat(sent).hasSize(1);
     }
 

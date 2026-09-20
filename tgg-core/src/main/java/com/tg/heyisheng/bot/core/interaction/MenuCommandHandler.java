@@ -30,7 +30,7 @@ import java.util.Map;
  * 「对管理员友好」的诉求；与命令层「权限不足即静默」的取舍不同——那里静默是为了不暴露命令存在，
  * 而这里用户点开的就是一张公开的面板。
  */
-@BotCommand(value = "menu", description = "显示你可用的管理功能")
+@BotCommand(value = "menu", description = "显示你可用的管理功能", publicCommand = true)
 @Component
 @ConditionalOnProperty(prefix = "tgg.interaction", name = "enabled", havingValue = "true",
         matchIfMissing = true)

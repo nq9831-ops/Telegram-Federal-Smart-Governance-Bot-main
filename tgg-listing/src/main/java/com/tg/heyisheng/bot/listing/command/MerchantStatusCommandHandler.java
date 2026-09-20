@@ -20,7 +20,7 @@ import java.util.Optional;
  * <p><b>状态用中文短句而非枚举名</b>：{@code DEPOSIT_PENDING} 之类的内部枚举名对用户没有意义，
  * 而「待缴纳保证金」直接告诉他下一步要做什么。
  */
-@BotCommand(value = "merchant_status", description = "查看我的商家入驻状态")
+@BotCommand(value = "merchant_status", description = "查看我的商家入驻状态", publicCommand = true)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantStatusCommandHandler implements CommandHandler {
 

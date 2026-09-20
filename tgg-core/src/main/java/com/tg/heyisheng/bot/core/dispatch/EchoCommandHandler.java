@@ -11,7 +11,8 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * <p><b>刻意不回显用户输入</b>——{@link UpdateContext} 不含消息正文（隐私约束），
  * 且回显会把正文重新写回 Telegram 与日志。本处理器只证明链路连通。
  */
-@BotCommand(value = "echo", description = "连通性测试，回复固定文本", aliases = {"ping"})
+@BotCommand(value = "echo", description = "连通性测试，回复固定文本", aliases = {"ping"},
+        publicCommand = true)
 @Component
 public class EchoCommandHandler implements CommandHandler {
 

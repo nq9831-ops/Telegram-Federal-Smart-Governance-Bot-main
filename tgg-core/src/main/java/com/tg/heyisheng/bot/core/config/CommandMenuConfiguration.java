@@ -16,11 +16,9 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -69,7 +67,8 @@ public class CommandMenuConfiguration {
         String token = properties.getBotToken();
         // 无 token 时传 null（由 registrar 负责 WARN 并跳过），而不是在这里静默不装配——
         // 「没注册」这件事必须在日志里说得出来。
-        Consumer<BotApiMethod<?>> sender = (token == null || token.isBlank())
+        // 注意形状：Sender 返回 boolean，TelegramApiMethodExecutor#execute 的成败因此**不会**被丢弃。
+        CommandMenuRegistrar.Sender sender = (token == null || token.isBlank())
                 ? null
                 : new TelegramApiMethodExecutor(new OkHttpClient(), objectMapper, token)::execute;
         return new CommandMenuRegistrar(menus, sender);

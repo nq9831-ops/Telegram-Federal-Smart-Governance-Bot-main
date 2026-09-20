@@ -111,7 +111,7 @@ MySQL 用托管实例（应用单独部署）时 **1 vCPU / 1 GB** 足够。
 |---|---|---|
 | `TGG_PERMISSION_ADMINS` | 空 | 群内管理员授权，格式 `<chatId>:<userId>[:role]`。**为空则所有管理命令对任何人不可用**（启动会 WARN） |
 | `TGG_HASH_SALT` | 空 | 标识哈希用盐。不设会退回开发兜底盐（userId 空间小，固定盐可被枚举反推） |
-| `TGG_COMMAND_MENU_ENABLED` | **`true`** | 启动期把 `@BotCommand` 声明的命令清单注册到 Telegram（客户端输入 `/` 时的提示菜单）。这是**唯一默认开启**的开关。缺 `TGG_BOT_TOKEN` 时跳过并 WARN |
+| `TGG_COMMAND_MENU_ENABLED` | **`true`** | 启动期把命令清单**按权限分档**注册到 Telegram（客户端输入 `/` 时的提示菜单）：默认档只含声明了 `@BotCommand(publicCommand = true)` 的公开命令；`TGG_PERMISSION_ADMINS` 里每条授权额外得到一档 `BotCommandScopeChatMember`（公开命令 + 该角色确有权限的管理命令）。平台白名单类命令（复核/裁决等）**不进客户端菜单**（Telegram 无「全局按人」的 scope），由 `/menu` 卡片呈现。这是**唯一默认开启**的开关。缺 `TGG_BOT_TOKEN` 时跳过并 WARN；某档注册失败只 WARN、按档隔离，该档用户回落到默认档 |
 | `TGG_FAILOVER_ENABLED` | `false` | Webhook 失效后降级长轮询 |
 | `TGG_ADMISSION_ENABLED` | `false` | 入群验证 + 观察期；启用时要求 `TGG_BOT_TOKEN` |
 | `TGG_AI_DEEPSEEK_ENABLED` | `false` | L3 云端审核；启用后**消息正文会发送至 DeepSeek**（详见 `PRIVACY.md`），缺 `TGG_DEEPSEEK_API_KEY` 即启动失败 |

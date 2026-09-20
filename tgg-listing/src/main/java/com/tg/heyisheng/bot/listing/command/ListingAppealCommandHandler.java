@@ -42,7 +42,8 @@ import java.util.Optional;
  *
  * <p><b>日志脱敏</b>：申诉正文（{@code commandArgs}）<b>只落库、绝不进日志</b>。
  */
-@BotCommand(value = "listing_appeal", description = "对已下架的收录条目提交申诉")
+@BotCommand(value = "listing_appeal", description = "对已下架的收录条目提交申诉",
+        publicCommand = true)
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAppealCommandHandler implements CommandHandler {
 

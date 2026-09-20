@@ -79,4 +79,18 @@ public @interface BotCommand {
      * ——本项目在「哪些命令需要参数」的清单上已有同类教训。
      */
     MenuCategory category() default MenuCategory.OTHER;
+
+    /**
+     * 本命令是否**对全体成员公开**——即进客户端菜单的「默认档」（人人都看得见的那一份）。
+     *
+     * <p><b>默认 {@code false}，这是刻意的 fail-closed</b>：没声明就**不进默认档**。
+     * 反过来（默认公开）会有一个静默且危险的失效方式——有人新增一条「门控写在 handler 里、
+     * 注解权限留 {@code NONE}」的平台命令（如商家资质复核），只要忘了登记可见性接缝，它就会被
+     * 默认档广播给**所有人**，正是「客户端菜单向无权者暴露命令」那个原始缺陷的原样回归。
+     * 现在的失效方式是「客户端菜单里看不到它」——会被发现，而不是被忽略。
+     *
+     * <p>只对**无权限点**（{@code requiredPermission == NONE}）的命令有意义：
+     * 带权限点的命令走「逐成员档」，它的可见性由权限本身决定，与本属性无关。
+     */
+    boolean publicCommand() default false;
 }
