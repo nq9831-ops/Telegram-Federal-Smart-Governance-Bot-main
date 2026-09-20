@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.listing.command;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.listing.merchant.Merchant;
 import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
@@ -31,7 +32,8 @@ import java.util.Optional;
  * 其余状态（{@code APPROVED}/{@code DEPOSIT_PENDING}/{@code ACTIVE}/{@code REJECTED}）
  * 不可复核——给出明确提示，而不是让实体的非法迁移异常穿透到分发层。
  */
-@BotCommand(value = "merchant_review", description = "商家资质复核（复核人）")
+@BotCommand(value = "merchant_review", description = "商家资质复核（复核人）",
+        category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantReviewCommandHandler implements CommandHandler {
 

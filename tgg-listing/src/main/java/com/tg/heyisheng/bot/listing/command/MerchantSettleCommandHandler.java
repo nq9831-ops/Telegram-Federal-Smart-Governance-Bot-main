@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.listing.command;
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.Confirm;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDeposit;
@@ -43,7 +44,7 @@ import java.util.Optional;
  * 的「权限不足即静默」一致。
  */
 @BotCommand(value = "merchant_settle", description = "结算已冻结的商家保证金（平台复核人）",
-        confirm = Confirm.ALWAYS)
+        confirm = Confirm.ALWAYS, category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantSettleCommandHandler implements CommandHandler {
 

@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.listing.merchant;
 
 import com.tg.heyisheng.bot.credit.CreditService;
+import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +55,18 @@ public class MerchantConfiguration {
     @Bean
     public MerchantReviewGuard merchantReviewGuard() {
         return new MerchantReviewGuard(properties.parsedReviewers());
+    }
+
+    /**
+     * {@code /menu} 的「收录商家」可见性接缝：资质复核类命令走全局白名单，注册表判不出可见性，
+     * 故把判定交给菜单侧——详见 {@link MerchantMenuVisibility}。
+     *
+     * <p>随本类的 {@code tgg.merchant.enabled} 门控一同出现/消失：模块未启用时连命令都不存在，
+     * 菜单里自然不该有「收录商家」分类。
+     */
+    @Bean
+    public MenuVisibility merchantMenuVisibility(MerchantReviewGuard merchantReviewGuard) {
+        return new MerchantMenuVisibility(merchantReviewGuard);
     }
 
     /**
