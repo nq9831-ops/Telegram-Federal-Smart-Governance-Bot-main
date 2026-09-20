@@ -1,30 +1,50 @@
 package com.tg.heyisheng.bot.core.dispatch;
 
+import com.tg.heyisheng.bot.core.permission.Permission;
+import com.tg.heyisheng.bot.core.permission.RoleGrant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScope;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeChatMember;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
- * 启动期把命令清单注册到 Telegram —— 即客户端里输入 {@code /} 时弹出的命令菜单。
+ * 启动期把命令清单**按权限分档**注册到 Telegram——即客户端里输入 {@code /} 时弹出的提示菜单。
  *
- * <p><b>为什么必须做</b>：{@code @BotCommand.description()} 自切片 1 起就写着「暂未使用」，
- * 命令清单从未注册到 Telegram。真实环境实测（2026-09-19 · 公网 bot）：{@code getMyCommands}
- * 返回 **0 条**，于是 29 个命令在客户端里毫无提示——用户只能靠背。
+ * <p><b>为什么必须分档</b>：{@code setMyCommands} 不带 scope 就是「默认菜单」，**所有用户共享同一份**。
+ * 早先的实现正是如此——把全部命令一次性注册，于是任何普通成员都能在客户端看到
+ * {@code review_approve} / {@code merchant_settle} / {@code data_breach} 这些平台命令的名字。
+ * 那与项目「权限不足即静默、不向无权者暴露命令存在」的纪律相悖。
  *
- * <p><b>为什么要在本地过滤</b>：Telegram 的 {@code setMyCommands} 是**全量替换**，
+ * <p><b>分档规则</b>（见 {@link #planMenus}，由既有事实推导，不维护新的「命令→档位」表）：
+ * <ul>
+ *   <li><b>接缝类</b>（被某 {@code MenuVisibility} 认领的平台白名单命令）→ <b>不进任何档</b>。
+ *       Telegram 只有 per-{@code (chat,user)} 的 scope、**没有「全局按人」的 scope**，
+ *       而这些命令的授权是全局 userId 白名单、与群无关——它们由 {@code /menu} 卡片的可见性接缝呈现。</li>
+ *   <li><b>公开类</b>（无权限点且非接缝）→ {@link BotCommandScopeDefault}，人人可见。</li>
+ *   <li><b>管理类</b>（{@code requiredPermission != NONE} 且非接缝）→ 只进「该群该人有权限」的
+ *       {@link BotCommandScopeChatMember}，按该条授权的 {@code Role} 逐条过滤——
+ *       例如 {@code MODERATOR} 不该看到它跑不了的 {@code /words}。</li>
+ * </ul>
+ *
+ * <p><b>为什么在本地过滤</b>：Telegram 的 {@code setMyCommands} 是**全量替换**（按 scope 各算一份），
  * 一个不合法的条目会让整个请求失败、菜单保持原样（表现为「注册了但一条都没生效」）。
- * 故先按 Bot API 的硬约束剔条目，再一次性发送。
+ * 故先按 Bot API 的硬约束剔条目，再逐档发送。
  *
- * <p>失败**不影响启动**：注册菜单是锦上添花，不该让整个进程起不来；异常只记日志。
+ * <p><b>失败不影响启动</b>：注册菜单是锦上添花，不该让整个进程起不来；异常只记日志。
+ * 且**逐档隔离**——某档失败（如 bot 不是该群管理员、目标用户已退群）不影响其余档。
  */
 public class CommandMenuRegistrar {
 
@@ -36,19 +56,82 @@ public class CommandMenuRegistrar {
     /** Bot API 对命令名的硬约束：1–32 个 {@code [a-z0-9_]}。 */
     private static final Pattern NAME_PATTERN = Pattern.compile("[a-z0-9_]{1,32}");
 
-    private final Map<String, String> commands;
+    /**
+     * 一档菜单：某个 scope 下要注册的命令。
+     *
+     * @param scope    Telegram 的 scope（默认档 / 逐成员档…）
+     * @param label    仅用于日志与断言（如 {@code default} / {@code member:-100:42}）
+     * @param commands 该档要注册的命令（已清洗、已排序）
+     */
+    public record ScopedMenu(BotCommandScope scope, String label, List<BotCommand> commands) {
+    }
+
+    private final List<ScopedMenu> menus;
     /** 发送通道；为 {@code null} 表示未配置 bot token（跳过注册）。 */
     private final Consumer<BotApiMethod<?>> sender;
 
-    public CommandMenuRegistrar(Map<String, String> commands, Consumer<BotApiMethod<?>> sender) {
-        this.commands = Map.copyOf(commands);
+    public CommandMenuRegistrar(List<ScopedMenu> menus, Consumer<BotApiMethod<?>> sender) {
+        this.menus = List.copyOf(menus);
         this.sender = sender;
     }
 
     /**
-     * 组装并注册命令菜单。
+     * 组装分档菜单（**纯函数**，便于单测）。
      *
-     * @return 实际注册进的命令名（按菜单顺序）；未注册时为空列表
+     * @param registry    命令注册表（提供主命令、描述与所需权限）
+     * @param seamCommands 被可见性接缝认领的命令名（即平台白名单类，不进客户端菜单）
+     * @param grants      已授权项（{@code tgg.permission.admins} 解析所得）
+     * @return 至少含一个默认档；逐成员档仅在「该授权确实能多看到至少一条管理命令」时才生成
+     */
+    public static List<ScopedMenu> planMenus(CommandRegistry registry,
+                                             Set<String> seamCommands,
+                                             List<RoleGrant> grants) {
+        Map<String, String> publicSpec = new LinkedHashMap<>();
+        Map<String, String> managementSpec = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : registry.mainCommands().entrySet()) {
+            String name = entry.getKey();
+            if (seamCommands.contains(name)) {
+                // 接缝类：平台白名单，授权与群无关，Telegram 没有「全局按人」的 scope——由 /menu 负责
+                continue;
+            }
+            if (registry.requiredPermission(name) == Permission.NONE) {
+                publicSpec.put(name, entry.getValue());
+            } else {
+                managementSpec.put(name, entry.getValue());
+            }
+        }
+
+        List<ScopedMenu> planned = new ArrayList<>();
+        List<BotCommand> publicCommands = toMenuCommands(publicSpec);
+        planned.add(new ScopedMenu(new BotCommandScopeDefault(), "default", publicCommands));
+
+        for (RoleGrant grant : grants) {
+            Map<String, String> forGrant = new LinkedHashMap<>(publicSpec);
+            boolean extraManagement = false;
+            for (Map.Entry<String, String> entry : managementSpec.entrySet()) {
+                // 按**该条授权的角色**过滤：MODERATOR 只有 BAN_USER，不该看到 /words 这类管理命令
+                if (grant.role().has(registry.requiredPermission(entry.getKey()))) {
+                    forGrant.put(entry.getKey(), entry.getValue());
+                    extraManagement = true;
+                }
+            }
+            if (!extraManagement) {
+                // 该授权不额外看到任何管理命令（如 MODERATOR/MEMBER）——不浪费一次 API 调用，
+                // 它会自然落到默认档
+                continue;
+            }
+            planned.add(new ScopedMenu(
+                    new BotCommandScopeChatMember(String.valueOf(grant.chatId()), grant.userId()),
+                    "member:" + grant.chatId() + ":" + grant.userId(),
+                    toMenuCommands(forGrant)));
+        }
+        return List.copyOf(planned);
+    }
+
+    /**
+     * 逐档注册。
+     *
+     * @return 实际注册成功的档位标签（供日志与测试）；未配置 token 时为空列表
      */
     public List<String> register() {
         if (sender == null) {
@@ -56,24 +139,32 @@ public class CommandMenuRegistrar {
                     + "注入 token 后重启即自动注册。");
             return List.of();
         }
-
-        List<BotCommand> menu = toMenuCommands(commands);
-        if (menu.isEmpty()) {
-            // 空列表在 Bot API 里是合法请求——它会**清空**既有菜单，那不是这里想要的语义
-            log.warn("命令菜单为空（所有命令都缺描述或名字非法），本次不发送以免清空既有菜单");
+        if (menus.isEmpty()) {
+            log.warn("命令菜单分档为空（无任何可注册的命令），本次不发送以免清空既有菜单");
             return List.of();
         }
 
-        List<String> names = menu.stream().map(BotCommand::getCommand).toList();
-        try {
-            sender.accept(new SetMyCommands(menu));
-            log.info("已注册命令菜单 {} 条：{}", names.size(), String.join(" ", names));
-            return names;
-        } catch (RuntimeException ex) {
-            // 菜单注册失败不该影响服务可用性
-            log.warn("注册命令菜单失败（不影响命令本身可用）：{}", ex.toString());
-            return List.of();
+        List<String> registered = new ArrayList<>();
+        for (ScopedMenu menu : menus) {
+            if (menu.commands().isEmpty()) {
+                // 空列表在 Bot API 里是合法请求——它会**清空**该 scope 的既有菜单，那不是这里想要的语义
+                log.warn("跳过空档 {}（空列表会清空该 scope 的既有菜单）", menu.label());
+                continue;
+            }
+            try {
+                sender.accept(SetMyCommands.builder()
+                        .commands(menu.commands())
+                        .scope(menu.scope())
+                        .build());
+                registered.add(menu.label());
+                log.info("已注册命令菜单档 {}：{} 条", menu.label(), menu.commands().size());
+            } catch (RuntimeException ex) {
+                // 逐档隔离：某档失败（如 bot 不是该群管理员、目标用户已退群）不影响其余档与启动
+                log.warn("注册命令菜单档 {} 失败（该档用户将回落到默认档）：{}",
+                        menu.label(), ex.toString());
+            }
         }
+        return List.copyOf(registered);
     }
 
     /**
