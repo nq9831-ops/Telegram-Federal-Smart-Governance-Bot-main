@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.federation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tg.heyisheng.bot.core.dispatch.CommandMenuRegistrar;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigRepository;
@@ -50,7 +51,7 @@ class FederationMenuVisibilityWiringTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(FederationConfiguration.class)
             .withUserConfiguration(ApproveAppealCommandHandler.class, RejectAppealCommandHandler.class,
-                    PendingAppealsCommandHandler.class)
+                    PendingAppealsCommandHandler.class, AppealCommandHandler.class)
             .withBean(GroupConfigRepository.class, () -> mock(GroupConfigRepository.class))
             // ApplicationContextRunner 不加载 JPA，仓库需手工补（同 FederationWiringTest 范式）
             .withBean(FederationPenaltyRepository.class, () -> mock(FederationPenaltyRepository.class))
@@ -69,7 +70,8 @@ class FederationMenuVisibilityWiringTest {
         return new CommandRegistry(List.of(
                 context.getBean(ApproveAppealCommandHandler.class),
                 context.getBean(RejectAppealCommandHandler.class),
-                context.getBean(PendingAppealsCommandHandler.class)));
+                context.getBean(PendingAppealsCommandHandler.class),
+                context.getBean(AppealCommandHandler.class)));
     }
 
     /** 只读展示：不涉及群内权限，故权限判定恒为普通成员——可见性完全由接缝决定。 */
@@ -98,6 +100,43 @@ class FederationMenuVisibilityWiringTest {
                     assertThat(seam.visible(CHAT, OTHER)).isFalse();
                     assertThat(seam.visible(CHAT, null)).as("身份不可识别一律不可见").isFalse();
                 });
+    }
+
+    /**
+     * 联邦模块的两类命令各归各档：{@code /appeal} 是**成员自助**（对所有人公开），
+     * 三条裁决命令是**平台白名单**（只对联邦管理员可见）——两者不能混。
+     *
+     * <p>注意别把两个入口搞混：{@code /appeal} **不进** {@code /menu} 卡片（那是管理面板，
+     * 只收带权限点或被接缝认领的命令），但它**应该进客户端菜单的默认档**——
+     * 后者由 {@code publicCommand} 决定。故这里断言的是 {@code planMenus} 的分档结果。
+     *
+     * <p>这条不变量覆盖了 {@code appeal} 的 {@code publicCommand} 声明：federation 模块开关在
+     * {@code CommandMenuContentTest} 里默认关闭，若不在这里校验，那条声明删掉也不会有测试变红。
+     */
+    @Test
+    void appealIsPublicWhileRulingsAreSeamed() {
+        runner.withPropertyValues("tgg.federation.enabled=true",
+                        "tgg.federation.nodes=" + NODE_SPEC,
+                        "tgg.federation.admins=" + ADMIN)
+                .run(context -> {
+                    CommandRegistry registry = registryOf(context);
+                    List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
+                            registry, context.getBean(MenuVisibility.class).commands(), List.of());
+
+                    assertThat(namesOf(menus.get(0)))
+                            .as("/appeal 是成员自助命令，应进客户端菜单的默认档")
+                            .contains("appeal");
+                    assertThat(menus).allSatisfy(menu -> assertThat(namesOf(menu))
+                            .as("档 %s 不得含平台裁决命令（它们只经 /menu 呈现）", menu.label())
+                            .doesNotContain("approve", "reject", "pending"));
+                });
+    }
+
+    /** 取某一档的命令名——绕开 TelegramBots {@code BotCommand} 的类型名。 */
+    private static List<String> namesOf(CommandMenuRegistrar.ScopedMenu menu) {
+        return menu.commands().stream()
+                .map(org.telegram.telegrambots.meta.api.objects.commands.BotCommand::getCommand)
+                .toList();
     }
 
     /** 端到端接线：真实接缝 + 真实 core 聚合器 → 联邦管理员看到「复核合规」分类，其他人看不到。 */

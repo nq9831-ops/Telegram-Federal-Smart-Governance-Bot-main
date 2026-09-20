@@ -37,10 +37,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 「本该是平台门控却漏登记接缝、于是落进公开档」完全没有感觉——命令落进公开档时仍在
  * {@code inTiers} 里，并集照旧成立。故 ①②③ 都按**判据逐条复算**。
  *
+ * <p>⚠️ <b>模块开关必须显式打开</b>：测试环境默认关闭 listing / merchant / federation，
+ * 若不打开，注册表里只有 core 的 17 条命令——那几条公开命令的 {@code publicCommand} 声明
+ * 就**无人校验**（删掉也不会有测试变红）。这正是本项目反复踩的「开关默认关闭 → 该路径长期假绿」。
+ * federation 需要可解析的对端公钥（注解要求编译期常量），故其命令由
+ * {@code FederationMenuVisibilityWiringTest} 覆盖，本类开启 listing + merchant。
+ *
  * <p>同时把分档结果写到 {@code target/command-menu.json}：部署时可用它核对
  * Telegram 侧各 scope 的真实注册结果（{@code getMyCommands}）。
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "tgg.listing.enabled=true",
+        "tgg.merchant.enabled=true"
+})
 class CommandMenuContentTest {
 
     @Autowired
