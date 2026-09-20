@@ -151,6 +151,29 @@ class MenuCallbackHandlerTest {
                 .containsExactly("menu:" + CHAT + ":nav:moderation");
     }
 
+    /**
+     * 无权限时卡片回「没有管理权限」，并且**必须去掉按钮**。
+     *
+     * <p>去按钮要传**空键盘**——{@code editMessageText} 不传 {@code replyMarkup} 会**保留**原按钮，
+     * 于是用户看到「你在此群没有管理权限」却仍能点那张卡的分类入口。
+     */
+    @Test
+    void noPermissionCardLosesItsButtons() {
+        when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
+        MenuCatalog catalog = new MenuCatalog(providerOf(
+                new CommandRegistry(List.of(new WordsHandler(), new MenuHandler()))),
+                new PermissionChecker(Role.MEMBER), List.of());
+        MenuCallbackHandler member = new MenuCallbackHandler(bridge, catalog, groupConfigs);
+
+        Optional<BotApiMethod<?>> result = member.handle(click("menu:" + CHAT + ":nav:home"));
+
+        EditMessageText card = (EditMessageText) result.orElseThrow();
+        assertThat(card.getText()).isEqualTo(MenuCommandHandler.NO_PERMISSION);
+        assertThat(((InlineKeyboardMarkup) card.getReplyMarkup()).getKeyboard())
+                .as("卡片置为终态就必须显式空键盘，否则旧按钮会留着")
+                .isEmpty();
+    }
+
     /** data 格式非法 → 回一句提示，且**不**打扰桥（不猜、不执行）。 */
     @Test
     void rejectsMalformedDataWithoutTouchingBridge() {

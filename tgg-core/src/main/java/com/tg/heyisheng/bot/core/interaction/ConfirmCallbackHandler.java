@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.core.callback.CallbackHandler;
 import com.tg.heyisheng.bot.core.dispatch.ConfirmationRequests;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 
 import java.util.Optional;
@@ -49,7 +50,33 @@ public class ConfirmCallbackHandler implements CallbackHandler {
             return Optional.of(answer(query, EXPIRED));
         }
         ConfirmationStore.PendingAction pending = action.get();
+        // 卡片置为终态：**尽力而为**——唯一的返回槽要留给命令结果（那是不可丢的产出）。
+        // 不更新的话，命令执行完之后卡片上的两个按钮还挂着，用户仍能点到。
+        bridge.sendSupplement(terminalCard(pending.chatId(), query,
+                "✅ 已确认，正在执行 /" + pending.command() + "…"));
         return bridge.execute(query, pending.chatId(), pending.command(), pending.args(), true);
+    }
+
+    /**
+     * 把确认卡置为终态：换文案 + **显式空键盘**去按钮。
+     *
+     * <p>chatId 由调用方传入（确认卡就发在那个群里），不依赖回调里那条可选的消息字段
+     * ——与 {@code CallbackCommandBridge} 的既有约定一致。
+     *
+     * <p>取不到消息 id 时返回 {@code null}——这是补充动作，没有可编辑的目标就跳过，
+     * 不能因此让主流程（执行命令 / 回执）失败。
+     */
+    static BotApiMethod<?> terminalCard(long chatId, CallbackQuery query, String text) {
+        Integer messageId = query.getMessage() == null ? null : query.getMessage().getMessageId();
+        if (messageId == null) {
+            return null;
+        }
+        return EditMessageText.builder()
+                .chatId(String.valueOf(chatId))
+                .messageId(messageId)
+                .text(text)
+                .replyMarkup(MenuView.noKeyboard())
+                .build();
     }
 
     /** 取 {@code cfm:<nonce>} / {@code cfn:<nonce>} 里的令牌；不合形返回 null。 */

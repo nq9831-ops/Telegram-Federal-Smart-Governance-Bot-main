@@ -59,6 +59,16 @@ public final class MenuView {
         return MenuCommandHandler.CALLBACK_ACTION + ":" + chatId + ":" + NAV_VERB + ":" + key;
     }
 
+    /**
+     * 空键盘：把卡片置为终态（不再可点）时**必须显式传它**。
+     *
+     * <p>Bot API 的 {@code editMessageText} 在**不传** {@code reply_markup} 时会**保留**原按钮——
+     * 于是「卡片置为终态」会变成「文字变了、按钮还在」，用户仍能点到已经失效的按钮。
+     */
+    public static InlineKeyboardMarkup noKeyboard() {
+        return InlineKeyboardMarkup.builder().keyboard(List.of()).build();
+    }
+
     /** 命令按钮的 {@code data}。 */
     static String runData(long chatId, String command) {
         return MenuCommandHandler.CALLBACK_ACTION + ":" + chatId + ":" + RUN_VERB + ":" + command;

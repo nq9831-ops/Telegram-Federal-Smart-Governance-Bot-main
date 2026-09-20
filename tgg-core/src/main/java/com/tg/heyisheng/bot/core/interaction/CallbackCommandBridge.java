@@ -138,8 +138,21 @@ public class CallbackCommandBridge {
      * ——与 {@link #execute} 的既有行为一致（结果照旧送达，只是按钮可能转圈到超时）。
      */
     public void acknowledge(CallbackQuery query) {
-        if (proactiveSender != null && query != null) {
-            proactiveSender.accept(answer(query, null));
+        if (query != null) {
+            sendSupplement(answer(query, null));
+        }
+    }
+
+    /**
+     * 尽力而为地发一个**补充**方法（典型用途：把确认卡置为终态）。
+     *
+     * <p>一次 webhook 只有一个返回槽，那条通路要留给**不可丢的产出**（命令结果、卡片终态本身）；
+     * 其余界面更新走这里，失败只表现为「少一次更新」，不影响命令是否执行。
+     * 未配置 bot token 时什么都不做——与 {@link #execute} 的既有行为一致。
+     */
+    public void sendSupplement(BotApiMethod<?> method) {
+        if (proactiveSender != null && method != null) {
+            proactiveSender.accept(method);
         }
     }
 }

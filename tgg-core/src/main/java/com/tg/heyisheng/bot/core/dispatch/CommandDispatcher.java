@@ -93,6 +93,16 @@ public class CommandDispatcher {
      *
      * <p>复述参数是刻意的——用户点按钮时多半已忘了当初打的什么，卡片必须把「将要发生什么」写清楚。
      */
+    /**
+     * 确认卡：复述将要执行的命令，给出「确认 / 取消」。
+     *
+     * <p>复述参数是刻意的——用户点按钮时多半已忘了当初打的什么，卡片必须把「将要发生什么」写清楚。
+     *
+     * <p><b>不写「该操作不可撤销」</b>：被标需要确认的 9 条命令里，`/disable`（可 `/enable` 回来）、
+     * `/data_breach`（追加一条合规记录）、`/merchant_exit`（走申请流程）都不是严格不可逆。
+     * 对**所有**命令一律断言「不可撤销」会让用户学会无视这句话，反而削弱了真正不可逆那几条的警示。
+     * 改成准确且不说满的措辞，把注意力锚在唯一真正能防的错误——参数/命令看错。
+     */
     private static BotApiMethod<?> confirmationCard(UpdateContext ctx, String command, String nonce) {
         String args = ctx.commandArgs().orElse(null);
         String preview = "/" + command + (args == null || args.isBlank() ? "" : " " + args);
@@ -108,7 +118,7 @@ public class CommandDispatcher {
 
         return SendMessage.builder()
                 .chatId(String.valueOf(ctx.chatId()))
-                .text("即将执行：" + preview + "\n该操作不可撤销，请确认。")
+                .text("即将执行：" + preview + "\n请核对命令与参数；确认后将立即执行。")
                 .replyMarkup(InlineKeyboardMarkup.builder()
                         .keyboard(List.of(new InlineKeyboardRow(confirm), new InlineKeyboardRow(cancel)))
                         .build())

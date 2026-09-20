@@ -140,9 +140,10 @@ public class InteractionConfiguration {
         return new ConfirmCallbackHandler(confirmationStore, callbackCommandBridge);
     }
 
-    /** 「❌ 取消」：消费令牌使其立即作废（否则取消之后原卡上的确认按钮仍然有效）。 */
+    /** 「❌ 取消」：消费令牌使其立即作废（否则取消之后原卡上的确认按钮仍然有效），并把卡片置为终态。 */
     @Bean
-    public CallbackHandler confirmCancelCallbackHandler(ConfirmationStore confirmationStore) {
-        return new ConfirmCancelCallbackHandler(confirmationStore);
+    public CallbackHandler confirmCancelCallbackHandler(ConfirmationStore confirmationStore,
+                                                        CallbackCommandBridge callbackCommandBridge) {
+        return new ConfirmCancelCallbackHandler(confirmationStore, callbackCommandBridge);
     }
 }

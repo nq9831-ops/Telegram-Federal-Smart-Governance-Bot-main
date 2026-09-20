@@ -115,7 +115,9 @@ public class MenuCallbackHandler implements CallbackHandler {
                     .chatId(String.valueOf(chatId))
                     .messageId(messageId)
                     .text(text)
-                    .replyMarkup(keyboard)
+                    // keyboard 为 null 表示「这张卡不再可点」——必须显式传空键盘，
+                    // 不传 replyMarkup 会**保留**原按钮，用户仍能点到已失效的入口
+                    .replyMarkup(keyboard == null ? MenuView.noKeyboard() : keyboard)
                     .build();
         }
         return SendMessage.builder()
