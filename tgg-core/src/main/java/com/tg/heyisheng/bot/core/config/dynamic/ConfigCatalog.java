@@ -143,7 +143,58 @@ public final class ConfigCatalog {
                     "敏感话题计数的保留天数。**热生效**。"),
             new ConfigKey("tgg.retention.membership-days", ConfigCategory.RUNTIME, ConfigValueType.INT,
                     true, false, false, "365", 0, 3650, null,
-                    "入群观察数据的保留天数（兜底，正常靠退群即删）。**热生效**。")
+                    "入群观察数据的保留天数（兜底，正常靠退群即删）。**热生效**。"),
+
+            // ─────────── ⓓ 补充：此前漏登记、只出现在 application.yml 里的键 ───────────
+            // 它们不影响功能，但会让「配置中心」给出「都在这儿」的错觉（本轮审查抓到）。
+            // ⚠️ cron 一律标「需重启」：@Scheduled(cron = "${...}") 在**装配期**就把表达式固定了，
+            //    写库不会重排任务——诚实标注比假装热生效重要。
+            new ConfigKey("tgg.admin.config-cache-ttl-seconds", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    false, true, false, "10", 0, 3600, null,
+                    "配置覆盖缓存的 TTL（秒）：跨副本传播的最大延迟；0=只在启动与本地写入时加载。"
+                            + "**只读**——它在读路径上使用，若自身可写会形成「读配置以决定如何读配置」的递归。"),
+            new ConfigKey("tgg.admin.overdue-cron", ConfigCategory.RUNTIME, ConfigValueType.CRON,
+                    true, true, false, "0 15 * * * *", null, null, null,
+                    "审批超时扫描的 cron。改动**需重启**（@Scheduled 在装配期固定）。"),
+            new ConfigKey("tgg.moderation.redline-sla-cron", ConfigCategory.RUNTIME, ConfigValueType.CRON,
+                    true, true, false, "0 5 * * * *", null, null, null,
+                    "§10.6 红线复核 SLA 催办的 cron。改动**需重启**。"),
+            new ConfigKey("tgg.breach.remind-cron", ConfigCategory.RUNTIME, ConfigValueType.CRON,
+                    true, true, false, "0 0 * * * *", null, null, null,
+                    "数据泄露 72 小时通报催办的 cron。改动**需重启**。"),
+            new ConfigKey("tgg.retention.cron", ConfigCategory.RUNTIME, ConfigValueType.CRON,
+                    true, true, false, "0 30 4 * * *", null, null, null,
+                    "保留策略每日执行的 cron。改动**需重启**。"),
+            new ConfigKey("tgg.listing.verify-cron", ConfigCategory.RUNTIME, ConfigValueType.CRON,
+                    true, true, false, "0 0 3 * * *", null, null, null,
+                    "收录链接每日验证的 cron（仅模块五启用时生效）。改动**需重启**。"),
+            new ConfigKey("tgg.admission.timeout-seconds", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "120", 1, 86400, null,
+                    "入群验证的超时秒数（仅模块四启用时生效）。改动**需重启**。"),
+            new ConfigKey("tgg.admission.observation-seconds", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "604800", 0, 31536000, null,
+                    "新成员观察期秒数（默认 7 天）。改动**需重启**。"),
+            new ConfigKey("tgg.listing.fail-threshold", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "3", 1, 100, null,
+                    "收录链接连续失败几次判失效并下架。改动**需重启**。"),
+            new ConfigKey("tgg.listing.retry-times", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "2", 0, 10, null,
+                    "收录链接验证失败后的重试次数。改动**需重启**。"),
+            new ConfigKey("tgg.listing.retry-interval-minutes", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "5", 1, 1440, null,
+                    "收录链接验证重试的间隔分钟数。改动**需重启**。"),
+            new ConfigKey("tgg.listing.dispute-window-days", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "7", 0, 3650, null,
+                    "收录下架的异议期天数。改动**需重启**。"),
+            new ConfigKey("tgg.failover.failure-threshold", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "3", 1, 100, null,
+                    "降级判定：连续几次探测不健康即切换长轮询（仅模块二启用时生效）。改动**需重启**。"),
+            new ConfigKey("tgg.failover.error-window-seconds", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "300", 1, 86400, null,
+                    "降级健康探测的错误统计窗口秒数。改动**需重启**。"),
+            new ConfigKey("spring.datasource.driver-class-name", ConfigCategory.BOOTSTRAP, ConfigValueType.STRING,
+                    false, true, false, "com.mysql.cj.jdbc.Driver", null, null, null,
+                    "JDBC 驱动类名。应用启动的前提，只读。")
     );
 
     /** 全部键（只读视图）。 */

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 运行期配置服务——配置中心的核心。
@@ -45,6 +46,20 @@ public class RuntimeConfigService {
     /** 键 → 覆盖值（仅覆盖，不含环境/默认；缺键即「无覆盖」）。 */
     private final Map<String, String> cache = new ConcurrentHashMap<>();
 
+    /**
+     * 覆盖缓存 TTL 的配置键。
+     *
+     * <p><b>刻意只从 {@link Environment} 读，不经本服务的解析链</b>——否则会形成
+     * 「读配置以决定如何读配置」的递归。故它在配置中心里是只读项。
+     */
+    static final String CACHE_TTL_KEY = "tgg.admin.config-cache-ttl-seconds";
+    private static final long DEFAULT_TTL_SECONDS = 10;
+
+    /** 上次成功/尝试加载覆盖的时间（毫秒）。 */
+    private volatile long loadedAtMillis;
+    /** 防止 TTL 到期时多线程同时刷新（抢不到锁的线程沿用旧值，最终一致）。 */
+    private final AtomicBoolean refreshing = new AtomicBoolean(false);
+
     @Autowired
     public RuntimeConfigService(ConfigOverrideRepository overrides, Environment environment) {
         this(overrides, environment, Clock.systemUTC());
@@ -55,6 +70,9 @@ public class RuntimeConfigService {
         this.overrides = overrides;
         this.environment = environment;
         this.clock = clock;
+        // 立即视为「刚加载过」——否则一个还没加载过缓存的实例（如单测里手工 new 的）
+        // 会在第一次 resolve 时被判为过期，进而在无数据的仓库替身上炸出 NPE。
+        this.loadedAtMillis = clock.millis();
     }
 
     /** 启动加载覆盖值。失败不阻断启动——配置中心是增强能力，不该成为启动的单点。 */
@@ -71,17 +89,62 @@ public class RuntimeConfigService {
     /** 从库重载覆盖值到缓存。 */
     @Transactional(readOnly = true)
     public void reload() {
-        Map<String, String> fresh = new ConcurrentHashMap<>();
-        for (ConfigOverride override : overrides.findAll()) {
-            fresh.put(override.getConfigKey(), override.getConfigValue());
+        try {
+            Map<String, String> fresh = new ConcurrentHashMap<>();
+            for (ConfigOverride override : overrides.findAll()) {
+                fresh.put(override.getConfigKey(), override.getConfigValue());
+            }
+            cache.clear();
+            cache.putAll(fresh);
+            log.info("配置覆盖已加载：{} 条", fresh.size());
+        } finally {
+            // 失败也记时间戳：把重试节流到 TTL 一次，避免每次 resolve 都撞同一个错误刷日志。
+            loadedAtMillis = clock.millis();
         }
-        cache.clear();
-        cache.putAll(fresh);
-        log.info("配置覆盖已加载：{} 条", fresh.size());
+    }
+
+    /**
+     * TTL 到期就从库重读覆盖值——**这是多副本下「热参数真的热」的前提**。
+     *
+     * <p>缓存是进程内的：A 副本经 Web 改了配置，B 副本的内存缓存不会自动知道。
+     * 有 TTL 后，B 最多在 TTL 内看到新值（默认 10 秒）。单副本部署下这只是一次廉价空转。
+     */
+    private void refreshIfStale() {
+        long ttlSeconds = ttlSeconds();
+        if (ttlSeconds <= 0) {
+            return;   // 显式关闭 TTL：退化为「只启动加载 + 本地写入即更新」
+        }
+        if (clock.millis() - loadedAtMillis < ttlSeconds * 1000L) {
+            return;
+        }
+        if (!refreshing.compareAndSet(false, true)) {
+            return;   // 已有线程在刷新，本次沿用旧值
+        }
+        try {
+            reload();
+        } catch (RuntimeException ex) {
+            log.warn("配置覆盖刷新失败，本次沿用旧缓存：{}", ex.getMessage());
+        } finally {
+            refreshing.set(false);
+        }
+    }
+
+    private long ttlSeconds() {
+        String raw = environment.getProperty(CACHE_TTL_KEY);
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_TTL_SECONDS;
+        }
+        try {
+            return Math.max(0, Long.parseLong(raw.trim()));
+        } catch (NumberFormatException ex) {
+            log.warn("{} 的值「{}」不是整数，按默认 {} 秒处理", CACHE_TTL_KEY, raw, DEFAULT_TTL_SECONDS);
+            return DEFAULT_TTL_SECONDS;
+        }
     }
 
     /** 该键当前是否有覆盖值。 */
     public boolean hasOverride(String key) {
+        refreshIfStale();
         return cache.containsKey(key);
     }
 
@@ -91,6 +154,7 @@ public class RuntimeConfigService {
      * @return 生效值；三者皆无时为空
      */
     public Optional<String> resolve(String key) {
+        refreshIfStale();
         String override = cache.get(key);
         if (override != null) {
             return Optional.of(override);
@@ -104,6 +168,7 @@ public class RuntimeConfigService {
 
     /** 生效值来源，供总览展示：{@code override} / {@code environment} / {@code default} / {@code unset}。 */
     public String sourceOf(String key) {
+        refreshIfStale();
         if (cache.containsKey(key)) {
             return "override";
         }
@@ -296,6 +361,13 @@ public class RuntimeConfigService {
                             new com.tg.heyisheng.bot.core.permission.InMemoryRoleSource(), value);
                 } catch (RuntimeException ex) {
                     throw new IllegalArgumentException("授权串格式非法：" + ex.getMessage());
+                }
+            }
+            case CRON -> {
+                // 非法 cron 会让 Spring 在**下次启动**解析 @Scheduled 时失败——而改 cron 的典型场景
+                // 正是「改完重启生效」，不拦就等于给了个「一重启就起不来」的按钮。
+                if (!org.springframework.scheduling.support.CronExpression.isValidExpression(value)) {
+                    throw new IllegalArgumentException("cron 表达式非法：" + value);
                 }
             }
         }

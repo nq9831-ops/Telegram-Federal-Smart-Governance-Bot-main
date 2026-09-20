@@ -55,8 +55,16 @@ public class ConfigOverrideEnvironmentPostProcessor implements EnvironmentPostPr
                 overrides.put(rows.getString(1), rows.getString(2));
             }
         } catch (SQLException ex) {
-            // 首次启动（表未建）或库不可达：静默跳过，绝不因此让应用起不来
-            log.debug("配置覆盖注入跳过（表不存在或库不可达）：{}", ex.getMessage());
+            // 绝不因此让应用起不来。但两种原因的**日志级别必须不同**：
+            //  - 表不存在：首次启动的正常情况（Flyway 还没跑）→ debug；
+            //  - 读取失败（库不可达 / 权限不足）：本次启动会**静默忽略**库里的覆盖，
+            //    运维会看到「我改了开关也重启了，怎么没生效」——那必须是一条 WARN。
+            if (isTableMissing(ex)) {
+                log.debug("配置覆盖注入跳过：config_override 表尚不存在（首次启动，Flyway 未跑）");
+            } else {
+                log.warn("配置覆盖注入失败：本次启动将**忽略数据库中的配置覆盖**，装配开关按环境变量/默认值装配。"
+                        + "若你刚在配置中心改过开关并重启，它不会生效。原因：{}", ex.getMessage());
+            }
             return;
         }
 
@@ -65,5 +73,21 @@ public class ConfigOverrideEnvironmentPostProcessor implements EnvironmentPostPr
         }
         environment.getPropertySources().addFirst(new MapPropertySource(SOURCE_NAME, overrides));
         log.info("已从 config_override 注入 {} 项配置覆盖（装配开关将在本次启动按覆盖值生效）", overrides.size());
+    }
+
+    /**
+     * 判定异常是否只是「表不存在」——即首次启动的正常情况，而非真正的读取失败。
+     *
+     * <p>依据 MySQL 的表不存在错误码（1146 / SQLState 42S02）与消息文本。
+     * ⚠️ 注意区分 {@code Unknown table} 与 {@code Unknown database}：后者是**库**不存在或库名写错，
+     * 属真正的失败，必须走 WARN。
+     */
+    static boolean isTableMissing(SQLException ex) {
+        if ("42S02".equals(ex.getSQLState()) || ex.getErrorCode() == 1146) {
+            return true;
+        }
+        String message = ex.getMessage();
+        return message != null
+                && (message.contains("doesn't exist") || message.contains("Unknown table"));
     }
 }

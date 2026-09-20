@@ -99,19 +99,20 @@ class ConfigCatalogTest {
     }
 
     /**
-     * 不变量：凡「RUNTIME 类且可写」的键，必须标注为**热生效**。
+     * 不变量：可写的**运行期参数**必须显式声明它是「热生效」还是「需重启」。
      *
-     * <p>否则总览会对运维说谎——显示「重启生效」而实际已热，或反之（后者更危险：
-     * 运维以为改完立即生效，实际要重启）。新增运行期参数时若忘了改造消费方为调用期读取，
-     * 就必须显式标 restartRequired=true，而这条测试会逼你面对这个选择。
+     * <p>本测试的前一版要求「全部必须热」——被新增的 cron 键证伪：cron 可写，但
+     * {@code @Scheduled(cron = "${...}")} 在装配期就把表达式固定了，改了确实要重启。
+     * 所以真正该守的不是「都热」，而是**不许含糊**：说明里必须写明其中一种，
+     * 否则运维改了配置却无从判断要不要重启。
      */
     @Test
-    void everyWritableRuntimeKeyIsHot() {
+    void everyWritableRuntimeKeyDeclaresHotOrRestart() {
         for (ConfigKey key : ConfigCatalog.keys()) {
             if (key.category() == ConfigCategory.RUNTIME && key.writable()) {
-                assertThat(key.restartRequired())
-                        .as("%s 可写且属运行期参数，必须标注热生效（restartRequired=false）", key.key())
-                        .isFalse();
+                assertThat(key.description())
+                        .as("%s 可写却是运行期参数，说明里必须写明「热生效」或「需重启」", key.key())
+                        .matches("(?s).*(热生效|需重启).*");
             }
         }
     }

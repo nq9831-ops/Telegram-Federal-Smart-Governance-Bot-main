@@ -33,5 +33,14 @@ public enum ConfigValueType {
      * 热化后解析移到了调用期，若不在此拦截，一条笔误会在下次启动或下次命令执行时才炸——
      * 故写入时先解析一次（见 {@code RuntimeConfigService#validateValue}）。
      */
-    ROLE_GRANTS
+    ROLE_GRANTS,
+
+    /**
+     * cron 表达式（如 {@code 0 15 * * * *}）。
+     *
+     * <p><b>写入即校验</b>同样必要：{@code @Scheduled(cron = "${...}")} 里一个笔误会让 Spring
+     * 在<b>下次启动</b>直接失败（非法 cron 解析异常），而这类开关往往正是「改了准备重启生效」的场景——
+     * 校验拦不住就等于给了个「一重启就起不来」的按钮。
+     */
+    CRON
 }

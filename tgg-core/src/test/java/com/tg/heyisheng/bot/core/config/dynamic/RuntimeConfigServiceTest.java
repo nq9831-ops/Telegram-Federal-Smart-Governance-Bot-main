@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -213,5 +215,92 @@ class RuntimeConfigServiceTest {
                 .filter(v -> v.key().equals("tgg.admin.overdue-remind-hours")).findFirst().orElseThrow();
         assertThat(hours.effectiveValue()).isEqualTo("24");
         assertThat(hours.restartRequired()).isFalse();
+    }
+
+    // ─────────────────── TTL：多副本下「热」的前提 ───────────────────
+
+    /**
+     * 缓存是**进程内**的：A 副本改了配置，B 副本不会自动知道。
+     * TTL 到期后从库重读，B 最多在 TTL 内看到新值——这才是「热参数」在多副本下的真实含义。
+     */
+    @Test
+    void overrideCacheRefreshesAfterTtlSoOtherReplicasWritesPropagate() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-20T00:00:00Z"));
+        FakeRepo ttlRepo = new FakeRepo();
+        RuntimeConfigService svc = new RuntimeConfigService(ttlRepo, new MockEnvironment(), clock);
+
+        assertThat(svc.getInt("tgg.admin.overdue-remind-hours", 24)).isEqualTo(24);
+
+        // 模拟「另一个副本」直接往库里写了覆盖（不经本实例的 set，故本实例缓存不会被就地更新）
+        ttlRepo.save(new ConfigOverride("tgg.admin.overdue-remind-hours", "9",
+                clock.instant(), 42L));
+
+        assertThat(svc.getInt("tgg.admin.overdue-remind-hours", 24))
+                .as("TTL 未到：仍读本进程的旧缓存").isEqualTo(24);
+
+        clock.advance(Duration.ofSeconds(11));
+
+        assertThat(svc.getInt("tgg.admin.overdue-remind-hours", 24))
+                .as("TTL 到期后从库重读——这正是多副本下「热」的含义").isEqualTo(9);
+    }
+
+    @Test
+    void zeroTtlDisablesRefresh() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-20T00:00:00Z"));
+        FakeRepo ttlRepo = new FakeRepo();
+        RuntimeConfigService svc = new RuntimeConfigService(ttlRepo,
+                new MockEnvironment().withProperty("tgg.admin.config-cache-ttl-seconds", "0"), clock);
+
+        ttlRepo.save(new ConfigOverride("tgg.admin.overdue-remind-hours", "9",
+                clock.instant(), 42L));
+        clock.advance(Duration.ofHours(1));
+
+        assertThat(svc.getInt("tgg.admin.overdue-remind-hours", 24))
+                .as("TTL=0 表示只在启动与本地写入时加载（单副本部署可选）").isEqualTo(24);
+    }
+
+    // ─────────────────── cron 写入校验 ───────────────────
+
+    /** 非法 cron 会让 Spring 在下次启动解析 @Scheduled 时失败——写入即拒，别留到重启才炸。 */
+    @Test
+    void invalidCronIsRejectedOnWrite() {
+        assertThatThrownBy(() -> service.set("tgg.retention.cron", "not-a-cron", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cron 表达式非法");
+        assertThat(repo.rows).isEmpty();
+    }
+
+    @Test
+    void validCronIsAccepted() {
+        service.set("tgg.retention.cron", "0 0 4 * * *", 42L);
+        assertThat(repo.rows).containsKey("tgg.retention.cron");
+    }
+
+    /** 可推进的时钟（TTL 测试用；固定时钟永远不触发 TTL）。 */
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        MutableClock(Instant start) {
+            this.now = start;
+        }
+
+        void advance(Duration delta) {
+            this.now = this.now.plus(delta);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 }
