@@ -79,7 +79,7 @@ public class ApprovalOverdueJob {
             String message = (escalated ? "⚠️ 审批升级" : "审批提醒")
                     + "：待办 #" + item.id()
                     + "（等级 " + item.riskLevel() + "，已积压 " + item.ageHours() + " 小时）"
-                    + " 仍未处理，请在 GET /admin/approvals 中裁决。";
+                    + " 仍未处理，请登录治理后台处理。";
             for (Long reviewerId : reviewers) {
                 notifications.notify(new Notification(NotificationLevel.URGENT, reviewerId, message));
             }

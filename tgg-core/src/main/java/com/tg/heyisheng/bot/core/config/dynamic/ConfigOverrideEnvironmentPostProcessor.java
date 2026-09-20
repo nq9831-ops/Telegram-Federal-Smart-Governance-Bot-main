@@ -62,7 +62,7 @@ public class ConfigOverrideEnvironmentPostProcessor implements EnvironmentPostPr
             if (isTableMissing(ex)) {
                 log.debug("配置覆盖注入跳过：config_override 表尚不存在（首次启动，Flyway 未跑）");
             } else {
-                log.warn("配置覆盖注入失败：本次启动将**忽略数据库中的配置覆盖**，装配开关按环境变量/默认值装配。"
+                log.warn("配置覆盖注入失败：本次启动将忽略数据库中的配置覆盖，装配开关按环境变量/默认值装配。"
                         + "若你刚在配置中心改过开关并重启，它不会生效。原因：{}", ex.getMessage());
             }
             return;

@@ -16,7 +16,7 @@ import java.util.Objects;
  * @param subjectId   被处罚主体 id
  * @param penaltyType 处罚档位
  * @param issuedAt    签发时间
- * @param signature   HMAC-SHA256 签名（十六进制）；未签名时为 null
+ * @param signature   Ed25519 签名（Base64）；未签名时为 null
  */
 public record CreditPenaltyOrder(
         String orderId,

@@ -75,7 +75,7 @@ public class GroupTagCommandHandler implements CommandHandler {
         // 都回「豁免已生效」——弱代理为真、强谓词为假，运维会被误导（提交后审查抓到的 HIGH）。
         if (!SensitiveTopicDetector.isExemptableTag(clean)) {
             String why = SensitiveTopicDetector.knownTags().contains(clean)
-                    ? "该话题属**不可豁免**内容（恐怖活动 / 极端主义 / 煽动战争）。"
+                    ? "该话题属不可豁免内容（恐怖活动 / 极端主义 / 煽动战争）。"
                     : "该标签不是已定义话题，不会产生任何豁免。";
             return "标签「" + clean + "」已记录，但" + why
                     + "\n可豁免话题：" + String.join(" / ", SensitiveTopicDetector.knownTags());

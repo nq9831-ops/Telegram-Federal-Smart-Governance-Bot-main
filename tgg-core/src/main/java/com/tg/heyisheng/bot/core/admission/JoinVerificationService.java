@@ -32,7 +32,7 @@ public class JoinVerificationService {
     static final String CALLBACK_ACTION = "verify";
 
     private static final String PROMPT_TEXT = "欢迎加入。请点击下方按钮完成验证，"
-            + "否则将在 %d 秒内被移出本群。";
+            + "否则将在 %s 内被移出本群。";
     private static final String BUTTON_TEXT = "点击验证";
 
     private final PendingVerificationRegistry registry;
@@ -81,10 +81,28 @@ public class JoinVerificationService {
 
         return SendMessage.builder()
                 .chatId(String.valueOf(chatId))
-                .text(String.format(PROMPT_TEXT, timeout.toSeconds()))
+                .text(String.format(PROMPT_TEXT, humanDuration(timeout)))
                 .replyMarkup(InlineKeyboardMarkup.builder()
                         .keyboard(List.of(new InlineKeyboardRow(button)))
                         .build())
                 .build();
+    }
+
+    /**
+     * 把时限渲染成人话——面向的是被验证的普通成员，不是运维。
+     * 「2 分钟」比「120 秒」更直观（默认 120 秒，以及更长的设置，都落在整档上）。
+     */
+    static String humanDuration(Duration duration) {
+        long seconds = duration.toSeconds();
+        if (seconds > 0 && seconds % 86400 == 0) {
+            return (seconds / 86400) + " 天";
+        }
+        if (seconds > 0 && seconds % 3600 == 0) {
+            return (seconds / 3600) + " 小时";
+        }
+        if (seconds > 0 && seconds % 60 == 0) {
+            return (seconds / 60) + " 分钟";
+        }
+        return seconds + " 秒";
     }
 }

@@ -30,7 +30,7 @@ public class QuietHoursCommandHandler implements CommandHandler {
             + "/quiet_hours 22:00-08:00 —— 设置免打扰时段（支持跨午夜）\n"
             + "/quiet_hours off —— 取消免打扰\n"
             + "/quiet_hours —— 查看当前设置\n"
-            + "注：封禁、解封等**紧急**通知不受免打扰影响，始终送达。";
+            + "注：封禁、解封等紧急通知不受免打扰影响，始终送达。";
 
     private final NotificationPreferenceService preferences;
 

@@ -279,4 +279,13 @@ class JoinVerificationTest {
         assertThat(sent).as("重试应真的发出移出动作").hasSize(1);
         assertThat(registry.size()).as("成功移出后登记才清空").isZero();
     }
+
+    /** 时限渲染成人话：面向普通成员，「2 分钟」比「120 秒」直观（默认 timeout 即 120 秒）。 */
+    @Test
+    void promptRendersHumanReadableTimeout() {
+        assertThat(JoinVerificationService.humanDuration(TIMEOUT)).as("120 秒 → 2 分钟").isEqualTo("2 分钟");
+        assertThat(JoinVerificationService.humanDuration(Duration.ofSeconds(3600))).isEqualTo("1 小时");
+        assertThat(JoinVerificationService.humanDuration(Duration.ofDays(7))).isEqualTo("7 天");
+        assertThat(JoinVerificationService.humanDuration(Duration.ofSeconds(45))).as("非整档保持秒").isEqualTo("45 秒");
+    }
 }
