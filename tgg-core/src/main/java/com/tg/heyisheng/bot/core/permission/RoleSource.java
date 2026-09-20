@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.core.permission;
 
+import java.util.List;
+
 /**
  * 角色来源——权限判定的数据入口。
  *
@@ -18,4 +20,15 @@ public interface RoleSource {
      * @return 该用户在该群的角色；无记录时返回 {@link Role#MEMBER}
      */
     Role roleOf(Long chatId, Long userId);
+
+    /**
+     * 已授予的角色清单（供需要**枚举**授权项的场景使用）。
+     *
+     * <p>目前唯一的消费方是「按授权分层注册客户端命令菜单」：它需要知道该给哪些
+     * {@code (chatId, userId)} 注册管理命令，而 {@link #roleOf} 只能逐点查询、无法反查。
+     *
+     * <p><b>实现纪律</b>：返回顺序必须**稳定**（建议按 chatId、userId 升序），
+     * 否则注册日志与依赖顺序的断言会随机抖动。无记录时返回空列表。
+     */
+    List<RoleGrant> grants();
 }

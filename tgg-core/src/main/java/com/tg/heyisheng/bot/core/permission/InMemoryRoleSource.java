@@ -1,5 +1,8 @@
 package com.tg.heyisheng.bot.core.permission;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -45,5 +48,28 @@ public class InMemoryRoleSource implements RoleSource {
             return Role.MEMBER;
         }
         return inChat.getOrDefault(userId, Role.MEMBER);
+    }
+
+    /**
+     * 已授予的角色清单。
+     *
+     * <p><b>顺序必须稳定</b>：内部是 {@code HashMap}/{@code ConcurrentHashMap}，迭代顺序不确定——
+     * 直接吐出去会让「按授权注册客户端菜单」的日志与测试断言随机抖动，故显式按
+     * {@code (chatId, userId)} 升序排列。
+     *
+     * <p>返回的是**快照**（{@code List.copyOf}）：调用方拿到它之后本对象的 assign/revoke
+     * 不会改变已返回的列表。
+     */
+    @Override
+    public List<RoleGrant> grants() {
+        List<RoleGrant> snapshot = new ArrayList<>();
+        for (Map.Entry<Long, Map<Long, Role>> byChat : rolesByChat.entrySet()) {
+            for (Map.Entry<Long, Role> byUser : byChat.getValue().entrySet()) {
+                snapshot.add(new RoleGrant(byChat.getKey(), byUser.getKey(), byUser.getValue()));
+            }
+        }
+        snapshot.sort(Comparator.comparingLong(RoleGrant::chatId)
+                .thenComparingLong(RoleGrant::userId));
+        return List.copyOf(snapshot);
     }
 }

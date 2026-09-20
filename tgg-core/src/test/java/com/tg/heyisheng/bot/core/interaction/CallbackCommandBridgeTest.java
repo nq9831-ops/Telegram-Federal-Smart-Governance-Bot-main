@@ -65,7 +65,7 @@ class CallbackCommandBridgeTest {
         CommandRegistry registry = new CommandRegistry(List.of(new WordsHandler()));
         Role role = Role.valueOf(adminsRole);
         CommandDispatcher dispatcher = new CommandDispatcher(registry,
-                new PermissionChecker((chatId, userId) -> role));
+                new PermissionChecker(role));
         when(groupConfigs.findOrDefault(CHAT))
                 .thenReturn(new GroupConfigView(CHAT, "测试群", groupEnabled));
         return new CallbackCommandBridge(dispatcher, registry, groupConfigs, limiter, null);

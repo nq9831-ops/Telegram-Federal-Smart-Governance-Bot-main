@@ -40,7 +40,7 @@ public class CommandDispatcher {
 
     /** 默认用「全部按最小权限处理」的判定器——未装配权限源时不放行任何受限命令。 */
     public CommandDispatcher(CommandRegistry registry) {
-        this(registry, new PermissionChecker((chatId, userId) -> Role.MEMBER));
+        this(registry, new PermissionChecker(Role.MEMBER));
     }
 
     public CommandDispatcher(CommandRegistry registry, PermissionChecker permissionChecker) {

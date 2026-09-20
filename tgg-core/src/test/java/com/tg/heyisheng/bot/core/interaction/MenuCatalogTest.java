@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import com.tg.heyisheng.bot.core.permission.Role;
+import com.tg.heyisheng.bot.core.permission.InMemoryRoleSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -106,14 +107,15 @@ class MenuCatalogTest {
         CommandRegistry registry = new CommandRegistry(List.of(
                 new WordsHandler(), new EnableHandler(), new ReviewListHandler(),
                 new EchoHandler(), new MenuHandler()));
-        return new MenuCatalog(providerOf(registry),
-                new PermissionChecker((chatId, userId) -> {
-                    // REVIEWER 在本测试里同时是群管理员——现实中复核人常常也是某群管理员
-                    if (userId != null && (userId == ADMIN || userId == REVIEWER)) {
-                        return Role.ADMIN;
-                    }
-                    return Role.MEMBER;
-                }), seams);
+        return new MenuCatalog(providerOf(registry), new PermissionChecker(roleSource()), seams);
+    }
+
+    /** 真实授权源：ADMIN 与 REVIEWER 在本测试里都是该群管理员（现实中复核人常也是某群管理员）。 */
+    private static InMemoryRoleSource roleSource() {
+        InMemoryRoleSource source = new InMemoryRoleSource();
+        source.assign(CHAT, ADMIN, Role.ADMIN);
+        source.assign(CHAT, REVIEWER, Role.ADMIN);
+        return source;
     }
 
     @Test

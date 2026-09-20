@@ -71,7 +71,7 @@ class CommandDispatcherConfirmationTest {
     private static CommandDispatcher dispatcher(ConfirmationRequests seam) {
         CommandRegistry registry = new CommandRegistry(
                 List.of(new DangerHandler(), new MixedHandler(), new SafeHandler()));
-        return new CommandDispatcher(registry, new PermissionChecker((c, u) -> Role.ADMIN), seam);
+        return new CommandDispatcher(registry, new PermissionChecker(Role.ADMIN), seam);
     }
 
     private static ConfirmationStore store() {

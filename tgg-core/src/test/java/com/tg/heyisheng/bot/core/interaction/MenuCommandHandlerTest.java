@@ -85,7 +85,7 @@ class MenuCommandHandlerTest {
                 new WordsHandler(), new EnableHandler(), new EchoHandler(), new MenuHandler()));
         when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", groupEnabled));
         MenuCatalog catalog = new MenuCatalog(providerOf(registry),
-                new PermissionChecker((chatId, userId) -> Role.valueOf(role)), List.of());
+                new PermissionChecker(Role.valueOf(role)), List.of());
         return new MenuCommandHandler(catalog, groupConfigs);
     }
 

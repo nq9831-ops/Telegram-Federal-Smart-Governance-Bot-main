@@ -40,9 +40,9 @@ class BannedWordDispatchTest {
     private static final long CHAT_B = -200L;
 
     /** 放行一切权限（模拟已授权管理员）。 */
-    private static final PermissionChecker ALLOW_ALL = new PermissionChecker((chatId, userId) -> Role.OWNER);
+    private static final PermissionChecker ALLOW_ALL = new PermissionChecker(Role.OWNER);
     /** 拒绝一切受限权限（模拟普通成员）——用于验证"命令外壳"不能成为绕过审核的通道。 */
-    private static final PermissionChecker DENY_ALL = new PermissionChecker((chatId, userId) -> Role.MEMBER);
+    private static final PermissionChecker DENY_ALL = new PermissionChecker(Role.MEMBER);
 
     private final BannedWordRepository repository = mock(BannedWordRepository.class);
     private final BannedWordService service = new BannedWordService(repository);

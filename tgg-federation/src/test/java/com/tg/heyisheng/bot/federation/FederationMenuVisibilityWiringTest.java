@@ -75,7 +75,7 @@ class FederationMenuVisibilityWiringTest {
     /** 只读展示：不涉及群内权限，故权限判定恒为普通成员——可见性完全由接缝决定。 */
     private static MenuCatalog catalogWith(CommandRegistry registry, MenuVisibility seam) {
         return new MenuCatalog(providerOf(registry),
-                new PermissionChecker((chatId, userId) -> Role.MEMBER), List.of(seam));
+                new PermissionChecker(Role.MEMBER), List.of(seam));
     }
 
     @Test

@@ -77,7 +77,7 @@ class MenuCallbackHandlerTest {
         when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
         MenuCatalog catalog = new MenuCatalog(providerOf(
                 new CommandRegistry(List.of(new WordsHandler(), new MenuHandler()))),
-                new PermissionChecker((chatId, userId) -> Role.ADMIN), List.of());
+                new PermissionChecker(Role.ADMIN), List.of());
         return new MenuCallbackHandler(bridge, catalog, groupConfigs);
     }
 
