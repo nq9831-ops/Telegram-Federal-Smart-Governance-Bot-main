@@ -6,7 +6,9 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
  * 中间件：在命令分发之前对更新做串行处理。
  *
  * <p>链式处理顺序由 {@link MiddlewareChain} 决定（注册顺序即执行顺序，
- * 具体顺序在装配处定义：认证 → 群组配置加载 → 权限校验 → 限流）。
+ * 具体顺序在装配处定义：认证 → 群组配置加载 → 限流）。
+ * <b>权限校验不在链里</b>——中间件看不到「即将执行哪条命令」，无法得知该命令需要什么权限，
+ * 故判定归 {@code CommandDispatcher}（{@code PermissionMiddleware} 已不参与装配）。
  */
 @FunctionalInterface
 public interface Middleware {

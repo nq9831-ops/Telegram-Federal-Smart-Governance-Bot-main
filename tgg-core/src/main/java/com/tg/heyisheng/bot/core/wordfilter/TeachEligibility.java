@@ -22,9 +22,10 @@ import java.util.Optional;
  *   <li><b>信用分 ≥400</b> —— <b>已按本项目口径重映射并实现</b>：400 不可达（个人分区间 [0,150]，
  *       见 {@code CreditThresholds}），用户 2026-09-18 拍板改为「<b>不低于初始分</b>」＝无扣分，
  *       实现见模块七的 {@code NoDeductionTeachGate}。</li>
- *   <li><b>入群时长 ≥30 天</b> —— <b>仍未实现</b>：全仓未持久化成员入群时间
- *       （现有观察期是把截止交给 Telegram 的 {@code untilDate}，本地不存）。
- *       要做需新增个人数据采集，属新功能而非接线，且与「数据最小化」原则有张力。</li>
+ *   <li><b>入群时长 ≥30 天</b> —— <b>已实现</b>：由 {@code chat_member} 事件被动采集入群时间
+ *       （V15 表 {@code member_join_observations}），门槛实现见 {@code MembershipDurationTeachGate}
+ *       （装配于 {@code TggCoreConfiguration#membershipDurationTeachGate}）。对「无记录」者
+ *       <b>一律放行</b>——Telegram 不提供权威入群时间，拒绝无记录者会永久误伤全部老成员。</li>
  *   <li><b>无违规</b> —— <b>已实现</b>：core 可见 {@code sensitive_topic_strikes}，
  *       见 {@code NoViolationTeachGate}。</li>
  * </ul>
