@@ -47,6 +47,8 @@ function pendingItem(riskLevel: RiskLevel = 'HIGH'): ApprovalItem {
     note: null,
     ageHours: 3,
     overdue: false,
+    userHitCount: 0,
+    userHardLineCount: 0,
   }
 }
 
@@ -157,5 +159,35 @@ describe('DecisionDrawer · 结果反馈', () => {
 
     expect(wrapper.emitted('update:visible')?.at(-1)).toEqual([false])
     expect(wrapper.emitted('decided')).toBeTruthy()
+  })
+})
+
+describe('DecisionDrawer · 让人看清「在判谁」', () => {
+  /** 断言前把空白折叠掉：模板里的换行/缩进会让 toContain 逐字比较失配。 */
+  const flat = (wrapper: ReturnType<typeof mountDrawer>): string =>
+    wrapper.text().replace(/\s+/g, '')
+
+  it('给出发布者、群、本群历史——裁决动作落在具体的人身上，界面不能没有主体', async () => {
+    const wrapper = mountDrawer({
+      ...pendingItem(),
+      userId: 12345,
+      chatId: -100900999,
+      userHitCount: 4,
+      userHardLineCount: 1,
+    })
+    await flushPromises()
+
+    expect(flat(wrapper)).toContain('12345')
+    expect(flat(wrapper)).toContain('-100900999')
+    expect(flat(wrapper)).toContain('累计命中4次')
+    expect(flat(wrapper)).toContain('硬红线1次')
+  })
+
+  it('无发布者（频道帖）时如实说明，而不是显示成 0 或留白', async () => {
+    const wrapper = mountDrawer({ ...pendingItem(), userId: null, chatId: -100900999 })
+    await flushPromises()
+
+    expect(flat(wrapper)).toContain('无发布者')
+    expect(flat(wrapper)).toContain('本群暂无其他命中记录')
   })
 })

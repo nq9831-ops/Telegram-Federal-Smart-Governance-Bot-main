@@ -168,6 +168,21 @@ onMounted(load)
               </el-tag>
             </template>
           </el-table-column>
+          <!--
+            「谁、在哪个群、以前有没有前科」——复核人做判断的最小信息集。
+            正文由隐私管道清除、库里本就没有，能给的只有定位用的明文 id（设计如此，见 KNOWN-ISSUES）。
+          -->
+          <el-table-column label="发布者 / 群" min-width="210">
+            <template #default="{ row }">
+              <div class="cell-stack">
+                <span class="cell-mono">用户 {{ row.userId ?? '—' }}</span>
+                <span class="cell-dim">群 {{ row.chatId ?? '—' }}</span>
+                <span v-if="row.userHitCount > 0" class="cell-dim">
+                  本群累计命中 {{ row.userHitCount }} 次<template v-if="row.userHardLineCount > 0">（硬红线 {{ row.userHardLineCount }}）</template>
+                </span>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column prop="ruleIds" label="命中规则" min-width="200" show-overflow-tooltip />
           <el-table-column label="已等待" width="110">
             <template #default="{ row }">{{ row.ageHours }} 小时</template>
@@ -253,6 +268,20 @@ onMounted(load)
 .hint {
   font-size: 13px;
   color: var(--tgg-fg-silver);
+}
+/* 一格里叠三行（用户 / 群 / 历史）：比铺成三列更能让「谁在哪个群、有无前科」成一条读下来 */
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.5;
+}
+.cell-mono {
+  font-family: monospace;
+  font-size: 13px;
+}
+.cell-dim {
+  font-size: 12px;
+  color: var(--tgg-fg-dim);
 }
 .clickable :deep(.el-table__row) {
   cursor: pointer;

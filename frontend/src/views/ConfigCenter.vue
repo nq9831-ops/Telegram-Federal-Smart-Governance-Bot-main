@@ -71,6 +71,12 @@ function setDraft(item: ConfigItem, value: string): void {
   drafts.value = { ...drafts.value, [item.key]: value }
 }
 
+/** 草稿与生效值不一致＝还没写库。开关尤其需要这个提示——它太像「已经生效」了。 */
+function isDirty(item: ConfigItem): boolean {
+  const draft = drafts.value[item.key]
+  return draft !== undefined && draft !== item.effectiveValue
+}
+
 async function save(item: ConfigItem): Promise<void> {
   try {
     await updateConfig(item.key, draftOf(item))
@@ -159,6 +165,22 @@ onMounted(load)
           <el-table-column label="生效值" min-width="220">
             <template #default="{ row }">
               <span v-if="row.secret || !row.editable" class="value-readonly">{{ row.effectiveValue }}</span>
+              <!--
+                BOOLEAN 项（模块开关）用开关：它本来就是「开 / 关」，让人对着 true/false 文本敲字没有意义。
+                值仍是字符串（后端口径），故显式给 active/inactive-value。
+                ⚠️ 仍需点「保存」才写库——本页所有可写项统一是「改草稿 → 保存」，
+                只有开关走另一套会让「哪些改了、哪些没改」变得说不清（草稿有未保存提示）。
+              -->
+              <el-switch
+                v-else-if="row.type === 'BOOLEAN'"
+                :model-value="draftOf(row)"
+                active-value="true"
+                inactive-value="false"
+                inline-prompt
+                active-text="开"
+                inactive-text="关"
+                @update:model-value="(v: string) => setDraft(row, v)"
+              />
               <el-input
                 v-else
                 size="small"
@@ -179,9 +201,10 @@ onMounted(load)
           <el-table-column label="说明" min-width="320" show-overflow-tooltip>
             <template #default="{ row }">{{ row.description }}</template>
           </el-table-column>
-          <el-table-column label="" width="140" align="right">
+          <el-table-column label="" width="180" align="right">
             <template #default="{ row }">
               <template v-if="row.editable">
+                <el-tag v-if="isDirty(row)" size="small" type="warning" effect="plain" class="dirty">未保存</el-tag>
                 <el-button link type="primary" @click="save(row)">保存</el-button>
                 <el-button link @click="reset(row)">恢复默认</el-button>
               </template>
@@ -236,5 +259,8 @@ onMounted(load)
 .value-readonly {
   color: var(--tgg-fg-dim);
   font-family: monospace;
+}
+.dirty {
+  margin-right: 6px;
 }
 </style>

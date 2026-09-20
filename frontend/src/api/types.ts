@@ -38,6 +38,13 @@ export interface ApprovalItem {
   /** 入队至今的小时数。**后端算好的**，前端不要自己按 `createdAt` 推（时区会打架）。 */
   ageHours: number
   overdue: boolean
+  /**
+   * 该用户在本群的**累计命中次数**（含已裁决）——复核人据此判断是否惯犯。
+   * 按「用户 × 群」聚合（不是全局）；发布者缺失（频道帖）时为 0。
+   */
+  userHitCount: number
+  /** 同上，其中**硬红线**的次数。 */
+  userHardLineCount: number
 }
 
 /** 一页结果 —— `ApprovalQueryService.Page`。 */

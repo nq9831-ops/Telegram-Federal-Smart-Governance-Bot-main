@@ -61,6 +61,22 @@ function hotItem(): ConfigItem {
   }
 }
 
+/** 模块开关：BOOLEAN + 可写（值仍是字符串 'true'/'false'，与后端口径一致）。 */
+function booleanItem(): ConfigItem {
+  return {
+    key: 'tgg.listing.enabled',
+    category: 'ASSEMBLY',
+    type: 'BOOLEAN',
+    secret: false,
+    editable: true,
+    restartRequired: true,
+    effectiveValue: 'false',
+    defaultValue: 'false',
+    source: 'default',
+    description: '模块五 · 群组收录',
+  }
+}
+
 function mountView() {
   // ThemeToggle 用 useTheme()（Pinia store），故必须装 Pinia——否则 setup 抛错。
   return mount(ConfigCenter, {
@@ -122,5 +138,34 @@ describe('ConfigCenter · 重启需二次确认', () => {
 
     expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1)
     expect(restartMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ConfigCenter · 模块开关用开关控件', () => {
+  it('BOOLEAN 且可写 → 渲染成开关，不再让人对着 true/false 文本敲字', async () => {
+    fetchMock.mockResolvedValue([booleanItem()])
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.el-switch').exists()).toBe(true)
+    expect(wrapper.find('input.el-input__inner').exists()).toBe(false)
+  })
+
+  it('非 BOOLEAN 的可写项仍是文本输入——只有开关类才换控件', async () => {
+    fetchMock.mockResolvedValue([hotItem()])
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.el-switch').exists()).toBe(false)
+    expect(wrapper.find('input.el-input__inner').exists()).toBe(true)
+  })
+
+  it('密钥行既不给输入框也不给开关（只回显打码值）', async () => {
+    fetchMock.mockResolvedValue([secretItem()])
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.el-switch').exists()).toBe(false)
+    expect(wrapper.find('input.el-input__inner').exists()).toBe(false)
   })
 })

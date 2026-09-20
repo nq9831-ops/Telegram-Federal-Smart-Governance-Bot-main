@@ -91,6 +91,28 @@ async function submit(decision: Decision): Promise<void> {
           <el-tag v-if="item.hardLine" type="danger" effect="dark">硬红线</el-tag>
           <el-tag v-else effect="plain">{{ riskText(item.riskLevel) }}</el-tag>
         </el-descriptions-item>
+        <!--
+          复核人必须知道「在判谁」：推翻＝立即解封当事人，维持 HIGH＝追加 24h 禁言，
+          两个动作都落在具体的人身上。正文没有（隐私管道清了），定位只靠这两个明文 id。
+        -->
+        <el-descriptions-item label="发布者">
+          <a
+            v-if="item.userId !== null"
+            class="tg-link"
+            :href="`tg://user?id=${item.userId}`"
+            title="在 Telegram 中打开该用户"
+          >{{ item.userId }}</a>
+          <span v-else class="dim">—（频道帖等无发布者）</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="群 ID">
+          <span class="mono">{{ item.chatId ?? '—' }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="本群历史">
+          <template v-if="item.userHitCount > 0">
+            累计命中 <b>{{ item.userHitCount }}</b> 次<template v-if="item.userHardLineCount > 0">，其中硬红线 <b>{{ item.userHardLineCount }}</b> 次</template>
+          </template>
+          <span v-else class="dim">本群暂无其他命中记录</span>
+        </el-descriptions-item>
         <el-descriptions-item label="命中规则">{{ item.ruleIds || '—' }}</el-descriptions-item>
         <el-descriptions-item label="入队时间">{{ formatTime(item.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="已等待">
@@ -135,6 +157,13 @@ async function submit(decision: Decision): Promise<void> {
 <style scoped>
 .block {
   margin-top: 16px;
+}
+.tg-link,
+.mono {
+  font-family: monospace;
+}
+.dim {
+  color: var(--tgg-fg-dim);
 }
 .overdue-tag {
   margin-left: 8px;
