@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 内部运营工具：不应被搜索引擎收录 -->
     <meta name="robots" content="noindex, nofollow" />
-    <!-- 不提供图标时浏览器会自动请求 /favicon.ico → 每次都留一条 404（探针实测） -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 不提供图标时浏览器会自动请求 /favicon.ico → 每次都留一条 404（探针实测）。
+         用相对路径：dev 在根路径下解析为 /favicon.svg，生产挂在 /console/ 下解析为 /console/favicon.svg。 -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>TGG 治理后台</title>
     <!--
       首屏前定主题，避免闪烁（FOUC）。

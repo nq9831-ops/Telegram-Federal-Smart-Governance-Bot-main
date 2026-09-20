@@ -9,6 +9,9 @@ const backend = 'http://127.0.0.1:8080'
 
 export default defineConfig({
   plugins: [vue()],
+  // 相对基路径：产物可部署在任意子路径（本工程生产挂在 https://<域名>/console/ 下）。
+  // 用 './' 而非硬编码 '/console/'，避免把部署路径写死进产物——换路径无需改代码重建。
+  base: './',
   server: {
     port: 5173,
     proxy: {
