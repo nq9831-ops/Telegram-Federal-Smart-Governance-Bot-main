@@ -9,7 +9,6 @@ import ConfigCenter from './views/ConfigCenter.vue'
 
 const session = useSession()
 const form = reactive({ token: '', operatorId: '' })
-const submitting = ref(false)
 /** 已登录后的两个视图；项目刻意不引 vue-router（只两块，条件渲染足够）。 */
 const view = ref<'todos' | 'config'>('todos')
 
@@ -21,9 +20,9 @@ function submit(): void {
     return
   }
 
-  submitting.value = true
+  // signIn 是同步的（写 localStorage + 置响应式状态），故不需要 loading 态——
+  // 之前那个 submitting 标志在同步调用前后立即翻转，永远不会被渲染出来（死状态）。
   session.signIn({ token: check.token, operatorId: check.operatorId })
-  submitting.value = false
   ElMessage.success('凭据已保存在本浏览器')
 }
 
@@ -64,7 +63,7 @@ function signOut(): void {
         <el-form-item label="操作人 ID（Telegram userId）">
           <el-input v-model="form.operatorId" placeholder="例如 1024" />
         </el-form-item>
-        <el-button type="primary" class="gate-submit" :loading="submitting" @click="submit">进入</el-button>
+        <el-button type="primary" class="gate-submit" @click="submit">进入</el-button>
       </el-form>
 
       <p class="gate-note">

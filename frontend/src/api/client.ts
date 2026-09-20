@@ -1,6 +1,5 @@
 import axios, { type AxiosError } from 'axios'
 import type {
-  ApprovalItem,
   ApprovalPage,
   ApprovalStats,
   ConfigItem,
@@ -115,14 +114,6 @@ export async function fetchApprovals(params: {
 export async function fetchStats(): Promise<ApprovalStats> {
   const { data } = await http.get<ApprovalStats>('/admin/approvals/stats')
   return data
-}
-
-/** `GET /admin/approvals/{id}` —— 详情。**不存在返回 null**（后端给 404，不是 200 空体）。 */
-export async function fetchApproval(id: number): Promise<ApprovalItem | null> {
-  const response = await http.get<ApprovalItem>(`/admin/approvals/${id}`, {
-    validateStatus: (status) => status === 200 || status === 404,
-  })
-  return response.status === 404 ? null : response.data
 }
 
 /**

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { describeError, fetchApprovals, fetchStats } from '../api/client'
+import { describeError, fetchApprovals, fetchConfig, fetchStats } from '../api/client'
 import type { ApprovalItem, ApprovalStats, ReviewStatus } from '../api/types'
 import DecisionDrawer from '../components/DecisionDrawer.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
@@ -16,6 +16,14 @@ const page = ref(1)
 const size = ref(20)
 const status = ref<ReviewStatus>('PENDING')
 const stats = ref<ApprovalStats | null>(null)
+
+/**
+ * 超时阈值**来自配置中心**（`tgg.admin.overdue-*-hours`，热参数），不硬编码。
+ * 否则部署方把阈值改成 6h/12h，界面却仍写「超过 24 小时」——文案对不上实际口径，
+ * 是那种「不影响功能、但会误导运营者」的静默谎言。
+ */
+const remindHours = ref<number | null>(null)
+const escalateHours = ref<number | null>(null)
 
 const drawerVisible = ref(false)
 const selected = ref<ApprovalItem | null>(null)
@@ -47,13 +55,22 @@ async function load(): Promise<void> {
   loading.value = true
   try {
     // 注意 page 是 0 基（后端 `@RequestParam(defaultValue = "0")`），界面上是 1 基
-    const [pageData, statsData] = await Promise.all([
+    const [pageData, statsData, config] = await Promise.all([
       fetchApprovals({ status: status.value, page: page.value - 1, size: size.value }),
       fetchStats(),
+      fetchConfig(),
     ])
     items.value = pageData.items
     total.value = pageData.total
     stats.value = statsData
+
+    const readHours = (key: string): number | null => {
+      const item = config.find((c) => c.key === key)
+      const parsed = item ? Number(item.effectiveValue) : Number.NaN
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    remindHours.value = readHours('tgg.admin.overdue-remind-hours')
+    escalateHours.value = readHours('tgg.admin.overdue-escalate-hours')
   } catch (error) {
     ElMessage.error(describeError(error))
   } finally {
@@ -103,11 +120,11 @@ onMounted(load)
         </el-card>
         <el-card shadow="never" class="card pixel-card">
           <div class="card-num warn">{{ stats?.overdueRemind ?? '—' }}</div>
-          <div class="card-label">超过 24 小时</div>
+          <div class="card-label">超过 {{ remindHours ?? '—' }} 小时</div>
         </el-card>
         <el-card shadow="never" class="card pixel-card">
           <div class="card-num danger">{{ stats?.overdueEscalate ?? '—' }}</div>
-          <div class="card-label">超过 72 小时</div>
+          <div class="card-label">超过 {{ escalateHours ?? '—' }} 小时</div>
         </el-card>
         <el-card shadow="never" class="card pixel-card">
           <div class="card-num">{{ avgText }}</div>
