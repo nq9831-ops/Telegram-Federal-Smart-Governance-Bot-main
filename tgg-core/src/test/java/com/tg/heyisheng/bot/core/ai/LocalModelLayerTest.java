@@ -131,4 +131,41 @@ class LocalModelLayerTest {
                         .as("缺 key 应启动失败")
                         .isNotNull());
     }
+
+    /**
+     * 启用 L3 **且配了 key**：DeepSeekLayer 真的装配进流水线——这是上面那条 fail-fast 断言的
+     * <b>成功方向</b>。此前只有「缺 key → 起不来」的反向断言，于是「配齐后能否装配」这条路径
+     * 从没被跑过（本项目反复吃亏的「开关默认关闭 → 该装配路径长期假绿」形态）。
+     */
+    @Test
+    void deepseekEnabledWithKeyWiresL3() {
+        runner().withPropertyValues(
+                        "tgg.ai.deepseek.enabled=true",
+                        "tgg.ai.deepseek.api-key=test-key-not-a-real-secret")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(DeepSeekLayer.class);
+                    assertThat(context.getBean(com.tg.heyisheng.bot.core.moderation.ModerationPipeline.class)
+                            .layerNames())
+                            .as("L3 应排在 L1 之后（越便宜越靠前，L3 是唯一出站的层）")
+                            .containsExactly("L1-regex", "L3-deepseek");
+                });
+    }
+
+    /**
+     * 启用 L4 零样本：装配出第四层并排在流水线**最后**。
+     *
+     * <p>L4 的开关此前完全没有「打开」方向的测试——它与 L2 同为 {@code LocalModelLayer} 类型，
+     * 只有各自开关打开时才出现，故两个方向都要各测一条，否则某天把 L4 的 {@code @ConditionalOnProperty}
+     * 写错（如误挂成 L2 的键）也不会有测试变红。
+     */
+    @Test
+    void l4EnabledWiresFourthLayer() {
+        runner().withPropertyValues("tgg.ai.local.l4-enabled=true").run(context -> {
+            assertThat(context).hasSingleBean(LocalModelLayer.class);
+            assertThat(context.getBean(com.tg.heyisheng.bot.core.moderation.ModerationPipeline.class)
+                    .layerNames())
+                    .containsExactly("L1-regex", "L4-local-zeroshot");
+        });
+    }
 }
