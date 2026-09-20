@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 
 import java.util.Optional;
@@ -15,21 +16,34 @@ import java.util.Optional;
  * <p><b>存在理由</b>：判定结果挂到上下文后若无消费者，审核在功能上等于零——
  * 这正是本项目反复出现的「接好了但没通电」模式（RBAC 与功能开关都栽过）。
  *
- * <p><b>处置范围</b>：命中即删除消息；命中<b>硬红线</b>时额外封禁发布者
- * （删除 + 封禁两个动作，见下）。删除是 V5.0 分级处置的公共前提
- * （轻度「删除+警告」与重度「删除+禁言」都含删除）；警告文案、禁言、
- * 扣分、中高风险人工复核属后续增量。
+ * <p><b>处置范围</b>：命中即删除消息**并群内告知**；命中<b>硬红线</b>时额外封禁发布者
+ * （删除 + 封禁 + 告知）。删除是 V5.0 分级处置的公共前提
+ * （轻度「删除+警告」与重度「删除+禁言」都含删除）；本类落地其中的「删除」与「警告」，
+ * 封禁见下；禁言时长分级、扣分、中高风险人工复核属后续增量。
  *
- * <p><b>为什么删除作返回值、封禁走主动通道</b>：webhook 模式下库把 handler 返回值
+ * <p><b>为什么删除作返回值、封禁与告知走主动通道</b>：webhook 模式下库把 handler 返回值
  * 作为 HTTP 响应体交回 Telegram 执行，一次只能执行<b>一个</b>方法。删除是唯一能立刻
- * 止损的动作，故作为返回值保底；封禁等额外动作经 {@link ModerationActionSender} 主动调用。
- * 附带通知（警告文案）同样需走该通道，属后续设计。
+ * 止损的动作，故作为返回值保底；封禁与告知经 {@link ModerationActionSender} 主动调用。
  */
 public class ModerationEnforcer {
 
     private static final Logger log = LoggerFactory.getLogger(ModerationEnforcer.class);
 
-    /** 主动处置通道（封禁等）；默认空实现，装配层注入真实通道。 */
+    /**
+     * 普通命中的群内告知（V5.0 轻度「删除+警告」里的「警告」）。
+     *
+     * <p>此前是**静默删除**——用户只看到消息莫名消失，不知道触了什么规则、也不知道找谁问。
+     * 文案刻意**不透露命中的具体规则**：那等于把规则库交给想绕过的试探者；
+     * 说清「已删除 + 有疑问找谁」即可。
+     */
+    static final String DELETED_NOTICE =
+            "⚠️ 该消息命中本群内容规则，已被删除。如对判定有疑问，请联系群管理员。";
+
+    /** 硬红线：删除 + 封禁，一并说清（不让封禁成为「无声消失」）。 */
+    static final String FROZEN_NOTICE =
+            "⚠️ 该消息命中本群硬性红线，已被删除，发布者已被封禁。如对判定有疑问，请联系群管理员。";
+
+    /** 主动处置通道（封禁、告知等）；默认空实现，装配层注入真实通道。 */
     private final ModerationActionSender actionSender;
 
     /** 空通道构造器：仅删除、不封禁（供未装配场景与单测兜底）。 */
@@ -82,7 +96,26 @@ public class ModerationEnforcer {
                     verdict.matchedRuleIds(), verdict.riskLevel());
         }
 
+        // 告知：删除占了唯一的返回值，故告知走主动通道（同 SensitiveTopicGuard 的做法）。
+        // 放在判定「确认有目标消息」之后——没有可删的消息就没有可解释的对象。
+        notifyGroup(ctx, verdict);
+
         return Optional.of(new DeleteMessage(String.valueOf(ctx.chatId()), ctx.messageId().orElseThrow()));
+    }
+
+    /**
+     * 群内告知「消息为什么没了」。
+     *
+     * <p>这是 V5.0 轻度「删除+警告」里的「警告」，也是本类此前最刺眼的缺口：只删不说，
+     * 用户只会觉得机器人无故删他的消息。文案与 {@code SensitiveTopicGuard} 的群内警告同构。
+     *
+     * <p>失败不影响删除：{@link ModerationActionSender} 的契约是实现自行吞异常。
+     */
+    private void notifyGroup(UpdateContext ctx, ModerationVerdict verdict) {
+        actionSender.send(SendMessage.builder()
+                .chatId(String.valueOf(ctx.chatId()))
+                .text(verdict.shouldFreezeImmediately() ? FROZEN_NOTICE : DELETED_NOTICE)
+                .build());
     }
 
     /**

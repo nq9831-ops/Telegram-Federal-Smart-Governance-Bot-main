@@ -13,6 +13,7 @@ import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.BanChatMember;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.EntityType;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
@@ -216,11 +217,14 @@ class ModerationIntegrationTest {
         assertThat(action).as("删除作为返回值保底").isPresent();
         assertThat(action.get()).isInstanceOf(DeleteMessage.class);
         assertThat(((DeleteMessage) action.get()).getMessageId()).as("删除须定位到原消息").isEqualTo(77);
-        assertThat(sent).as("硬红线须经主动通道封禁发布者").hasSize(1);
-        assertThat(sent.get(0)).isInstanceOf(BanChatMember.class);
-        BanChatMember ban = (BanChatMember) sent.get(0);
+
+        List<BotApiMethod<?>> bans = sent.stream().filter(BanChatMember.class::isInstance).toList();
+        assertThat(bans).as("硬红线须经主动通道封禁发布者").hasSize(1);
+        BanChatMember ban = (BanChatMember) bans.get(0);
         assertThat(ban.getChatId()).isEqualTo(String.valueOf(CHAT_ID));
         assertThat(ban.getUserId()).isEqualTo(42L);
+        assertThat(sent.stream().filter(SendMessage.class::isInstance))
+                .as("端到端也要有群内告知——用户不该只看到消息莫名消失").hasSize(1);
     }
 
     /**
