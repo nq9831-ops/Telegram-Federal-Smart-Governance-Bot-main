@@ -252,4 +252,31 @@ class JoinVerificationTest {
         assertThat(sent).as("未超时不应移出").isEmpty();
         assertThat(registry.isPending(CHAT, MEMBER)).isTrue();
     }
+
+    /**
+     * #3 回归：移出的发送失败时必须<b>保留登记</b>供下一轮重试——
+     * 旧实现先移除登记、再发送，发送失败（未配 token 时空实现 / 临时错误）后目标永久丢失，
+     * 成员会滞留在群里且<b>永不再被移出</b>。
+     */
+    @Test
+    void sweeperKeepsRegistrationForRetryWhenKickFails() {
+        MutableClock clock = new MutableClock();
+        PendingVerificationRegistry registry = new PendingVerificationRegistry(clock);
+        registry.register(CHAT, MEMBER, TIMEOUT);
+        VerificationTimeoutSweeper failing = new VerificationTimeoutSweeper(registry, method -> false);
+
+        clock.advance(TIMEOUT.plusSeconds(1));
+        failing.sweep();
+
+        assertThat(registry.size())
+                .as("移出失败时登记必须保留，否则该成员再也不会被移出")
+                .isEqualTo(1);
+
+        // 下一轮：发送恢复 → 才清理登记（成员被真正移出）
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        new VerificationTimeoutSweeper(registry, sent::add).sweep();
+
+        assertThat(sent).as("重试应真的发出移出动作").hasSize(1);
+        assertThat(registry.size()).as("成功移出后登记才清空").isZero();
+    }
 }

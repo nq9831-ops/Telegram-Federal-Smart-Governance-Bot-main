@@ -3,7 +3,6 @@ package com.tg.heyisheng.bot.core.admission;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,7 +50,7 @@ public class PendingVerificationRegistry {
      * 标记验证通过：移除登记。
      *
      * <p><b>必须同时检查是否过期</b>——只判断"登记还在不在"会放过超时点击：
-     * 过期条目在 {@link #drainExpired()} 被扫走之前仍留在 map 里，点击就会"通过"，
+     * 过期条目在 {@link #peekExpired()} 被扫走之前仍留在 map 里，点击就会"通过"，
      * 等于超时机制形同虚设。（此缺陷由 {@code expiredOrRepeatedClickIsRejected} 实测抓出。）
      *
      * @return true 表示确有**未过期**的登记被移除；过期或重复点击返回 false
@@ -66,18 +65,24 @@ public class PendingVerificationRegistry {
         return removed != null && !deadline.isBefore(clock.instant());
     }
 
-    /** 取出并移除所有已过期的登记。 */
-    public List<Member> drainExpired() {
+    /**
+     * 列出当前已过期的登记，<b>但不移除</b>。
+     *
+     * <p>与「取出即移除」的区别是要害：移出成员是<b>主动 API 调用、可能失败</b>
+     * （无 token 时空实现、或临时网络/权限错误）。若先移除登记再发送，失败就无法重试，
+     * 成员会滞留在群里且<b>永不再被移出</b>。故调用方应「先发送、成功后才 {@link #remove}」。
+     */
+    public List<Member> peekExpired() {
         Instant now = clock.instant();
-        List<Member> expired = new ArrayList<>();
-        deadlines.entrySet().removeIf(entry -> {
-            if (entry.getValue().isBefore(now)) {
-                expired.add(entry.getKey());
-                return true;
-            }
-            return false;
-        });
-        return expired;
+        return deadlines.entrySet().stream()
+                .filter(entry -> entry.getValue().isBefore(now))
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    /** 移除一条登记（移出动作成功确认后调用）。 */
+    public void remove(Member member) {
+        deadlines.remove(member);
     }
 
     /** 当前待验证数量（诊断与测试用）。 */

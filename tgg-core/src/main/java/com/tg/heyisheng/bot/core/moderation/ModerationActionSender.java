@@ -24,17 +24,21 @@ public interface ModerationActionSender {
      * 发送一个 Bot API 方法。
      *
      * @param method 待发送方法；实现应对 null 与发送失败做防御
+     * @return {@code true} = 已成功发出；{@code false} = 未发出（空实现 / 发送失败 / 参数非法）。
+     *         需要「确认动作真的发生了」的调用方必须据此判断——例如准入超时移出要据此决定
+     *         是否清理登记（清早了会让成员滞留群内且<b>永不再重试</b>）。
      */
-    void send(BotApiMethod<?> method);
+    boolean send(BotApiMethod<?> method);
 
     /**
      * 空实现：未装配发送通道时至少保证「删除」生效。
      *
      * <p>注意这是<b>兜底</b>而非正常路径——生产必须装配真实通道（见 TggCoreConfiguration），
      * 否则硬红线只删不冻。装配方若因缺 token 退化为空实现，须显式告警。
+     *
+     * <p>恒返回 {@code false}——空实现什么都没发出去，依赖返回值的调用方会正确地<b>不</b>清理登记。
      */
     static ModerationActionSender noop() {
-        return method -> {
-        };
+        return method -> false;
     }
 }

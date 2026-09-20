@@ -47,10 +47,13 @@ public class TelegramApiMethodExecutor {
      * 发送一个 Telegram API 调用。
      *
      * <p>失败只记录、不抛出——单条回复发不出去不应中断整批 update 的处理。
+     *
+     * @return {@code true} = 2xx 成功；{@code false} = 未发出或失败（含 {@code method} 为 null）。
+     *         调用方若要据此做后续决策（如「移出成功才清理登记」），以本返回值为准。
      */
-    public void execute(BotApiMethod<?> method) {
+    public boolean execute(BotApiMethod<?> method) {
         if (method == null) {
-            return;
+            return false;
         }
         String methodName = method.getMethod();
         try {
@@ -63,10 +66,13 @@ public class TelegramApiMethodExecutor {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     log.warn("发送 {} 失败：HTTP {}", methodName, response.code());
+                    return false;
                 }
+                return true;
             }
         } catch (Exception ex) {
             log.warn("发送 {} 时发生异常", methodName, ex);
+            return false;
         }
     }
 
