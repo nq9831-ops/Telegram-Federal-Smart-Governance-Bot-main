@@ -50,7 +50,8 @@ public class RuntimeConfigService {
         this(overrides, environment, Clock.systemUTC());
     }
 
-    RuntimeConfigService(ConfigOverrideRepository overrides, Environment environment, Clock clock) {
+    /** 可注入时钟的构造器（测试用；也让本服务不绑定系统时钟）。 */
+    public RuntimeConfigService(ConfigOverrideRepository overrides, Environment environment, Clock clock) {
         this.overrides = overrides;
         this.environment = environment;
         this.clock = clock;
@@ -186,13 +187,22 @@ public class RuntimeConfigService {
     @Transactional
     public String set(String key, String rawValue, Long operator) {
         ConfigKey meta = ConfigCatalog.find(key)
-                .orElseThrow(() -> new IllegalArgumentException("未知配置键：" + key));
+                .orElseThrow(() -> new ConfigWriteException(ConfigWriteException.Kind.UNKNOWN_KEY,
+                        "未知配置键：" + key));
         if (!meta.writable()) {
-            throw new IllegalArgumentException("该配置不可经 Web 改写（分类 " + meta.category() + "）：" + key);
+            throw new ConfigWriteException(ConfigWriteException.Kind.NOT_WRITABLE,
+                    "该配置不可经 Web 改写（分类 " + meta.category() + "）：" + key);
         }
         String value = rawValue == null ? "" : rawValue.trim();
-        validateValue(meta, value);
-        validatePrerequisite(meta, value);
+        // 值级失败统一归为 INVALID_VALUE——调用方据此回 400（改改就能过），与「键不存在」「不可写」区分开。
+        try {
+            validateValue(meta, value);
+            validatePrerequisite(meta, value);
+        } catch (ConfigWriteException ex) {
+            throw ex;
+        } catch (IllegalArgumentException ex) {
+            throw new ConfigWriteException(ConfigWriteException.Kind.INVALID_VALUE, ex.getMessage());
+        }
 
         overrides.save(new ConfigOverride(key, value, clock.instant(), operator));
         cache.put(key, value);
@@ -203,7 +213,8 @@ public class RuntimeConfigService {
     /** 删除覆盖，回落到环境变量/默认。 */
     @Transactional
     public void clear(String key, Long operator) {
-        ConfigCatalog.find(key).orElseThrow(() -> new IllegalArgumentException("未知配置键：" + key));
+        ConfigCatalog.find(key).orElseThrow(() -> new ConfigWriteException(
+                ConfigWriteException.Kind.UNKNOWN_KEY, "未知配置键：" + key));
         overrides.deleteById(key);
         cache.remove(key);
         log.info("配置覆盖已清除：key={} operator={}", key, operator);

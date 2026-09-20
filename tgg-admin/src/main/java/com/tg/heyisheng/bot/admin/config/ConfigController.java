@@ -1,45 +1,114 @@
 package com.tg.heyisheng.bot.admin.config;
 
 import com.tg.heyisheng.bot.admin.AdminApiTokenCondition;
+import com.tg.heyisheng.bot.admin.AdminAuthFilter;
+import com.tg.heyisheng.bot.core.audit.AuditEntry;
+import com.tg.heyisheng.bot.core.audit.AuditService;
+import com.tg.heyisheng.bot.core.config.dynamic.ConfigAdminGuard;
+import com.tg.heyisheng.bot.core.config.dynamic.ConfigWriteException;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * 配置中心 · <b>只读总览</b>端点（模块十一 扩展）。
+ * 配置中心端点（模块十一 扩展）。
  *
  * <pre>
- * GET /admin/config   全量配置总览（分类 / 生效值 / 默认值 / 来源 / 是否需重启 / 是否可写）
+ * GET    /admin/config        全量只读总览（任一已鉴权操作者）
+ * PUT    /admin/config/{key}  写一条覆盖（需配置写权限）
+ * DELETE /admin/config/{key}  清除覆盖，回落到环境/default（需配置写权限）
  * </pre>
  *
- * <p><b>鉴权不在本类</b>：{@code AdminAuthFilter} 已按 {@code /admin/*} 前置验明 token 与
- * operator 白名单。本类只取用——门禁只有一处实现，才不会出现「某个端点漏判」。读取对**任一已鉴权操作者**开放（写权限才是更严的一层，见配置写端点）。
+ * <p><b>鉴权分两层</b>：粗门禁由 {@code AdminAuthFilter} 在 {@code /admin/*} 前置做（token + 复核人白名单）；
+ * <b>写</b>另加一层 {@link ConfigAdminGuard}。读对任一已鉴权者开放，写才更严——因为读只是看，
+ * 写能开关模块、改阈值、触发重启。
  *
- * <p><b>密钥不回显</b>：打码是 {@link RuntimeConfigService#snapshot()} 的契约（密钥键恒为
- * {@code ***} / {@code 未设置}），本类不额外处理，避免两处打码逻辑漂移。
+ * <p><b>状态码用 {@code ResponseEntity} 显式返回</b>（不靠抛异常）：本项目有全局异常处理器把业务异常
+ * 吞成 200，抛异常表达 404/409 会得到 200。分类映射：键不存在 → 404；键不可写 → 409；值非法 → 400。
  *
- * <p>与 {@code ApprovalController} 同样以 {@code @Conditional(AdminApiTokenCondition.class)}
- * 挂在控制器上：控制器是组件扫描注册的，不受配置类条件约束，只在一边挂条件会让上下文起不来。
+ * <p><b>审计</b>：每次写/清都记 {@code admin.config.update}，明细**只记键不放值**（密钥类虽已被
+ * 分类拦在写路径外，仍不把值写进审计，少一条泄漏面）。
  */
 @RestController
 @Conditional(AdminApiTokenCondition.class)
 @RequestMapping(path = "/admin/config", produces = MediaType.APPLICATION_JSON_VALUE)
 public class ConfigController {
 
-    private final RuntimeConfigService config;
+    /** 审计动作标识。 */
+    static final String AUDIT_ACTION = "admin.config.update";
 
-    public ConfigController(RuntimeConfigService config) {
+    private final RuntimeConfigService config;
+    private final ConfigAdminGuard guard;
+    private final AuditService audit;
+
+    public ConfigController(RuntimeConfigService config, ConfigAdminGuard guard, AuditService audit) {
         this.config = config;
+        this.guard = guard;
+        this.audit = audit;
     }
 
     /** 全量配置总览（只读）。 */
     @GetMapping
     public List<RuntimeConfigService.Resolved> list() {
         return config.snapshot();
+    }
+
+    /** 写一条配置覆盖。 */
+    @PutMapping(path = "/{key}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Map<String, String>> update(@PathVariable String key,
+                                                      @RequestBody UpdateRequest body,
+                                                      HttpServletRequest request) {
+        Long operator = (Long) request.getAttribute(AdminAuthFilter.OPERATOR_ATTRIBUTE);
+        if (!guard.isConfigAdmin(operator)) {
+            return ResponseEntity.status(403)
+                    .body(Map.of("error", "无配置写权限：操作人不在配置管理员白名单内"));
+        }
+        try {
+            String value = config.set(key, body.value(), operator);
+            audit.record(operator, AUDIT_ACTION, null, AuditEntry.Outcome.SUCCESS, "set " + key);
+            return ResponseEntity.ok(Map.of("result", "UPDATED", "key", key, "effectiveValue", value));
+        } catch (ConfigWriteException ex) {
+            audit.record(operator, AUDIT_ACTION, null, AuditEntry.Outcome.FAILURE,
+                    "rejected " + key + " (" + ex.kind() + ")");
+            return switch (ex.kind()) {
+                case UNKNOWN_KEY -> ResponseEntity.status(404).body(Map.of("error", ex.getMessage()));
+                case NOT_WRITABLE -> ResponseEntity.status(409).body(Map.of("error", ex.getMessage()));
+                case INVALID_VALUE -> ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            };
+        }
+    }
+
+    /** 清除一条覆盖（回落到环境变量/默认）。 */
+    @DeleteMapping(path = "/{key}")
+    public ResponseEntity<Map<String, String>> clear(@PathVariable String key,
+                                                     HttpServletRequest request) {
+        Long operator = (Long) request.getAttribute(AdminAuthFilter.OPERATOR_ATTRIBUTE);
+        if (!guard.isConfigAdmin(operator)) {
+            return ResponseEntity.status(403)
+                    .body(Map.of("error", "无配置写权限：操作人不在配置管理员白名单内"));
+        }
+        try {
+            config.clear(key, operator);
+            audit.record(operator, AUDIT_ACTION, null, AuditEntry.Outcome.SUCCESS, "clear " + key);
+            return ResponseEntity.ok(Map.of("result", "CLEARED", "key", key));
+        } catch (ConfigWriteException ex) {
+            return ResponseEntity.status(404).body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    /** 写入请求体：只带一个值（键在路径里）。 */
+    public record UpdateRequest(String value) {
     }
 }

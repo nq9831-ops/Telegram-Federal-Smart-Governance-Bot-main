@@ -33,23 +33,24 @@ public class ApprovalOverdueJob {
     private final ApprovalQueryService queries;
     private final ModerationReviewGuard guard;
     private final NotificationDispatcher notifications;
-    private final long remindHours;
-    private final long escalateHours;
+    private final com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService config;
 
     public ApprovalOverdueJob(ApprovalQueryService queries,
                               ModerationReviewGuard guard,
                               NotificationDispatcher notifications,
-                              long remindHours,
-                              long escalateHours) {
+                              com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService config) {
         this.queries = queries;
         this.guard = guard;
         this.notifications = notifications;
-        this.remindHours = remindHours;
-        this.escalateHours = escalateHours;
+        this.config = config;
     }
 
     @Scheduled(cron = "${tgg.admin.overdue-cron:0 15 * * * *}")
     public void run() {
+        // 阈值在**每次运行**时现读——后台改配置后无需重启即生效（热参数）。
+        long remindHours = config.getLong("tgg.admin.overdue-remind-hours", 24);
+        long escalateHours = config.getLong("tgg.admin.overdue-escalate-hours", 72);
+
         List<ApprovalQueryService.Item> pending =
                 queries.list(ReviewStatus.PENDING, 0, Integer.MAX_VALUE).items();
 

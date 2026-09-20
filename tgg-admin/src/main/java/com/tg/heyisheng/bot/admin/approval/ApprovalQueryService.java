@@ -44,17 +44,26 @@ public class ApprovalQueryService {
 
     private final ModerationReviewRepository repository;
     private final Clock clock;
-    private final Duration remindAfter;
-    private final Duration escalateAfter;
+    private final com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService config;
 
     public ApprovalQueryService(ModerationReviewRepository repository,
                                 Clock clock,
-                                Duration remindAfter,
-                                Duration escalateAfter) {
+                                com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService config) {
         this.repository = repository;
         this.clock = clock;
-        this.remindAfter = remindAfter;
-        this.escalateAfter = escalateAfter;
+        this.config = config;
+    }
+
+    /**
+     * 超时阈值——**在调用期读取**（而非构造期捕获），故后台改配置后**无需重启**即生效。
+     * 这是「热参数」的定义点：消费方每次用都现读 {@link RuntimeConfigService}。
+     */
+    private Duration remindAfter() {
+        return config.getHours("tgg.admin.overdue-remind-hours", 24);
+    }
+
+    private Duration escalateAfter() {
+        return config.getHours("tgg.admin.overdue-escalate-hours", 72);
     }
 
     /** 按状态取一页（{@code PENDING} 按优先级；已裁决的按时间倒序，最近裁决在前）。 */
@@ -96,14 +105,16 @@ public class ApprovalQueryService {
         long hardLinePending = repository.countByHardLineTrueAndStatus(ReviewStatus.PENDING);
 
         Instant now = clock.instant();
+        Duration remind = remindAfter();
+        Duration escalate = escalateAfter();
         long overdueRemind = 0;
         long overdueEscalate = 0;
         for (ModerationReviewItem item : repository.findByStatusOrderByIdAsc(ReviewStatus.PENDING)) {
             Duration age = Duration.between(item.getCreatedAt(), now);
-            if (age.compareTo(escalateAfter) >= 0) {
+            if (age.compareTo(escalate) >= 0) {
                 overdueEscalate++;
                 overdueRemind++;   // 已升级的必然也超过了提醒阈值，两者不是互斥计数
-            } else if (age.compareTo(remindAfter) >= 0) {
+            } else if (age.compareTo(remind) >= 0) {
                 overdueRemind++;
             }
         }
@@ -119,7 +130,7 @@ public class ApprovalQueryService {
         return new Item(item.getId(), item.getChatId(), item.getUserId(), item.getRuleIds(),
                 item.getRiskLevel(), item.isHardLine(), item.getStatus(), item.getCreatedAt(),
                 item.getDecidedAt(), item.getDecidedBy(), item.getNote(),
-                age.toHours(), item.isPending() && age.compareTo(remindAfter) >= 0);
+                age.toHours(), item.isPending() && age.compareTo(remindAfter()) >= 0);
     }
 
     /** 列表项（含派生字段 {@code ageHours} / {@code overdue}，省得每个消费方自己再算一遍时间）。 */

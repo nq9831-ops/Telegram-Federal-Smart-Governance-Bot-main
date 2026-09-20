@@ -1,10 +1,13 @@
 package com.tg.heyisheng.bot.admin.approval;
 
+import com.tg.heyisheng.bot.core.config.dynamic.ConfigOverrideRepository;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewItem;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.lang.reflect.Field;
 import java.time.Clock;
@@ -29,12 +32,21 @@ class ApprovalQueryServiceTest {
     private static final long CHAT = -100900999L;
     private static final long USER = 777L;
     private static final Instant NOW = Instant.parse("2026-09-18T12:00:00Z");
-    private static final Duration REMIND = Duration.ofHours(24);
-    private static final Duration ESCALATE = Duration.ofHours(72);
 
     private final ModerationReviewRepository repository = mock(ModerationReviewRepository.class);
+    private final RuntimeConfigService config = configWith();
     private final ApprovalQueryService service = new ApprovalQueryService(
-            repository, Clock.fixed(NOW, ZoneOffset.UTC), REMIND, ESCALATE);
+            repository, Clock.fixed(NOW, ZoneOffset.UTC), config);
+
+    /** 无覆盖的配置服务：解析落到 ConfigCatalog 默认（24h / 72h），与改造前的常量等价。 */
+    private static RuntimeConfigService configWith(String... keyValues) {
+        MockEnvironment environment = new MockEnvironment();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            environment.withProperty(keyValues[i], keyValues[i + 1]);
+        }
+        return new RuntimeConfigService(mock(ConfigOverrideRepository.class), environment,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
 
     private long nextId = 1;
 
@@ -182,5 +194,23 @@ class ApprovalQueryServiceTest {
         assertThat(items).extracting(ApprovalQueryService.Item::id)
                 .as("已裁决的看「最近处理了什么」比看优先级更有用")
                 .containsExactly(recent.getId(), old.getId());
+    }
+
+    /**
+     * 超时阈值是<b>热参数</b>：改配置后**无需重启**即生效。
+     *
+     * <p>这是「热生效」的判据——消费方在调用期现读配置，而不是在构造期把它捕获成常量。
+     * 若把本类的构造器改回「收 Duration」，这条会红。
+     */
+    @Test
+    void remindThresholdIsReadHotFromConfig() {
+        pendingAre(item(RiskLevel.MEDIUM, false, NOW.minus(Duration.ofHours(30))));
+        assertThat(service.stats().overdueRemind()).as("默认 24h：30h 前的条目算超时").isEqualTo(1);
+
+        config.set("tgg.admin.overdue-remind-hours", "40", 42L);
+
+        assertThat(service.stats().overdueRemind())
+                .as("阈值改到 40h 后（不重启），30h 的条目不再算超时")
+                .isZero();
     }
 }

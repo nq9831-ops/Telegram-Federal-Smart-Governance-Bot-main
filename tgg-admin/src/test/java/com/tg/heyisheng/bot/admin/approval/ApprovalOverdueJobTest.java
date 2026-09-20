@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.admin.approval;
 
+import com.tg.heyisheng.bot.core.config.dynamic.ConfigOverrideRepository;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
@@ -7,6 +9,7 @@ import com.tg.heyisheng.bot.core.notify.Notification;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -35,9 +38,20 @@ class ApprovalOverdueJobTest {
     private final ApprovalQueryService queries = mock(ApprovalQueryService.class);
     private final ModerationReviewGuard guard = mock(ModerationReviewGuard.class);
     private final NotificationDispatcher notifications = mock(NotificationDispatcher.class);
+    private final RuntimeConfigService config = configWith();
 
     private final ApprovalOverdueJob job =
-            new ApprovalOverdueJob(queries, guard, notifications, 24, 72);
+            new ApprovalOverdueJob(queries, guard, notifications, config);
+
+    /** 无覆盖的配置服务：解析落到 ConfigCatalog 默认（24h / 72h），与改造前的常量等价。 */
+    private static RuntimeConfigService configWith(String... keyValues) {
+        MockEnvironment environment = new MockEnvironment();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            environment.withProperty(keyValues[i], keyValues[i + 1]);
+        }
+        return new RuntimeConfigService(mock(ConfigOverrideRepository.class), environment,
+                java.time.Clock.systemUTC());
+    }
 
     private static ApprovalQueryService.Item item(long id, RiskLevel level, boolean hardLine, long ageHours) {
         return new ApprovalQueryService.Item(id, -100L, 888L, "R1", level, hardLine,
@@ -120,5 +134,17 @@ class ApprovalOverdueJobTest {
         job.run();
 
         verify(notifications, org.mockito.Mockito.times(2)).notify(any());
+    }
+
+    /** 提醒阈值是<b>热参数</b>：改配置后无需重启，下一次运行即用新阈值。 */
+    @Test
+    void remindThresholdIsReadHotFromConfig() {
+        config.set("tgg.admin.overdue-remind-hours", "5", 42L);
+        pending(item(7, RiskLevel.MEDIUM, false, 10));   // 10h > 新阈值 5h → 应提醒
+
+        job.run();
+
+        assertThat(notifiedMessages()).hasSize(1);
+        assertThat(notifiedMessages().get(0)).contains("审批提醒").contains("#7");
     }
 }

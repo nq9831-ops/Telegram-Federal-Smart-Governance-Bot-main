@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.admin.approval.ApprovalCommandService;
 import com.tg.heyisheng.bot.admin.approval.ApprovalOverdueJob;
 import com.tg.heyisheng.bot.admin.approval.ApprovalQueryService;
 import com.tg.heyisheng.bot.core.audit.AuditService;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewDecisionService;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
@@ -19,7 +20,6 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
-import java.time.Duration;
 
 /**
  * 模块十一 · Web 后台（审批中心）装配。
@@ -48,10 +48,9 @@ public class AdminConfiguration {
 
     @Bean
     public ApprovalQueryService approvalQueryService(ModerationReviewRepository reviewRepository,
-                                                     AdminProperties properties) {
-        return new ApprovalQueryService(reviewRepository, Clock.systemUTC(),
-                Duration.ofHours(properties.getOverdueRemindHours()),
-                Duration.ofHours(properties.getOverdueEscalateHours()));
+                                                     RuntimeConfigService config) {
+        // 超时阈值改由 RuntimeConfigService 在调用期读取 → 热生效（后台改完无需重启）。
+        return new ApprovalQueryService(reviewRepository, Clock.systemUTC(), config);
     }
 
     @Bean
@@ -72,9 +71,8 @@ public class AdminConfiguration {
     public ApprovalOverdueJob approvalOverdueJob(ApprovalQueryService queries,
                                                  ModerationReviewGuard moderationReviewGuard,
                                                  NotificationDispatcher notificationDispatcher,
-                                                 AdminProperties properties) {
-        return new ApprovalOverdueJob(queries, moderationReviewGuard, notificationDispatcher,
-                properties.getOverdueRemindHours(), properties.getOverdueEscalateHours());
+                                                 RuntimeConfigService config) {
+        return new ApprovalOverdueJob(queries, moderationReviewGuard, notificationDispatcher, config);
     }
 
     /**
