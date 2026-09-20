@@ -31,9 +31,9 @@ import java.util.function.Consumer;
  *   <li><b>命令名必须在注册表内</b>——防伪造 {@code callback_data} 注入任意命令。</li>
  * </ol>
  *
- * <p><b>返回值规则（webhook 一次只能返回一个方法）</b>：
- * 有 {@code proactiveSender} 时返回「应答」（停止按钮转圈），命令结果经它主动发出；
- * 无 {@code proactiveSender}（未配 token）时退回「返回命令结果」——功能不丢，只丢应答。
+ * <p><b>返回值规则（webhook 一次只能返回一个方法）</b>：<b>命令结果始终走返回值</b>（这条通道由框架
+ * 保证投递）；{@code proactiveSender} 存在时额外发一个「应答」让按钮停止转圈——应答是尽力而为，
+ * 失败了也不影响结果送达。没有结果时（如权限不足被静默拒绝）才退化为只回应答。
  */
 public class CallbackCommandBridge {
 
@@ -110,11 +110,17 @@ public class CallbackCommandBridge {
             return Optional.of(answer(query, FAILED));
         }
 
-        if (proactiveSender != null) {
-            result.ifPresent(proactiveSender);
-            return Optional.of(answer(query, null));
+        // 结果走 webhook 返回值这条**可靠**通道；「应答」只是让按钮别转圈，属尽力而为的补充。
+        // 反过来（结果走主动通道、返回 ack）会把主输出放到一条可能失败的通路上——实测教训：
+        // 测试用假 token 时主动发送必然失败，命令产出就丢了，端到端测试无法观察它。
+        if (result.isPresent()) {
+            if (proactiveSender != null) {
+                proactiveSender.accept(answer(query, null));
+            }
+            return result;
         }
-        return result;
+        // 没有结果时（如权限不足被静默拒绝）也必须应答，否则按钮一直转圈
+        return Optional.of(answer(query, null));
     }
 
     private static AnswerCallbackQuery answer(CallbackQuery query, String text) {

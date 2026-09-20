@@ -7,6 +7,9 @@ import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.interaction.CallbackCommandBridge;
+import com.tg.heyisheng.bot.core.interaction.ConfirmCallbackHandler;
+import com.tg.heyisheng.bot.core.interaction.ConfirmCancelCallbackHandler;
+import com.tg.heyisheng.bot.core.interaction.ConfirmationStore;
 import com.tg.heyisheng.bot.core.interaction.MenuCallbackHandler;
 import com.tg.heyisheng.bot.core.ratelimit.InMemoryRateLimiter;
 import com.tg.heyisheng.bot.core.ratelimit.RateLimiter;
@@ -19,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.function.Consumer;
 
@@ -79,5 +83,29 @@ public class InteractionConfiguration {
     @Bean
     public CallbackHandler menuCallbackHandler(CallbackCommandBridge callbackCommandBridge) {
         return new MenuCallbackHandler(callbackCommandBridge);
+    }
+
+    /**
+     * 待确认操作登记簿。
+     *
+     * <p>它是 {@code CommandDispatcher} 的确认卡接缝（经 {@code ConfirmationRequests} 接口注入，
+     * 见 {@code TggCoreConfiguration#commandDispatcher}）——本 bean 存在时危险命令才会被拦一道。
+     */
+    @Bean
+    public ConfirmationStore confirmationStore() {
+        return new ConfirmationStore(Clock.systemUTC());
+    }
+
+    /** 「✅ 确认执行」：消费令牌后带确认标记重新执行命令（门控照旧生效）。 */
+    @Bean
+    public CallbackHandler confirmCallbackHandler(ConfirmationStore confirmationStore,
+                                                  CallbackCommandBridge callbackCommandBridge) {
+        return new ConfirmCallbackHandler(confirmationStore, callbackCommandBridge);
+    }
+
+    /** 「❌ 取消」：消费令牌使其立即作废（否则取消之后原卡上的确认按钮仍然有效）。 */
+    @Bean
+    public CallbackHandler confirmCancelCallbackHandler(ConfirmationStore confirmationStore) {
+        return new ConfirmCancelCallbackHandler(confirmationStore);
     }
 }

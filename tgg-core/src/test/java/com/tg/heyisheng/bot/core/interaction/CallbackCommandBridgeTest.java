@@ -12,6 +12,7 @@ import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.ratelimit.RateLimiter;
 import org.junit.jupiter.api.Test;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
@@ -99,8 +100,9 @@ class CallbackCommandBridgeTest {
         Optional<BotApiMethod<?>> result = bridge("MEMBER", true, ALLOW)
                 .execute(click("menu:" + CHAT + ":words"), CHAT, "words", null, false);
 
-        assertThat(result).as("权限不足应静默（与命令层一致）").isEmpty();
         assertThat(CALLS.get()).as("无权时命令不得执行").isZero();
+        assertThat(result).as("无结果时至少回一个应答，否则按钮一直转圈")
+                .hasValueSatisfying(method -> assertThat(method).isInstanceOf(AnswerCallbackQuery.class));
     }
 
     /**
@@ -112,8 +114,9 @@ class CallbackCommandBridgeTest {
         Optional<BotApiMethod<?>> result = bridge("ADMIN", false, ALLOW)
                 .execute(click("menu:" + CHAT + ":words"), CHAT, "words", null, false);
 
-        assertThat(result).as("群已停用 → 命令不得执行").isEmpty();
         assertThat(CALLS.get()).as("停用群里按钮不得成为绕过开关的通道").isZero();
+        assertThat(result).as("无结果时至少回一个应答")
+                .hasValueSatisfying(method -> assertThat(method).isInstanceOf(AnswerCallbackQuery.class));
     }
 
     /** S6：data 里的命令名必须在注册表内，防伪造 data 注入任意命令。 */

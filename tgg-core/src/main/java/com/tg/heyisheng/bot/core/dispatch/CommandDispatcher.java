@@ -9,7 +9,12 @@ import com.tg.heyisheng.bot.core.permission.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -28,6 +33,10 @@ public class CommandDispatcher {
 
     private final CommandRegistry registry;
     private final PermissionChecker permissionChecker;
+    /**
+     * 确认卡接缝；为 {@code null}（老构造器）时**不拦截任何命令**——未装配即零影响。
+     */
+    private final ConfirmationRequests confirmationRequests;
 
     /** 默认用「全部按最小权限处理」的判定器——未装配权限源时不放行任何受限命令。 */
     public CommandDispatcher(CommandRegistry registry) {
@@ -35,8 +44,14 @@ public class CommandDispatcher {
     }
 
     public CommandDispatcher(CommandRegistry registry, PermissionChecker permissionChecker) {
+        this(registry, permissionChecker, null);
+    }
+
+    public CommandDispatcher(CommandRegistry registry, PermissionChecker permissionChecker,
+                             ConfirmationRequests confirmationRequests) {
         this.registry = registry;
         this.permissionChecker = permissionChecker;
+        this.confirmationRequests = confirmationRequests;
     }
 
     /**
@@ -53,12 +68,51 @@ public class CommandDispatcher {
             return Optional.empty();
         }
 
+        String command = ctx.command().orElseThrow();
+
+        // 确认卡：在**执行之前**拦一道。放在这里而不是各 handler 里的理由——
+        // 危险命令无需各自记得「先确认」，标注一处即对所有入口生效（文本命令、按钮、将来的 Web），
+        // 不会有漏网的调用路径。
+        if (confirmationRequests != null) {
+            Confirm mode = registry.confirmationOf(command);
+            if (mode != Confirm.NEVER && confirmationRequests.requiresConfirmation(ctx, mode)) {
+                return Optional.of(confirmationCard(ctx, command, confirmationRequests.issue(ctx)));
+            }
+        }
+
         try {
             return Optional.ofNullable(resolvable.get().handle(ctx));
         } catch (Exception ex) {
             // 统一包装为项目异常，便于上游 @RestControllerAdvice 识别与记录
-            throw new TggDispatchException("命令处理失败：" + ctx.command().orElseThrow(), ex);
+            throw new TggDispatchException("命令处理失败：" + command, ex);
         }
+    }
+
+    /**
+     * 确认卡：复述将要执行的命令，给出「确认 / 取消」。
+     *
+     * <p>复述参数是刻意的——用户点按钮时多半已忘了当初打的什么，卡片必须把「将要发生什么」写清楚。
+     */
+    private static BotApiMethod<?> confirmationCard(UpdateContext ctx, String command, String nonce) {
+        String args = ctx.commandArgs().orElse(null);
+        String preview = "/" + command + (args == null || args.isBlank() ? "" : " " + args);
+
+        InlineKeyboardButton confirm = InlineKeyboardButton.builder()
+                .text("✅ 确认执行")
+                .callbackData(ConfirmationRequests.CONFIRM_ACTION + ":" + nonce)
+                .build();
+        InlineKeyboardButton cancel = InlineKeyboardButton.builder()
+                .text("❌ 取消")
+                .callbackData(ConfirmationRequests.CANCEL_ACTION + ":" + nonce)
+                .build();
+
+        return SendMessage.builder()
+                .chatId(String.valueOf(ctx.chatId()))
+                .text("即将执行：" + preview + "\n该操作不可撤销，请确认。")
+                .replyMarkup(InlineKeyboardMarkup.builder()
+                        .keyboard(List.of(new InlineKeyboardRow(confirm), new InlineKeyboardRow(cancel)))
+                        .build())
+                .build();
     }
 
     /**

@@ -55,4 +55,16 @@ public @interface BotCommand {
      * 只能由运维直接改数据库恢复——这是实测暴露的真实缺陷，不是理论风险。
      */
     boolean worksWhenDisabled() default false;
+
+    /**
+     * 是否需要「执行前先确认」（见 {@link Confirm}）。
+     *
+     * <p>默认 {@link Confirm#NEVER}——绝大多数命令不该被打断。
+     * 该标注用于**不可逆或高影响**的操作：资金动作、终态裁决（复核/联邦申诉）、关闭本群、
+     * 写合规证据等。判据不是「操作大不大」，而是「做错了能不能撤、会牵连谁」。
+     *
+     * <p><b>它只影响入口，不改变命令本身的语义</b>：确认通过后执行的仍是同一个 handler。
+     * 因此对已有命令加标注是**行为增量**（多一步确认），不是行为改写。
+     */
+    Confirm confirm() default Confirm.NEVER;
 }

@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.core.credit.CreditEventSink;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
+import com.tg.heyisheng.bot.core.dispatch.ConfirmationRequests;
 import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
 import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
@@ -117,10 +118,13 @@ public class TggCoreConfiguration {
 
     @Bean
     public CommandDispatcher commandDispatcher(CommandRegistry registry,
-                                               PermissionChecker permissionChecker) {
+                                               PermissionChecker permissionChecker,
+                                               ObjectProvider<ConfirmationRequests> confirmationRequests) {
         // 必须注入真实判定器——用单参构造器会落到「恒最小权限」的兜底实现，
         // 使权限门控在生产中完全不生效（该实现仅供未装配场景兜底与单测使用）。
-        return new CommandDispatcher(registry, permissionChecker);
+        // 确认卡接缝走 ObjectProvider：交互模块未装配时取不到 → 传 null → 不拦截任何命令，
+        // 于是「只装 core 配置」的 ApplicationContextRunner 型测试行为与升级前一致。
+        return new CommandDispatcher(registry, permissionChecker, confirmationRequests.getIfAvailable());
     }
 
     @Bean
