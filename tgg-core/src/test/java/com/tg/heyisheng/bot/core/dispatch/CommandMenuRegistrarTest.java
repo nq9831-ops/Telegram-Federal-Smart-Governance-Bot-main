@@ -159,6 +159,29 @@ class CommandMenuRegistrarTest {
         assertThat(commands.get(0).getDescription()).hasSize(CommandMenuRegistrar.MAX_DESCRIPTION);
     }
 
+    /**
+     * 客户端菜单的描述也要去掉权限括注——与 {@code /menu} 的按钮文案**共用同一份清洗**。
+     *
+     * <p>两个入口都已按权限过滤：能看见这条命令的人必然有权限，括注是噪声；
+     * 更糟的是两处各写一份清洗时文案会不一致，同一条命令看起来像两条。
+     */
+    @Test
+    void dropsTheTrailingPermissionParenthetical() {
+        var commands = CommandMenuRegistrar.toMenuCommands(
+                menu("words", "查看本群违禁词（需管理员权限）"));
+
+        assertThat(commands.get(0).getDescription()).isEqualTo("查看本群违禁词");
+    }
+
+    /** 描述只剩权限括注时会被清空——按既有契约「空描述不进菜单」，不能变成一行空白。 */
+    @Test
+    void dropsCommandsWhoseDescriptionIsOnlyAPermissionNote() {
+        var commands = CommandMenuRegistrar.toMenuCommands(
+                menu("echo", "连通性测试", "words", "（需管理员权限）"));
+
+        assertThat(names(commands)).containsExactly("echo");
+    }
+
     // ────────────────────────── 分档 ──────────────────────────
 
     /** 默认档只含**公开**命令——普通成员不该在客户端看到管理命令名。 */

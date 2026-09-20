@@ -22,7 +22,7 @@ import java.util.Locale;
  * <p><b>紧急通知不受免打扰影响</b>——回复里必须把这一点说清楚，否则用户会以为「静音 = 什么都收不到」，
  * 而封禁/解封恰恰是他们最需要立刻知道的。
  */
-@BotCommand(value = "quiet_hours", description = "设置免打扰时段（如 /quiet_hours 22:00-08:00）",
+@BotCommand(value = "quiet_hours", description = "设置免打扰时段，例：/quiet_hours 22:00-08:00",
         publicCommand = true)
 public class QuietHoursCommandHandler implements CommandHandler {
 

@@ -216,22 +216,27 @@ public class CommandMenuRegistrar {
      * <p>输出**按命令名排序**：{@code Map.copyOf} 与 {@code HashMap} 都不保证迭代顺序，
      * 不排序会让菜单与日志每次抖动（测试也会变成随机绿/随机红）。
      *
+     * <p>描述先经 {@link CommandDescriptions#stripPermissionNote} 清洗——菜单已按权限分档，
+     * 看到它的人必然有权限，再带「（需管理员权限）」是噪声（{@code /menu} 的按钮早已这么做，
+     * 两个入口的文案必须一致）。
+     *
      * <p>剔除两类条目（都会让整批注册失败，或渲染成看不懂的空行）：
-     * 名字不合 Bot API 约束的命令、以及**未写描述**的命令——
+     * 名字不合 Bot API 约束的命令、以及**清洗后描述为空**的命令——
      * 后者刻意剔除而非填空串，是为了让「漏写描述」在日志里显形，而不是在客户端里变成一个空壳菜单项。
      */
     public static List<BotCommand> toMenuCommands(Map<String, String> commands) {
         List<BotCommand> menu = new ArrayList<>();
         for (Map.Entry<String, String> entry : commands.entrySet()) {
             String name = entry.getKey() == null ? "" : entry.getKey().trim();
-            String description = entry.getValue() == null ? "" : entry.getValue().trim();
+            String description = CommandDescriptions.stripPermissionNote(entry.getValue());
 
             if (!NAME_PATTERN.matcher(name).matches()) {
                 log.warn("命令名不符合 Telegram 约束（[a-z0-9_]{1,32}），未进菜单：{}", name);
                 continue;
             }
             if (description.isEmpty()) {
-                log.warn("命令 {} 未写描述，未进菜单——补上 @BotCommand(description=...) 后自动出现", name);
+                log.warn("命令 {} 的描述为空（或只剩权限括注），未进菜单"
+                        + "——补上 @BotCommand(description = ...) 后自动出现", name);
                 continue;
             }
             if (description.length() > MAX_DESCRIPTION) {

@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.interaction;
 
+import com.tg.heyisheng.bot.core.dispatch.CommandDescriptions;
 import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -114,24 +115,15 @@ public final class MenuView {
 
     /**
      * 按钮文案：{@code /命令 — 说明}；没写说明时退化为只有命令名（不因此让按钮变空壳）。
+     *
+     * <p>说明里的权限括注由 {@link CommandDescriptions#stripPermissionNote} 去掉——
+     * 与客户端 {@code /} 菜单共用同一份实现。菜单**已经**按当前用户在此处的真实权限过滤过了，
+     * 能看见这条按钮就说明他有权限，再写一遍既是噪声、又把按钮撑长。真正的权限语义仍由
+     * {@code CommandDispatcher} 在执行时判定（菜单只是入口，不是门控）。
      */
     static String label(String command, String description) {
         String name = "/" + command;
-        String clean = shortLabel(description);
+        String clean = CommandDescriptions.stripPermissionNote(description);
         return clean.isEmpty() ? name : name + " — " + clean;
-    }
-
-    /**
-     * 去掉说明结尾的括注（{@code （需管理员权限）} / {@code (平台复核人)} 之类）。
-     *
-     * <p><b>为什么可以去掉</b>：菜单**已经**按当前用户在该类的真实权限过滤过了——能看见这条按钮，
-     * 就说明他有权限。再写一遍既是噪声，又把按钮撑长。真正的权限语义仍由
-     * {@code CommandDispatcher} 在执行时判定（菜单只是入口，不是门控）。
-     */
-    static String shortLabel(String description) {
-        if (description == null) {
-            return "";
-        }
-        return description.replaceAll("[（(][^（()）]*[)）]\\s*$", "").trim();
     }
 }
