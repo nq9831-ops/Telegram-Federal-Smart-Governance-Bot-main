@@ -127,17 +127,45 @@ public class ApprovalQueryService {
 
     private Item toItem(ModerationReviewItem item) {
         Duration age = Duration.between(item.getCreatedAt(), clock.instant());
+        UserProfile profile = userProfile(item.getChatId(), item.getUserId());
         return new Item(item.getId(), item.getChatId(), item.getUserId(), item.getRuleIds(),
                 item.getRiskLevel(), item.isHardLine(), item.getStatus(), item.getCreatedAt(),
                 item.getDecidedAt(), item.getDecidedBy(), item.getNote(),
-                age.toHours(), item.isPending() && age.compareTo(remindAfter()) >= 0);
+                age.toHours(), item.isPending() && age.compareTo(remindAfter()) >= 0,
+                profile.hitCount(), profile.hardLineCount());
     }
 
-    /** 列表项（含派生字段 {@code ageHours} / {@code overdue}，省得每个消费方自己再算一遍时间）。 */
+    /**
+     * 「这个人在这群里以前怎么样」——复核人做判断时最需要的一眼（是否惯犯）。
+     *
+     * <p><b>逐条两次计数查询</b>：与 {@link #list} 全量取回再排序同一取舍——队列规模由保留策略兜底
+     * （见类 javadoc），用两次索引命中换掉「为聚合再引一层缓存」的复杂度。发布者缺失（频道帖）时
+     * 直接返回 0，不把 null 传进仓储。
+     */
+    private UserProfile userProfile(Long chatId, Long userId) {
+        if (chatId == null || userId == null) {
+            return new UserProfile(0, 0);
+        }
+        return new UserProfile(
+                repository.countByChatIdAndUserId(chatId, userId),
+                repository.countByChatIdAndUserIdAndHardLineTrue(chatId, userId));
+    }
+
+    /** 某用户在某群的历史命中概况。 */
+    private record UserProfile(long hitCount, long hardLineCount) {
+    }
+
+    /**
+     * 列表项（含派生字段 {@code ageHours} / {@code overdue}，省得每个消费方自己再算一遍时间）。
+     *
+     * <p>{@code userHitCount} / {@code userHardLineCount} 是「该用户在本群」的累计命中（含已裁决），
+     * 供复核人一眼看出是否惯犯。
+     */
     public record Item(long id, Long chatId, Long userId, String ruleIds, RiskLevel riskLevel,
                        boolean hardLine, ReviewStatus status, Instant createdAt,
                        Instant decidedAt, Long decidedBy, String note,
-                       long ageHours, boolean overdue) {
+                       long ageHours, boolean overdue,
+                       long userHitCount, long userHardLineCount) {
     }
 
     /** 一页结果。 */

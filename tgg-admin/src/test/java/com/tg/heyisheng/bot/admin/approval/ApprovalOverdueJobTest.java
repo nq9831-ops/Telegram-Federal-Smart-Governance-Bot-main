@@ -56,7 +56,9 @@ class ApprovalOverdueJobTest {
     private static ApprovalQueryService.Item item(long id, RiskLevel level, boolean hardLine, long ageHours) {
         return new ApprovalQueryService.Item(id, -100L, 888L, "R1", level, hardLine,
                 ReviewStatus.PENDING, Instant.now().minus(Duration.ofHours(ageHours)),
-                null, null, null, ageHours, ageHours >= 24);
+                null, null, null, ageHours, ageHours >= 24,
+                // 超时催办与本测试的判据无关，「用户概况」给 0 即可
+                0, 0);
     }
 
     private void pending(ApprovalQueryService.Item... items) {

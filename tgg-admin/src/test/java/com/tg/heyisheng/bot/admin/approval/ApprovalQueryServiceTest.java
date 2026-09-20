@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -212,5 +215,39 @@ class ApprovalQueryServiceTest {
         assertThat(service.stats().overdueRemind())
                 .as("阈值改到 40h 后（不重启），30h 的条目不再算超时")
                 .isZero();
+    }
+
+    /**
+     * 「这个人在这群里以前怎么样」必须随列表项一起给出——复核人凭它判断是否惯犯。
+     *
+     * <p>计数走仓库派生查询，故这里显式 stub：Mockito 对 {@code long} 返回 0，
+     * 不 stub 的话「真的查到 0 次」与「压根没查」在断言上不可区分。
+     */
+    @Test
+    void listCarriesTheUsersHistoryInThisChat() {
+        pendingAre(item(RiskLevel.HIGH, false, NOW.minus(Duration.ofHours(1))));
+        when(repository.countByChatIdAndUserId(CHAT, USER)).thenReturn(4L);
+        when(repository.countByChatIdAndUserIdAndHardLineTrue(CHAT, USER)).thenReturn(1L);
+
+        ApprovalQueryService.Item only = service.list(ReviewStatus.PENDING, 0, 20).items().get(0);
+
+        assertThat(only.userHitCount()).as("本群累计命中次数应随项返回").isEqualTo(4);
+        assertThat(only.userHardLineCount()).as("其中硬红线次数也应随项返回").isEqualTo(1);
+    }
+
+    /** 发布者缺失（频道帖）时直接给 0，<b>不得</b>把 null 传进仓储。 */
+    @Test
+    void missingPublisherYieldsZeroProfileWithoutQuerying() {
+        ModerationReviewItem channelPost =
+                new ModerationReviewItem(CHAT, null, null, List.of("R1"), RiskLevel.LOW);
+        set(channelPost, "id", nextId++);
+        set(channelPost, "createdAt", NOW);
+        pendingAre(channelPost);
+
+        ApprovalQueryService.Item only = service.list(ReviewStatus.PENDING, 0, 20).items().get(0);
+
+        assertThat(only.userHitCount()).isZero();
+        assertThat(only.userHardLineCount()).isZero();
+        verify(repository, never()).countByChatIdAndUserId(any(), any());
     }
 }

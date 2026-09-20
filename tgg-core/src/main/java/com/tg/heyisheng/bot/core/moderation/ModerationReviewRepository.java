@@ -39,6 +39,17 @@ public interface ModerationReviewRepository extends JpaRepository<ModerationRevi
     long countByHardLineTrueAndStatus(ReviewStatus status);
 
     /**
+     * 某用户在<b>某群</b>的累计命中次数（含已裁决）——审批中心展示「该用户在本群的历史」用。
+     *
+     * <p>按「用户 × 群」聚合而非按用户全局：违规表现是本群语境的（同一人在 A 群刷屏，
+     * 不代表他在 B 群也刷屏），与 {@code NoViolationTeachGate} 的判定维度保持一致。
+     */
+    long countByChatIdAndUserId(Long chatId, Long userId);
+
+    /** 同上，但只数<b>硬红线</b>——它是「是否惯犯」里最该先被看到的一档。 */
+    long countByChatIdAndUserIdAndHardLineTrue(Long chatId, Long userId);
+
+    /**
      * 已裁决条目的<b>平均处置时长</b>（秒）；没有已裁决条目时返回 {@code null}。
      *
      * <p>用 native SQL 而非 JPQL：{@code TIMESTAMPDIFF} 不是 JPQL 标准函数
