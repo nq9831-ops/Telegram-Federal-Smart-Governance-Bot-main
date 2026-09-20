@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -17,7 +18,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * （与项目既有的软删纪律一致）；停用后规则不再参与检测。
  */
 @BotCommand(value = "unteach", description = "停用一条本群教学规则（需 TEACH_RULE）",
-        requiredPermission = Permission.TEACH_RULE)
+        requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
 public class UnteachCommandHandler implements CommandHandler {
 
     static final String USAGE = "用法：/unteach <规则id>";

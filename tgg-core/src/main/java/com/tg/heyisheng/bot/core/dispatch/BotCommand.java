@@ -67,4 +67,16 @@ public @interface BotCommand {
      * 因此对已有命令加标注是**行为增量**（多一步确认），不是行为改写。
      */
     Confirm confirm() default Confirm.NEVER;
+
+    /**
+     * 本命令在 {@code /menu} 面板里所属的业务域分类。
+     *
+     * <p>默认 {@link MenuCategory#OTHER}——未声明即落进「其他」分类，**仍会显示**（fail-visible：
+     * 宁可多一个「其他」，也不让命令从面板里静默消失）。
+     *
+     * <p><b>为什么由命令自己声明</b>：与 {@link #requiredPermission()}、{@link #confirm()} 同款。
+     * 若在菜单侧维护「命令 → 分类」的映射表，新增命令时必然有人忘了登记，表会悄悄过期
+     * ——本项目在「哪些命令需要参数」的清单上已有同类教训。
+     */
+    MenuCategory category() default MenuCategory.OTHER;
 }

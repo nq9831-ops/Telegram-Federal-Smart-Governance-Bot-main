@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.Confirm;
 import com.tg.heyisheng.bot.core.permission.Permission;
@@ -16,7 +17,8 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * 属于「后果不重但难以发现」的一类，用一次点击换确定性。
  */
 @BotCommand(value = "delword", description = "删除本群违禁词（需管理员权限）",
-        requiredPermission = Permission.MANAGE_CONFIG, confirm = Confirm.ALWAYS)
+        requiredPermission = Permission.MANAGE_CONFIG, confirm = Confirm.ALWAYS,
+        category = MenuCategory.MODERATION)
 @Component
 public class DelWordCommandHandler implements CommandHandler {
 

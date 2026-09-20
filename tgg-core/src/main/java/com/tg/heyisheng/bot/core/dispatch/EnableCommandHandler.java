@@ -24,7 +24,8 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  */
 @BotCommand(value = "enable", description = "开启本群自动化能力（需管理员权限）",
         requiredPermission = Permission.MANAGE_CONFIG,
-        worksWhenDisabled = true)
+        worksWhenDisabled = true,
+        category = MenuCategory.GROUP)
 @Component
 public class EnableCommandHandler implements CommandHandler {
 

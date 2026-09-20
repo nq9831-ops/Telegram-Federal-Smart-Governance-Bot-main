@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,7 @@ import java.util.List;
  * {@code TaughtRulesCommandHandler} 同一范式）。
  */
 @BotCommand(value = "words", description = "查看本群违禁词（需管理员权限）",
-        requiredPermission = Permission.MANAGE_CONFIG)
+        requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.MODERATION)
 @Component
 public class WordsCommandHandler implements CommandHandler {
 

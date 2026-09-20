@@ -129,4 +129,17 @@ public class CallbackCommandBridge {
                 .text(text)
                 .build();
     }
+
+    /**
+     * 尽力而为地应答一次按钮点击（让客户端停止转圈）。
+     *
+     * <p>供**非命令产出**的卡片操作复用同一套取舍：产出（如 /menu 分类导航编辑后的卡片）走
+     * webhook 返回值那条**可靠**通道，应答只是补充、走主动通道。未配置 bot token 时什么都不做
+     * ——与 {@link #execute} 的既有行为一致（结果照旧送达，只是按钮可能转圈到超时）。
+     */
+    public void acknowledge(CallbackQuery query) {
+        if (proactiveSender != null && query != null) {
+            proactiveSender.accept(answer(query, null));
+        }
+    }
 }

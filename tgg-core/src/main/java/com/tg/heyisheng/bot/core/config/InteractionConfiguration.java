@@ -11,12 +11,18 @@ import com.tg.heyisheng.bot.core.interaction.ConfirmCallbackHandler;
 import com.tg.heyisheng.bot.core.interaction.ConfirmCancelCallbackHandler;
 import com.tg.heyisheng.bot.core.interaction.ConfirmationStore;
 import com.tg.heyisheng.bot.core.interaction.MenuCallbackHandler;
+import com.tg.heyisheng.bot.core.interaction.MenuCatalog;
+import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
+import com.tg.heyisheng.bot.core.interaction.ModerationMenuVisibility;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
+import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import com.tg.heyisheng.bot.core.ratelimit.InMemoryRateLimiter;
 import com.tg.heyisheng.bot.core.ratelimit.RateLimiter;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -75,14 +81,45 @@ public class InteractionConfiguration {
     }
 
     /**
+     * 面板目录：可见性判定 + 分类分组（文本命令与按钮导航共用）。
+     *
+     * <p><b>注册表必须惰性取</b>：{@code CommandRegistry} 由全部 {@code CommandHandler} 构造，
+     * 而 {@code /menu} 自身也是 handler——直接注入会成构造环。{@code ObjectProvider} 断开环，
+     * 真正取用发生在请求时刻。
+     *
+     * <p><b>接缝集合同样用 {@code ObjectProvider}</b>：一个模块都没注册可见性接缝时（如只跑
+     * core 的最小装配），这里是一次明确的空流，而不是「无候选 bean」导致的启动失败
+     * ——与 {@code CallbackConfiguration} 收 {@code CallbackHandler} 的取舍一致。
+     */
+    @Bean
+    public MenuCatalog menuCatalog(ObjectProvider<CommandRegistry> commandRegistry,
+                                   PermissionChecker permissionChecker,
+                                   ObjectProvider<MenuVisibility> menuVisibilities) {
+        return new MenuCatalog(commandRegistry, permissionChecker, menuVisibilities.stream().toList());
+    }
+
+    /**
+     * core 自己的可见性接缝：复核队列 / 合规证据（平台白名单类）。
+     *
+     * <p>上层模块（listing / federation）各自注册自己的接缝 bean，装配层无需知道它们的存在
+     * ——照 {@code TeachGate} 的依赖倒置。
+     */
+    @Bean
+    public MenuVisibility moderationMenuVisibility(ModerationReviewGuard moderationReviewGuard) {
+        return new ModerationMenuVisibility(moderationReviewGuard);
+    }
+
+    /**
      * Hub 按钮的处理器。
      *
      * <p>与准入的 {@code verify} 处理器并列——{@code CallbackRouter} 会把两个都收进来；
      * action 前缀不同（{@code menu} / {@code verify}），冲突时构造期即失败。
      */
     @Bean
-    public CallbackHandler menuCallbackHandler(CallbackCommandBridge callbackCommandBridge) {
-        return new MenuCallbackHandler(callbackCommandBridge);
+    public CallbackHandler menuCallbackHandler(CallbackCommandBridge callbackCommandBridge,
+                                               MenuCatalog menuCatalog,
+                                               GroupConfigService groupConfigService) {
+        return new MenuCallbackHandler(callbackCommandBridge, menuCatalog, groupConfigService);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.moderation;
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -26,7 +27,7 @@ import java.util.Locale;
  * 避免为「列一下标签」再造一条命令。
  */
 @BotCommand(value = "group_tag", description = "管理本群话题标签（需 MANAGE_CONFIG）",
-        requiredPermission = Permission.MANAGE_CONFIG)
+        requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.GROUP)
 public class GroupTagCommandHandler implements CommandHandler {
 
     static final String USAGE = "用法：/group_tag add|remove|list [标签]\n"

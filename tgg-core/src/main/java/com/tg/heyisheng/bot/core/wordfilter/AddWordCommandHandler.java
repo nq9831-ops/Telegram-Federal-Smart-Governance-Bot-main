@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * 见其 javadoc）。回复刻意<b>不回显词本身</b>：减少一次无谓的消息往返，也避免把词反复写回。
  */
 @BotCommand(value = "addword", description = "添加本群违禁词（需管理员权限）",
-        requiredPermission = Permission.MANAGE_CONFIG)
+        requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.MODERATION)
 @Component
 public class AddWordCommandHandler implements CommandHandler {
 

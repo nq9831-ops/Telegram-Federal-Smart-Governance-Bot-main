@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.moderation;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -21,7 +22,8 @@ import java.util.List;
  *
  * <p><b>不含正文</b>：列表只展示判定结论（规则 id / 等级 / 定位），正文由 scrub 清除、从不入库。
  */
-@BotCommand(value = "review_list", description = "列出待复核的审核命中（复核人）")
+@BotCommand(value = "review_list", description = "列出待复核的审核命中（复核人）",
+        category = MenuCategory.REVIEW)
 public class ReviewListCommandHandler implements CommandHandler {
 
     /** Telegram 单条消息硬上限（超长整条发送失败）。 */

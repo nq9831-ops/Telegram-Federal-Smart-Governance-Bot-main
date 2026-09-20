@@ -26,7 +26,7 @@ public class CommandRegistry {
 
     /** 一条命令的注册项。 */
     private record Entry(CommandHandler handler, Permission permission, boolean worksWhenDisabled,
-                         Confirm confirm) {
+                         Confirm confirm, MenuCategory category) {
     }
 
     private final Map<String, Entry> entries;
@@ -53,7 +53,7 @@ public class CommandRegistry {
             }
             String owner = bean.getClass().getName();
             Entry entry = new Entry(handler, annotation.requiredPermission(),
-                    annotation.worksWhenDisabled(), annotation.confirm());
+                    annotation.worksWhenDisabled(), annotation.confirm(), annotation.category());
             register(map, annotation.value(), entry, owner);
             // 只把**主命令**收进菜单视图：别名（如 /ping）在客户端菜单里是噪声。
             // description() 自切片 1 起一直无人消费——命令菜单正是它的第一个消费者。
@@ -124,6 +124,17 @@ public class CommandRegistry {
     public Confirm confirmationOf(String command) {
         Entry entry = entries.get(normalize(command));
         return entry == null ? Confirm.NEVER : entry.confirm();
+    }
+
+    /**
+     * 查询某命令在 {@code /menu} 面板里的业务域分类。
+     *
+     * @return 该命令声明的分类；命令不存在时返回 {@link MenuCategory#OTHER}
+     *         （未知命令本就不会出现在面板上，兜底值不影响任何行为）
+     */
+    public MenuCategory categoryOf(String command) {
+        Entry entry = entries.get(normalize(command));
+        return entry == null ? MenuCategory.OTHER : entry.category();
     }
 
     public Set<String> registeredCommands() {

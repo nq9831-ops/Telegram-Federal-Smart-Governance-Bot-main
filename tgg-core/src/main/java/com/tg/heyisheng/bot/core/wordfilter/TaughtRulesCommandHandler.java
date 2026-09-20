@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -22,7 +23,7 @@ import java.util.List;
  * 回复直接丢掉，调用方还以为命令成功了（本项目既有教训），见 {@code /words} 的同款处理。
  */
 @BotCommand(value = "rules", description = "查看本群教学规则（需 MANAGE_CONFIG）",
-        requiredPermission = Permission.MANAGE_CONFIG)
+        requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.MODERATION)
 public class TaughtRulesCommandHandler implements CommandHandler {
 
     /** Telegram 单条消息硬上限（超长整条失败）。 */

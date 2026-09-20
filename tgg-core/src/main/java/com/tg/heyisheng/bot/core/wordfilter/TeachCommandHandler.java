@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
 import com.tg.heyisheng.bot.core.permission.Permission;
@@ -31,7 +32,7 @@ import java.util.Optional;
  * <p><b>正则不得含空白</b>（命令参数以空白分隔）——含空格的正则请用 {@code \s} 等转义表达。
  */
 @BotCommand(value = "teach", description = "教一条本群审核规则（需 TEACH_RULE）",
-        requiredPermission = Permission.TEACH_RULE)
+        requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
 public class TeachCommandHandler implements CommandHandler {
 
     static final String USAGE = "用法：/teach <规则id> <正则> <描述>\n例：/teach SCAM_AIRDROP \"免费空投\\\\d+\" 假空投骗局";

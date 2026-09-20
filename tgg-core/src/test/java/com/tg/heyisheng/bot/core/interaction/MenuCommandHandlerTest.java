@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigView;
 import com.tg.heyisheng.bot.core.permission.Permission;
@@ -14,7 +15,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardRow;
 
 import java.util.List;
 
@@ -23,17 +23,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * {@code /menu} 入口面板测试。
+ * {@code /menu} 主页渲染测试（v2：分类子菜单）。
  *
- * <p><b>三个要点</b>：① 只列「本群此人真的能用」的管理命令；② 谁都无权时不列空卡、回一句说明；
- * ③ 停用群里 {@code /enable} 必须仍在（否则该群永久锁死——项目实测过的缺陷）。
+ * <p>三个要点：① 主页只列**非空分类**，不列命令本身；② 谁都无权时不列空卡、回一句说明；
+ * ③ 停用群里「群设置」分类仍在（含 {@code /enable}）——否则该群永久锁死（项目实测过的缺陷）。
+ *
+ * <p>可见性判定与命令分组本身在 {@code MenuCatalogTest}；按钮文案与 data 形状在
+ * {@code MenuViewTest}。本类只钉「文本命令入口渲染出正确的主页」这一件事。
  */
 class MenuCommandHandlerTest {
 
     private static final long CHAT = -100L;
 
     @BotCommand(value = "words", description = "查看本群违禁词（需管理员权限）",
-            requiredPermission = Permission.MANAGE_CONFIG)
+            requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.MODERATION)
     static class WordsHandler implements CommandHandler {
         @Override
         public BotApiMethod<?> handle(UpdateContext ctx) {
@@ -41,8 +44,9 @@ class MenuCommandHandlerTest {
         }
     }
 
-    @BotCommand(value = "enable", description = "开启", requiredPermission = Permission.MANAGE_CONFIG,
-            worksWhenDisabled = true)
+    @BotCommand(value = "enable", description = "开启本群自动化能力（需管理员权限）",
+            requiredPermission = Permission.MANAGE_CONFIG, worksWhenDisabled = true,
+            category = MenuCategory.GROUP)
     static class EnableHandler implements CommandHandler {
         @Override
         public BotApiMethod<?> handle(UpdateContext ctx) {
@@ -80,29 +84,37 @@ class MenuCommandHandlerTest {
         CommandRegistry registry = new CommandRegistry(List.of(
                 new WordsHandler(), new EnableHandler(), new EchoHandler(), new MenuHandler()));
         when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", groupEnabled));
-        return new MenuCommandHandler(providerOf(registry),
-                new PermissionChecker((c, u) -> Role.valueOf(role)), groupConfigs);
+        MenuCatalog catalog = new MenuCatalog(providerOf(registry),
+                new PermissionChecker((chatId, userId) -> Role.valueOf(role)), List.of());
+        return new MenuCommandHandler(catalog, groupConfigs);
     }
 
-    private static String textOf(BotApiMethod<?> method) {
-        return ((SendMessage) method).getText();
+    private static SendMessage messageOf(BotApiMethod<?> method) {
+        return (SendMessage) method;
     }
 
-    /** data 里的字符数（UTF-8 下 ASCII 即字节数）——用于确认不超 Telegram 的 64 上限。 */
+    /** 主页上的分类导航 data。 */
     private static List<String> dataOf(BotApiMethod<?> method) {
-        SendMessage msg = (SendMessage) method;
-        InlineKeyboardMarkup markup = (InlineKeyboardMarkup) msg.getReplyMarkup();
-        return markup.getKeyboard().stream().flatMap(List::stream).map(b -> b.getCallbackData()).toList();
+        InlineKeyboardMarkup markup = (InlineKeyboardMarkup) messageOf(method).getReplyMarkup();
+        return markup.getKeyboard().stream().flatMap(List::stream)
+                .map(b -> b.getCallbackData()).toList();
+    }
+
+    private static List<String> labelsOf(BotApiMethod<?> method) {
+        InlineKeyboardMarkup markup = (InlineKeyboardMarkup) messageOf(method).getReplyMarkup();
+        return markup.getKeyboard().stream().flatMap(List::stream).map(b -> b.getText()).toList();
     }
 
     @Test
-    void listsOnlyManagementCommandsTheUserCanUse() {
+    void listsOnlyCategoriesWithContent() {
         BotApiMethod<?> reply = handler("ADMIN", true).handle(new UpdateContext(1, 42L, CHAT, "menu"));
 
-        List<String> data = dataOf(reply);
-        assertThat(data).as("有 MANAGE_CONFIG 的应出现").contains("menu:" + CHAT + ":words");
-        assertThat(data).as("面板自身不列").noneMatch(d -> d.endsWith(":menu"));
-        assertThat(data).as("无门槛的普通命令不该混进管理面板").noneMatch(d -> d.endsWith(":echo"));
+        assertThat(dataOf(reply)).as("主页列分类而非命令")
+                .containsExactly("menu:" + CHAT + ":nav:moderation", "menu:" + CHAT + ":nav:group");
+        assertThat(labelsOf(reply)).containsExactly("内容审核（1）", "群设置（1）");
+        assertThat(dataOf(reply)).as("普通命令不该混进管理面板")
+                .noneMatch(d -> d.contains("echo"))
+                .noneMatch(d -> d.endsWith(":menu"));
     }
 
     /** 用户拍板：非授权者回一句说明，而不是空卡或静默。 */
@@ -110,75 +122,17 @@ class MenuCommandHandlerTest {
     void tellsUnauthorizedUserInsteadOfShowingEmptyPanel() {
         BotApiMethod<?> reply = handler("MEMBER", true).handle(new UpdateContext(1, 99L, CHAT, "menu"));
 
-        assertThat(((SendMessage) reply).getReplyMarkup()).as("无权时不应给键盘").isNull();
-        assertThat(textOf(reply)).isEqualTo(MenuCommandHandler.NO_PERMISSION);
+        assertThat(messageOf(reply).getReplyMarkup()).as("无权时不应给键盘").isNull();
+        assertThat(messageOf(reply).getText()).isEqualTo(MenuCommandHandler.NO_PERMISSION);
     }
 
-    /** 停用群：管理命令都不该出现，但 /enable 必须在——否则该群永久锁死。 */
+    /** 停用群：非恢复类分类都不该出现，但含 /enable 的「群设置」必须在——否则该群永久锁死。 */
     @Test
-    void keepsRecoveryCommandInDisabledGroup() {
+    void keepsRecoveryCategoryInDisabledGroup() {
         BotApiMethod<?> reply = handler("ADMIN", false).handle(new UpdateContext(1, 42L, CHAT, "menu"));
 
-        List<String> data = dataOf(reply);
-        assertThat(data).as("停用群里 /enable 必须仍可见").contains("menu:" + CHAT + ":enable");
-        assertThat(data).as("非恢复类命令在停用群不该出现").noneMatch(d -> d.endsWith(":words"));
-    }
-
-    /** 按钮上的文字（用户直接看到的东西）。 */
-    private static List<String> labelsOf(BotApiMethod<?> method) {
-        SendMessage msg = (SendMessage) method;
-        InlineKeyboardMarkup markup = (InlineKeyboardMarkup) msg.getReplyMarkup();
-        return markup.getKeyboard().stream().flatMap(List::stream).map(b -> b.getText()).toList();
-    }
-
-    /**
-     * 用户原话级的需求：「/menu 弹出的所有命令没有详细信息，交互不太友好」。
-     *
-     * <p>所以按钮必须自己说清「点它会做什么」，而不是只放一个 {@code /words} 让人猜。
-     */
-    @Test
-    void buttonsExplainWhatEachCommandDoes() {
-        BotApiMethod<?> reply = handler("ADMIN", true).handle(new UpdateContext(1, 42L, CHAT, "menu"));
-
-        assertThat(labelsOf(reply))
-                .as("按钮文案必须包含该命令的说明，而不是只有命令名")
-                .anySatisfy(label -> assertThat(label).contains("查看本群违禁词"));
-    }
-
-    /**
-     * 按钮上不该再带「（需管理员权限）」这类括注：菜单**已经**按当前用户的权限过滤过了，
-     * 再写一遍既是噪声、又把按钮撑长（调研：按钮文本过长会换行错乱、部分客户端截断）。
-     */
-    @Test
-    void buttonsDropPermissionParenthetical() {
-        BotApiMethod<?> reply = handler("ADMIN", true).handle(new UpdateContext(1, 42L, CHAT, "menu"));
-
-        assertThat(labelsOf(reply))
-                .as("权限括注在菜单里是冗余信息，应剔除")
-                .noneMatch(label -> label.contains("需管理员权限"))
-                .allSatisfy(label -> assertThat(label).as("仍要保留命令名，便于以后直接输入")
-                        .startsWith("/"));
-    }
-
-    /** 没写描述的注册项不能因此变成空按钮——退化为只显示命令名。 */
-    @Test
-    void commandWithoutDescriptionFallsBackToBareName() {
-        CommandRegistry registry = new CommandRegistry(List.of(new NoDescriptionHandler()));
-        when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
-        MenuCommandHandler withBare = new MenuCommandHandler(providerOf(registry),
-                new PermissionChecker((c, u) -> Role.ADMIN), groupConfigs);
-
-        BotApiMethod<?> reply = withBare.handle(new UpdateContext(1, 42L, CHAT, "menu"));
-
-        assertThat(labelsOf(reply)).containsExactly("/nodesc");
-    }
-
-    @BotCommand(value = "nodesc", description = "", requiredPermission = Permission.MANAGE_CONFIG)
-    static class NoDescriptionHandler implements CommandHandler {
-        @Override
-        public BotApiMethod<?> handle(UpdateContext ctx) {
-            return new SendMessage(String.valueOf(ctx.chatId()), "x");
-        }
+        assertThat(dataOf(reply)).as("停用群里只剩含 /enable 的分类").containsExactly("menu:" + CHAT + ":nav:group");
+        assertThat(messageOf(reply).getText()).isEqualTo(MenuView.homeText());
     }
 
     @Test
