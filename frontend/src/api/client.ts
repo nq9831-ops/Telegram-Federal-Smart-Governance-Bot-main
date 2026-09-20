@@ -3,6 +3,7 @@ import type {
   ApprovalItem,
   ApprovalPage,
   ApprovalStats,
+  ConfigItem,
   DecideFailure,
   DecideRequest,
   DecideSuccess,
@@ -139,4 +140,64 @@ export async function decide(id: number, body: DecideRequest): Promise<DecideSuc
     throw new Error(failure?.error ?? `裁决失败（HTTP ${response.status}）`)
   }
   return response.data as DecideSuccess
+}
+
+// ───────────────────────────── 配置中心（模块十一 扩展）─────────────────────────────
+
+/** `GET /admin/config` —— 全量配置总览（密钥已由后端打码，前端拿不到明文）。 */
+export async function fetchConfig(): Promise<ConfigItem[]> {
+  const { data } = await http.get<ConfigItem[]>('/admin/config')
+  return data
+}
+
+/**
+ * 写一条配置覆盖。
+ *
+ * 后端对失败用 400/403/404/409 + `{error}`（不是 200 + 结果码），故显式接管这些状态，
+ * 把业务错误消息原样抛出让 UI 显示（否则 axios 会抛一个没有业务语义的异常）。
+ */
+async function writeConfig(
+  send: () => Promise<{ status: number; data: unknown }>,
+): Promise<void> {
+  const response = await send()
+  if (response.status !== 200) {
+    const failure = response.data as { error?: string }
+    throw new Error(failure?.error ?? `保存失败（HTTP ${response.status}）`)
+  }
+}
+
+/** `PUT /admin/config/{key}` —— 写覆盖（需配置写权限）。 */
+export async function updateConfig(key: string, value: string): Promise<void> {
+  const encoded = encodeURIComponent(key)
+  await writeConfig(() =>
+    http.put(`/admin/config/${encoded}`, { value }, {
+      validateStatus: (s) => s === 200 || s === 400 || s === 403 || s === 404 || s === 409,
+    }),
+  )
+}
+
+/** `DELETE /admin/config/{key}` —— 清除覆盖，回落到环境变量/默认。 */
+export async function clearConfig(key: string): Promise<void> {
+  const encoded = encodeURIComponent(key)
+  await writeConfig(() =>
+    http.delete(`/admin/config/${encoded}`, {
+      validateStatus: (s) => s === 200 || s === 403 || s === 404,
+    }),
+  )
+}
+
+/**
+ * `POST /admin/system/restart` —— 触发优雅重启（需配置写权限 + 后端 `restart-enabled=true`）。
+ *
+ * ⚠️ 后端只负责优雅退出——能否再起来取决于部署侧有无外部监管进程（Docker / systemd / k8s）。
+ * UI 必须二次确认，并把这一后果说清。
+ */
+export async function restartSystem(): Promise<void> {
+  const response = await http.post('/admin/system/restart', null, {
+    validateStatus: (s) => s === 202 || s === 403 || s === 409,
+  })
+  if (response.status !== 202) {
+    const failure = response.data as { error?: string }
+    throw new Error(failure?.error ?? `重启失败（HTTP ${response.status}）`)
+  }
 }

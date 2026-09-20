@@ -78,3 +78,27 @@ export interface DecideSuccess {
 export interface DecideFailure {
   error: string
 }
+
+// ───────────────────────────── 配置中心（模块十一 扩展）─────────────────────────────
+
+/** 配置语义分类 —— 后端 `ConfigCategory`。决定「能不能写」。 */
+export type ConfigCategory = 'BOOTSTRAP' | 'SECRET' | 'ASSEMBLY' | 'RUNTIME'
+
+/**
+ * 配置项 —— 后端 `RuntimeConfigService.Resolved`。
+ *
+ * ⚠️ `effectiveValue` 对 `secret` 项恒为 `***` / `未设置`——**后端已打码**，前端拿不到明文。
+ * `restartRequired=true` 表示「改后需重启才生效」（装配开关，或尚未改造为热读取的运行参数）。
+ */
+export interface ConfigItem {
+  key: string
+  category: ConfigCategory
+  type: string
+  secret: boolean
+  editable: boolean
+  restartRequired: boolean
+  effectiveValue: string
+  defaultValue: string | null
+  source: string
+  description: string
+}

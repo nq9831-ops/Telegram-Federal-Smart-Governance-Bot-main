@@ -5,10 +5,13 @@ import { useSession } from './stores/session'
 import { validateGate } from './gate'
 import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
+import ConfigCenter from './views/ConfigCenter.vue'
 
 const session = useSession()
 const form = reactive({ token: '', operatorId: '' })
 const submitting = ref(false)
+/** 已登录后的两个视图；项目刻意不引 vue-router（只两块，条件渲染足够）。 */
+const view = ref<'todos' | 'config'>('todos')
 
 function submit(): void {
   // 校验抽在 gate.ts（纯逻辑，可独立测）——这里只负责反馈与落地。
@@ -70,7 +73,16 @@ function signOut(): void {
     </el-card>
   </div>
 
-  <TodoCenter v-else :operator="session.operator" @sign-out="signOut" />
+  <template v-else>
+    <div class="admin-nav">
+      <el-radio-group v-model="view" size="small">
+        <el-radio-button value="todos">待办中心</el-radio-button>
+        <el-radio-button value="config">配置中心</el-radio-button>
+      </el-radio-group>
+    </div>
+    <TodoCenter v-if="view === 'todos'" :operator="session.operator" @sign-out="signOut" />
+    <ConfigCenter v-else :operator="session.operator" @sign-out="signOut" />
+  </template>
 </template>
 
 <style scoped>
@@ -79,6 +91,13 @@ function signOut(): void {
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+.admin-nav {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  background: var(--tgg-surface-0);
+  border-bottom: 1px solid var(--tgg-surface-2);
 }
 .gate-card {
   width: 460px;
