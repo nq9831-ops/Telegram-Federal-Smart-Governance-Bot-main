@@ -15,6 +15,11 @@ import java.util.List;
  *
  * <p>回复里列出词表：这些是<b>管理配置</b>（管理员本人提交的），且命令有权限门控，
  * 因此回显不构成信息泄露。无参命令，不需要 {@code commandArgs}。
+ *
+ * <p><b>必须截断</b>：Bot API 单条消息上限 4096 字符，超长会<b>整条发送失败</b>——
+ * 管理员会以为「没有词」而不是「词太多没显示出来」。词表由管理员逐条添加、
+ * 数量无上限，故这里按字数截断并提示还有多少未显示（与 {@code ReviewListCommandHandler} /
+ * {@code TaughtRulesCommandHandler} 同一范式）。
  */
 @BotCommand(value = "words", description = "查看本群违禁词（需管理员权限）",
         requiredPermission = Permission.MANAGE_CONFIG)
@@ -23,6 +28,11 @@ public class WordsCommandHandler implements CommandHandler {
 
     static final String EMPTY = "本群暂无违禁词。";
     static final String PREFIX = "本群违禁词：";
+
+    /** Telegram 单条消息硬上限（超长整条发送失败）。 */
+    static final int TELEGRAM_TEXT_LIMIT = 4096;
+    /** 为「已截断」提示预留的余量。 */
+    private static final int TRUNCATION_RESERVE = 40;
 
     private final BannedWordService service;
 
@@ -33,7 +43,25 @@ public class WordsCommandHandler implements CommandHandler {
     @Override
     public BotApiMethod<?> handle(UpdateContext ctx) {
         List<String> words = service.listWords(ctx.chatId());
-        String reply = words.isEmpty() ? EMPTY : PREFIX + String.join("、", words);
-        return new SendMessage(String.valueOf(ctx.chatId()), reply);
+        return new SendMessage(String.valueOf(ctx.chatId()), render(words));
+    }
+
+    /** 渲染词表；超上限时逐词截断并提示还有多少未显示（绝不产出超长文本）。 */
+    static String render(List<String> words) {
+        if (words.isEmpty()) {
+            return EMPTY;
+        }
+        StringBuilder sb = new StringBuilder(PREFIX);
+        int shown = 0;
+        for (String word : words) {
+            String piece = (shown == 0 ? "" : "、") + word;
+            if (sb.length() + piece.length() > TELEGRAM_TEXT_LIMIT - TRUNCATION_RESERVE) {
+                sb.append("、…（另有 ").append(words.size() - shown).append(" 个词未显示）");
+                return sb.toString();
+            }
+            sb.append(piece);
+            shown++;
+        }
+        return sb.toString();
     }
 }

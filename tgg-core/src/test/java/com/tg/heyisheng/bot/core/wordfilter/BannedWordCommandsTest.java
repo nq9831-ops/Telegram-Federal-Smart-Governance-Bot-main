@@ -72,6 +72,26 @@ class BannedWordCommandsTest {
         assertThat(textOf(words.handle(ctx(null)))).isEqualTo(WordsCommandHandler.EMPTY);
     }
 
+    /**
+     * 回归护栏：词表一多，回复会超 Bot API 上限（4096）→ 整条发送失败 → 管理员看到的是「发送失败」
+     * 而不是「词表」。必须先截断并如实告知还有多少未显示。
+     */
+    @Test
+    void wordsTruncatesOverlongListInsteadOfFailingTheWholeMessage() {
+        List<String> many = java.util.stream.IntStream.range(0, 1000)
+                .mapToObj(i -> "违禁词" + i)
+                .toList();
+        when(service.listWords(CHAT)).thenReturn(many);
+
+        String text = textOf(words.handle(ctx(null)));
+
+        assertThat(text)
+                .as("绝不能产出超过 Telegram 上限的正文")
+                .hasSizeLessThanOrEqualTo(WordsCommandHandler.TELEGRAM_TEXT_LIMIT);
+        assertThat(text).startsWith(WordsCommandHandler.PREFIX);
+        assertThat(text).as("必须如实告知还有多少词未显示").contains("个词未显示");
+    }
+
     private static UpdateContext ctx(String args) {
         return new UpdateContext(1, USER, CHAT, 9, "addword", args);
     }
