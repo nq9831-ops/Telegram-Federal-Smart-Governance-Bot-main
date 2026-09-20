@@ -52,4 +52,21 @@ class UnknownPathIT {
         mvc.perform(post("/no-such-module/no-such-endpoint"))
                 .andExpect(status().isNotFound());
     }
+
+    /**
+     * <b>单段</b>路径的 GET → 405（不是 200）。
+     *
+     * <p>2026-09-20 公网部署实测发现：单段路径会命中 TelegramBots 的 <b>POST-only</b> {@code /{botPath}} 映射，
+     * 抛出 {@code HttpRequestMethodNotSupportedException}——它**不**在上面那条 404 修复的覆盖范围内，
+     * 于是落进通用处理器被吞成 <b>200 + 整段 ERROR 堆栈</b>。后果有两个：
+     * ① 扫描器打 {@code GET /favicon.ico}、{@code GET /admin} 之类仍会刷 ERROR（正是 404 修复想降的噪声）；
+     * ② 语义错误——方法不支持应是 405。
+     *
+     * <p>与「业务异常吞成 200」的既有策略不冲突：Telegram 的 update 走的是 {@code POST /webhook}。
+     */
+    @Test
+    void getOnSingleSegmentPathReturns405() throws Exception {
+        mvc.perform(get("/zzz-not-a-real-single-segment"))
+                .andExpect(status().isMethodNotAllowed());
+    }
 }

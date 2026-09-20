@@ -3,7 +3,9 @@ package com.tg.heyisheng.bot.web;
 import com.tg.heyisheng.bot.common.util.MaskingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -46,6 +48,26 @@ public class WebhookExceptionHandler {
     public ResponseEntity<Void> notFound(NoResourceFoundException ex) {
         log.debug("未匹配任何资源，返回 404：{}", ex.getResourcePath());
         return ResponseEntity.notFound().build();
+    }
+
+    /**
+     * 请求方法不被支持 → <b>405</b>（不吞成 200）。
+     *
+     * <p><b>为什么需要它（2026-09-20 公网部署实测发现）</b>：TelegramBots 把 webhook 注册成
+     * <b>POST-only</b> 的 {@code /{botPath}} 映射，而它是<b>单段</b>路径映射——于是任何单段路径的 GET
+     * （扫描器常打的 {@code /favicon.ico}、{@code /admin} 之类）都会落到它上面，抛本异常。
+     * 上面那条 {@code NoResourceFoundException} → 404 <b>只覆盖多段路径</b>，盖不住这里，
+     * 于是它掉进通用处理器被吞成 200 + 整段 ERROR 堆栈——正是 404 修复想消除的那种噪声
+     * （实测：重启后的新进程 4 条 ERROR 全部是它）。
+     *
+     * <p><b>语义上也该是 405</b>：路径是存在的（有映射），只是方法不对。
+     * 与「业务异常吞成 200 以避免 Telegram 重试风暴」不冲突——Telegram 的 update 走
+     * {@code POST /webhook}，永远走不到这条分支上。
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Void> methodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        log.debug("请求方法不被支持，返回 405：{}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).build();
     }
 
     @ExceptionHandler(Exception.class)
