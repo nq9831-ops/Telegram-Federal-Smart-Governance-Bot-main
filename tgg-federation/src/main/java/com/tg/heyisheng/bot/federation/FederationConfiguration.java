@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.federation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigRepository;
+import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.credit.PenaltyOrderPublisher;
 import jakarta.annotation.PostConstruct;
@@ -62,6 +63,17 @@ public class FederationConfiguration {
                     + "（/pending /approve /reject）将对任何人不可用。");
         }
         return guard;
+    }
+
+    /**
+     * {@code /menu} 的「复核合规」可见性接缝（联邦部分）：裁决类命令走全局白名单，
+     * 注册表判不出可见性，故把判定交给菜单侧——详见 {@link FederationMenuVisibility}。
+     *
+     * <p>随本类的 {@code tgg.federation.enabled} 门控一同出现/消失：模块未启用时连命令都不存在。
+     */
+    @Bean
+    public MenuVisibility federationMenuVisibility(FederationAdminGuard federationAdminGuard) {
+        return new FederationMenuVisibility(federationAdminGuard);
     }
 
     /** 本地执行：把已接受的处罚令落到各群封禁。 */

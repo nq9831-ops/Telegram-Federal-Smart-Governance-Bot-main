@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.federation;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -19,7 +20,8 @@ import java.util.stream.Collectors;
  * 权限不足时静默忽略（与 dispatcher 的既有行为一致，不暴露命令是否存在）。
  */
 @Component
-@BotCommand(value = "pending", description = "查看待审联邦申诉（联邦管理员）")
+@BotCommand(value = "pending", description = "查看待审联邦申诉（联邦管理员）",
+        category = MenuCategory.REVIEW)
 @ConditionalOnProperty(prefix = "tgg.federation", name = "enabled", havingValue = "true")
 public class PendingAppealsCommandHandler implements CommandHandler {
 

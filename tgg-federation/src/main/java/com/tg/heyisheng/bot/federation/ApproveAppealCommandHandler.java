@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.Confirm;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -18,7 +19,7 @@ import java.util.Optional;
  */
 @Component
 @BotCommand(value = "approve", description = "通过联邦申诉（联邦管理员）",
-        confirm = Confirm.ALWAYS)
+        confirm = Confirm.ALWAYS, category = MenuCategory.REVIEW)
 @ConditionalOnProperty(prefix = "tgg.federation", name = "enabled", havingValue = "true")
 public class ApproveAppealCommandHandler implements CommandHandler {
 

@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.Confirm;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -13,7 +14,7 @@ import java.util.Optional;
 /** {@code /reject <id>}：驳回申诉（仅联邦管理员）。 */
 @Component
 @BotCommand(value = "reject", description = "驳回联邦申诉（联邦管理员）",
-        confirm = Confirm.ALWAYS)
+        confirm = Confirm.ALWAYS, category = MenuCategory.REVIEW)
 @ConditionalOnProperty(prefix = "tgg.federation", name = "enabled", havingValue = "true")
 public class RejectAppealCommandHandler implements CommandHandler {
 
