@@ -1,0 +1,4 @@
+# 启动期把 config_override 表的覆盖值注入 Environment（早于 @ConditionalOnProperty 求值）。
+# 依赖：ConfigOverrideEnvironmentPostProcessor 的 javadoc 说明了时机与失败取舍。
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.tg.heyisheng.bot.core.config.dynamic.ConfigOverrideEnvironmentPostProcessor

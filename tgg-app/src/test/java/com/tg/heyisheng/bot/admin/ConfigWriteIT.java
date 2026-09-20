@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.admin;
 
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,16 @@ class ConfigWriteIT {
     /** 清覆盖并重载缓存——否则上一个用例写进 DB/缓存的覆盖会污染下一个。 */
     @BeforeEach
     void resetOverrides() {
+        jdbcTemplate.update("DELETE FROM config_override");
+        configService.reload();
+    }
+
+    /**
+     * 收尾清理同样重要：{@code ConfigOverrideEnvironmentPostProcessor} 会在**每个**上下文启动时读这张表，
+     * 若本类留下的覆盖行被别的测试上下文读到，会静默改变它们的装配——故用后即清。
+     */
+    @AfterEach
+    void cleanupOverrides() {
         jdbcTemplate.update("DELETE FROM config_override");
         configService.reload();
     }

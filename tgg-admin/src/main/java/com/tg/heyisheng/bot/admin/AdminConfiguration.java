@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.admin;
 import com.tg.heyisheng.bot.admin.approval.ApprovalCommandService;
 import com.tg.heyisheng.bot.admin.approval.ApprovalOverdueJob;
 import com.tg.heyisheng.bot.admin.approval.ApprovalQueryService;
+import com.tg.heyisheng.bot.admin.system.RestartAction;
 import com.tg.heyisheng.bot.core.audit.AuditService;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.notify.NotificationDispatcher;
@@ -95,5 +96,30 @@ public class AdminConfiguration {
         FilterRegistrationBean<AdminAuthFilter> registration = new FilterRegistrationBean<>(filter);
         registration.addUrlPatterns("/admin/*");
         return registration;
+    }
+
+    /**
+     * 默认重启动作：**优雅退出**进程，交给外部监管进程拉起。
+     *
+     * <p>⚠️ 本 bean 只负责退出。<b>能否再起来取决于部署</b>：Docker {@code restart} 策略 /
+     * systemd {@code Restart=always} / k8s Deployment。裸 {@code java -jar} 下退出即停服，
+     * 故该动作由 {@code tgg.admin.restart-enabled}（默认 false）门控，默认不会触发。
+     *
+     * <p>退出前 sleep 500ms，让 202 响应先发出去（否则调用方拿到连接重置而非「已受理」）。
+     * 抽成 {@link RestartAction} 接口，使测试可注入替身而**永不真退出**。
+     */
+    @Bean
+    public RestartAction restartAction(org.springframework.context.ApplicationContext applicationContext) {
+        return () -> new Thread(() -> {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+            log.warn("后台触发重启：应用即将退出——请确保有外部监管进程（Docker restart / systemd / k8s）"
+                    + "将其拉起，否则服务不会自行恢复。");
+            int code = org.springframework.boot.SpringApplication.exit(applicationContext, () -> 0);
+            System.exit(code);
+        }, "admin-restart").start();
     }
 }
