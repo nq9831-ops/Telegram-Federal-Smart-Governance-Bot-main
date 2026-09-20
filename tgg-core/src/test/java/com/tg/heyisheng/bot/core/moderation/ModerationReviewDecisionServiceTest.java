@@ -128,6 +128,50 @@ class ModerationReviewDecisionServiceTest {
         assertThat(sent).isEmpty();
     }
 
+    /**
+     * 「不可自审」：当事人就是裁决人时拒绝，且<b>不改状态、不发动作</b>。
+     *
+     * <p>这条规则放在<b>共用裁决服务</b>里，Web 后台与 Telegram 命令才走同一份实现——
+     * 此前它只写在 Web 适配层，于是「群里能审自己的案子、后台不能审」。
+     */
+    @Test
+    void subjectCannotDecideOwnCase() {
+        ModerationReviewItem i = item(RiskLevel.HIGH, true);   // 当事人 = USER
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+
+        ModerationReviewDecisionService.Outcome outcome =
+                service().decide(ID, ReviewStatus.REJECTED, USER, "审自己");
+
+        assertThat(outcome.result())
+                .isEqualTo(ModerationReviewDecisionService.Outcome.Result.SELF_DECISION_FORBIDDEN);
+        assertThat(i.getStatus()).as("被拒的自审不得改动状态").isEqualTo(ReviewStatus.PENDING);
+        assertThat(i.getDecidedBy()).isNull();
+        assertThat(sent).as("被拒的自审不得发出解封/禁言动作").isEmpty();
+    }
+
+    /** 判据必须按<b>值</b>比较——{@code Long} 是包装类型，用引用比较会漏判。 */
+    @Test
+    void selfDecisionCheckComparesByIdValueNotByReference() {
+        ModerationReviewItem i = item(RiskLevel.MEDIUM, false);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+
+        // 与 item 里那个 USER 同值、但**不同实例**
+        Long sameValueDifferentInstance = Long.valueOf(USER);
+
+        assertThat(service().decide(ID, ReviewStatus.APPROVED, sameValueDifferentInstance, null).result())
+                .isEqualTo(ModerationReviewDecisionService.Outcome.Result.SELF_DECISION_FORBIDDEN);
+    }
+
+    /** 当事人为 null（频道帖）时不拦——没有「自己」可言。 */
+    @Test
+    void missingSubjectDoesNotBlockAnyReviewer() {
+        ModerationReviewItem i = new ModerationReviewItem(CHAT, null, 77, List.of("R1"), RiskLevel.MEDIUM);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+
+        assertThat(service().decide(ID, ReviewStatus.APPROVED, OPERATOR, null).result())
+                .isEqualTo(ModerationReviewDecisionService.Outcome.Result.DECIDED);
+    }
+
     @Test
     void listPendingDelegatesToRepository() {
         when(repository.findByStatusOrderByIdAsc(ReviewStatus.PENDING)).thenReturn(List.of());

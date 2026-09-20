@@ -3,26 +3,21 @@ package com.tg.heyisheng.bot.admin.approval;
 import com.tg.heyisheng.bot.core.audit.AuditEntry;
 import com.tg.heyisheng.bot.core.audit.AuditService;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewDecisionService;
-import com.tg.heyisheng.bot.core.moderation.ModerationReviewItem;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
-
-import java.util.Optional;
 
 /**
  * 审批中心的<b>裁决侧</b>（模块十一 §12.1 第 2–3 步）。
  *
- * <p><b>它只是薄适配，不重写裁决</b>：真正的裁决（幂等、备注长度校验、解封/禁言动作）在
- * {@link ModerationReviewDecisionService#decide}，与 Telegram 端的 {@code /review_approve} 共用同一份逻辑。
- * 若在这里另写一遍，两条入口的语义必然漂移——这正是本项目反复警惕的分裂。
+ * <p><b>它只是薄适配，不重写裁决</b>：真正的裁决（<b>不可自审</b>、幂等、备注长度校验、解封/禁言动作）
+ * 在 {@link ModerationReviewDecisionService#decide}，与 Telegram 端的 {@code /review_approve}
+ * 共用同一份逻辑。若在这里另写一遍，两条入口的语义必然漂移——这正是本项目反复警惕的分裂。
  *
- * <p><b>本类只加两件 Web 侧才有的东西</b>：
- * <ol>
- *   <li><b>「审批人不可审批自己的案件」</b>（§12.2 约束）——既有 {@code /review_*} 无此校验，
- *       故只在 Web 侧施加，不改动既有命令的行为；</li>
- *   <li><b>审计留痕</b>（§12.2 第 7 项）——记「谁、对哪条、下了什么结论、结果如何」，
- *       <b>不记消息正文</b>（队列本就不含正文）。</li>
- * </ol>
+ * <p><b>「不可自审」（§12.2）一度就写在本类里</b>，代价是同一件事「群里能审自己的案子、后台不能审」。
+ * 现已下沉到共用的裁决服务；本类只把它的拒绝结果映射成 403 并留痕。
+ *
+ * <p><b>本类只加一件 Web 侧才有的东西</b>：<b>审计留痕</b>（§12.2 第 7 项）——记
+ * 「谁、对哪条、下了什么结论、结果如何」，<b>不记消息正文</b>（队列本就不含正文）。
  */
 public class ApprovalCommandService {
 
@@ -63,30 +58,28 @@ public class ApprovalCommandService {
      * @param reason   裁决理由；长度上限由 core 的裁决服务把关（超长会抛 {@code TggException}）
      */
     public Outcome decide(long id, ReviewStatus decision, Long operator, String reason) {
-        Optional<ModerationReviewItem> found = repository.findById(id);
-        if (found.isEmpty()) {
+        if (repository.findById(id).isEmpty()) {
             // 不审计「找不到」：审计表记的是动作，未发生的动作没有留痕价值
             return new Outcome(Result.NOT_FOUND, null);
         }
-        ModerationReviewItem item = found.get();
 
-        if (item.getUserId() != null && item.getUserId().equals(operator)) {
-            audit.record(operator, AUDIT_ACTION, id, AuditEntry.Outcome.FAILURE,
-                    "self-decision-forbidden");
-            return new Outcome(Result.SELF_DECISION_FORBIDDEN, item.getStatus());
-        }
-
+        // 「不可自审」不在这里判——它已下沉到共用裁决服务（ModerationReviewDecisionService），
+        // 于是 Telegram 的 /review_* 与 Web 后台走同一份规则。本类只负责把结果映射成 HTTP 语义并留痕。
         ModerationReviewDecisionService.Outcome outcome = decisions.decide(id, decision, operator, reason);
         Result result = switch (outcome.result()) {
             case NOT_FOUND -> Result.NOT_FOUND;
             case ALREADY_DECIDED -> Result.ALREADY_DECIDED;
+            case SELF_DECISION_FORBIDDEN -> Result.SELF_DECISION_FORBIDDEN;
             case DECIDED -> Result.DECIDED;
         };
 
-        // 幂等命中记 FAILURE：本次并未改变任何状态，与「成功执行」区分开
+        // 自审被拒与幂等命中都记 FAILURE：本次并未改变任何状态，与「成功执行」区分开
+        String detail = result == Result.SELF_DECISION_FORBIDDEN
+                ? "self-decision-forbidden"
+                : "decision=" + decision + " result=" + result;
         audit.record(operator, AUDIT_ACTION, id,
                 result == Result.DECIDED ? AuditEntry.Outcome.SUCCESS : AuditEntry.Outcome.FAILURE,
-                "decision=" + decision + " result=" + result);
+                detail);
         return new Outcome(result, outcome.status());
     }
 }

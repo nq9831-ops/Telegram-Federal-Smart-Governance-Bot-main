@@ -28,6 +28,11 @@ import java.util.Optional;
  *   <li><b>维持（APPROVED）</b>——确认违规；HIGH 追加禁言 24h。</li>
  * </ul>
  *
+ * <p><b>不可自审</b>：裁决人恰是被判定消息的发布者时拒绝（{@code SELF_DECISION_FORBIDDEN}）。
+ * 这条规则**刻意放在本类**（各入口共用的裁决服务）而不是某个适配层——放在 Web 侧曾导致
+ * 「群里能审自己的案子、后台不能审」的两端漂移；下沉到这里，则 Telegram 命令、Web 后台
+ * 以及将来任何新入口**一律**生效，规则只有一份实现。
+ *
  * <p><b>幂等</b>：已终态的项不再改动，返回既有结论——重复点击/重放不会二次处置
  * （尤其不会重复解封或重复禁言）。
  *
@@ -91,6 +96,13 @@ public class ModerationReviewDecisionService {
             return Outcome.notFound();
         }
         ModerationReviewItem item = found.get();
+        // 「不可自审」：判据是「被判定消息的发布者 == 裁决人」。放在这里（共用裁决服务）而非各入口，
+        // 是为了让 Web 后台、/review_* 与将来任何入口**一律**生效——规则只写一份，才不会两端漂移
+        // （此前校验只写在 tgg-admin 的适配层，于是同一件事在群里能审、在后台不能审）。
+        // 位置在「幂等判定之前」：不可自审是合规约束，优先于「这条已经裁过了」的状态判断。
+        if (item.getUserId() != null && item.getUserId().equals(operator)) {
+            return Outcome.selfDecisionForbidden(item.getStatus());
+        }
         if (!item.isPending()) {
             return Outcome.alreadyDecided(item.getStatus());
         }
@@ -143,7 +155,7 @@ public class ModerationReviewDecisionService {
         }
     }
 
-    /** 裁决结果：区分「未找到 / 已裁决（幂等）/ 本次裁决」。 */
+    /** 裁决结果：区分「未找到 / 已裁决（幂等）/ 不可自审 / 本次裁决」。 */
     public record Outcome(Result result, ReviewStatus status) {
 
         public enum Result {
@@ -151,6 +163,8 @@ public class ModerationReviewDecisionService {
             NOT_FOUND,
             /** 该项已有终态结论；本次未改动（幂等返回既有结论）。 */
             ALREADY_DECIDED,
+            /** 裁决人正是该案件的当事人——拒绝，且未改动任何状态、未发出任何动作。 */
+            SELF_DECISION_FORBIDDEN,
             /** 本次成功裁决。 */
             DECIDED
         }
@@ -161,6 +175,10 @@ public class ModerationReviewDecisionService {
 
         static Outcome alreadyDecided(ReviewStatus status) {
             return new Outcome(Result.ALREADY_DECIDED, status);
+        }
+
+        static Outcome selfDecisionForbidden(ReviewStatus status) {
+            return new Outcome(Result.SELF_DECISION_FORBIDDEN, status);
         }
 
         static Outcome decided(ModerationReviewItem item) {

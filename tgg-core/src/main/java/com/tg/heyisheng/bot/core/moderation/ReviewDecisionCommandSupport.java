@@ -56,6 +56,8 @@ final class ReviewDecisionCommandSupport {
         String verb = decision == ReviewStatus.APPROVED ? "维持" : "推翻";
         return switch (outcome.result()) {
             case NOT_FOUND -> reply(ctx, "未找到复核编号 " + id + "。");
+            case SELF_DECISION_FORBIDDEN -> reply(ctx,
+                    "不能裁决自己的案件：复核 #" + id + " 的当事人就是你。请让其他复核人处理。");
             case ALREADY_DECIDED -> reply(ctx, "复核 #" + id + " 已是终态结论（" + outcome.status()
                     + "），本次未改动。");
             case DECIDED -> reply(ctx, "复核 #" + id + " 已" + verb + "：" + outcome.status()

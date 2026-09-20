@@ -64,27 +64,39 @@ class ApprovalCommandServiceTest {
                 .thenReturn(new ModerationReviewDecisionService.Outcome(result, status));
     }
 
+    /**
+     * 「不可自审」已下沉到共用裁决服务；本类只把它的拒绝映射成结果并留痕。
+     *
+     * <p>此前本类自己判一次、而 Telegram 命令不判——同一规则两份实现，于是「群里能审自己的案子、
+     * 后台不能审」。「不改状态、不发动作」那个不变量现在由
+     * {@code ModerationReviewDecisionServiceTest#subjectCannotDecideOwnCase} 守。
+     */
     @Test
-    void selfDecisionIsForbiddenAndNeverReachesTheDecider() {
+    void selfDecisionRefusalFromTheSharedDeciderIsMappedAndAudited() {
         when(repository.findById(ITEM_ID)).thenReturn(Optional.of(itemOwnedBy(OPERATOR)));
+        decidedAs(ModerationReviewDecisionService.Outcome.Result.SELF_DECISION_FORBIDDEN,
+                ReviewStatus.PENDING);
 
         ApprovalCommandService.Outcome outcome =
                 service.decide(ITEM_ID, ReviewStatus.REJECTED, OPERATOR, "自己的案子");
 
         assertThat(outcome.result()).isEqualTo(ApprovalCommandService.Result.SELF_DECISION_FORBIDDEN);
-        verifyNoInteractions(decisions);
+        verify(audit).record(eq(OPERATOR), eq(ApprovalCommandService.AUDIT_ACTION), eq(ITEM_ID),
+                eq(AuditEntry.Outcome.FAILURE), eq("self-decision-forbidden"));
     }
 
+    /**
+     * 本类<b>不得</b>再自己判自审：即使当事人就是操作人，也必须交给共用服务判
+     * ——规则只允许有一份实现，否则两端迟早再次漂移。
+     */
     @Test
-    void selfDecisionIsStillForbiddenWhenTheSubjectIsMerelyEqualById() {
-        // subject 与 operator 同为 Long 777：必须按值比较，不能按引用（== 在这里会漏判）
-        when(repository.findById(ITEM_ID)).thenReturn(Optional.of(itemOwnedBy(Long.valueOf(OPERATOR))));
+    void adapterDelegatesEvenWhenTheSubjectIsTheOperator() {
+        when(repository.findById(ITEM_ID)).thenReturn(Optional.of(itemOwnedBy(OPERATOR)));
+        decidedAs(ModerationReviewDecisionService.Outcome.Result.DECIDED, ReviewStatus.APPROVED);
 
-        ApprovalCommandService.Outcome outcome =
-                service.decide(ITEM_ID, ReviewStatus.APPROVED, Long.valueOf(OPERATOR), null);
+        service.decide(ITEM_ID, ReviewStatus.APPROVED, OPERATOR, null);
 
-        assertThat(outcome.result()).isEqualTo(ApprovalCommandService.Result.SELF_DECISION_FORBIDDEN);
-        verifyNoInteractions(decisions);
+        verify(decisions).decide(ITEM_ID, ReviewStatus.APPROVED, OPERATOR, null);
     }
 
     @Test
@@ -133,15 +145,5 @@ class ApprovalCommandServiceTest {
         assertThat(outcome.result()).isEqualTo(ApprovalCommandService.Result.ALREADY_DECIDED);
         verify(audit).record(eq(OPERATOR), eq(ApprovalCommandService.AUDIT_ACTION), eq(ITEM_ID),
                 eq(AuditEntry.Outcome.FAILURE), any());
-    }
-
-    @Test
-    void forbiddenSelfDecisionIsAuditedAsFailure() {
-        when(repository.findById(ITEM_ID)).thenReturn(Optional.of(itemOwnedBy(OPERATOR)));
-
-        service.decide(ITEM_ID, ReviewStatus.APPROVED, OPERATOR, null);
-
-        verify(audit).record(eq(OPERATOR), eq(ApprovalCommandService.AUDIT_ACTION), eq(ITEM_ID),
-                eq(AuditEntry.Outcome.FAILURE), eq("self-decision-forbidden"));
     }
 }

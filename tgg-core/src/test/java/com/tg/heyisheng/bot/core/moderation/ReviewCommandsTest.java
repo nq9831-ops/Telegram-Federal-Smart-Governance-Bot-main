@@ -88,6 +88,32 @@ class ReviewCommandsTest {
                 .contains("未找到");
     }
 
+    /**
+     * 「不可自审」在群内命令侧同样生效——拒绝必须<b>回话</b>，不能静默。
+     *
+     * <p>这是此前真实的缺口：校验只写在 Web 适配层，于是同一个复核人用群命令
+     * {@code /review_approve} 自己的案子会被照常执行，走后台却被拒。
+     * 现由共用的裁决服务统一拒绝，两条入口行为一致。
+     */
+    @Test
+    void selfDecisionIsRefusedInGroupCommands() {
+        when(decisions.decide(7L, ReviewStatus.APPROVED, REVIEWER, null))
+                .thenReturn(outcome(
+                        ModerationReviewDecisionService.Outcome.Result.SELF_DECISION_FORBIDDEN,
+                        ReviewStatus.PENDING));
+
+        assertThat(text(new ReviewApproveCommandHandler(decisions, guard).handle(ctx(REVIEWER, "7"))))
+                .contains("不能裁决自己的案件");
+
+        when(decisions.decide(7L, ReviewStatus.REJECTED, REVIEWER, null))
+                .thenReturn(outcome(
+                        ModerationReviewDecisionService.Outcome.Result.SELF_DECISION_FORBIDDEN,
+                        ReviewStatus.PENDING));
+
+        assertThat(text(new ReviewRejectCommandHandler(decisions, guard).handle(ctx(REVIEWER, "7"))))
+                .contains("不能裁决自己的案件");
+    }
+
     @Test
     void badArgsShowUsage() {
         assertThat(text(new ReviewApproveCommandHandler(decisions, guard).handle(ctx(REVIEWER, "abc"))))
