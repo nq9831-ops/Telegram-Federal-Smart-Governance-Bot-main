@@ -162,6 +162,23 @@ class RbacWiringTest {
                 assertThat(context.getBean(IdHasher.class)).isNotNull());
     }
 
+    /**
+     * #2 回归：IdHasher 的盐必须由装配从配置注入（{@code tgg.hash.salt}）而非只读
+     * {@code System.getenv}——否则把盐写进 {@code application.yml} 会被静默忽略、
+     * 退回开发兜底盐（合规缺口，且无任何报错）。
+     */
+    @Test
+    void idHasherTakesSaltFromInjectedConfigValue() {
+        TggCoreConfiguration config = new TggCoreConfiguration();
+
+        assertThat(config.idHasher("prod-salt").usingDevFallbackSalt())
+                .as("注入了盐就不应被判为开发兜底盐")
+                .isFalse();
+        assertThat(config.idHasher("").usingDevFallbackSalt())
+                .as("空盐才退回开发兜底盐并触发告警")
+                .isTrue();
+    }
+
     private static UpdateContext ctx(long userId) {
         return new UpdateContext(1, userId, CHAT, "/ban");
     }

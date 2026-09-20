@@ -172,19 +172,23 @@ public class TggCoreConfiguration {
     /**
      * 日志脱敏用的标识哈希器。
      *
-     * <p><b>生产必须配置 {@code TGG_HASH_SALT}</b>：缺省时会退回开发兜底盐，
-     * 而 Telegram userId 空间小、固定盐哈希可被枚举反推（属合规缺口）。
+     * <p><b>生产必须配置盐（{@code TGG_HASH_SALT} 环境变量，或配置文件 {@code tgg.hash.salt}）</b>：
+     * 缺省时会退回开发兜底盐，而 Telegram userId 空间小、固定盐哈希可被枚举反推（属合规缺口）。
      * 这里显式告警——否则这类缺失会静默通过（本项目反复踩的「默认值掩盖配置遗漏」坑）。
+     *
+     * <p><b>盐由装配注入</b>（{@code @Value("${tgg.hash.salt:}")}）而非只读 {@code System.getenv}——
+     * 否则把盐写进 {@code application.yml} 会被<b>静默忽略</b>并退回开发兜底盐（环境变量与外部配置
+     * 都应生效，这是 Spring 配置的常规口径；此前只读 env 是一处口径不一致）。
      *
      * <p>注意：{@code IdHasher.usingDevFallbackSalt()} 的契约就是「供生产检查并告警」，
      * 此前只在测试里被调用、生产装配从未检查——本 bean 补上这一环。
      */
     @Bean
-    public IdHasher idHasher() {
-        IdHasher hasher = IdHasher.fromEnvironment();
+    public IdHasher idHasher(@Value("${tgg.hash.salt:}") String salt) {
+        IdHasher hasher = new IdHasher(salt);
         if (hasher.usingDevFallbackSalt()) {
-            log.warn("未配置 TGG_HASH_SALT：审核日志的标识哈希使用开发兜底盐，可被枚举反推。"
-                    + "生产必须配置该环境变量（见 README 配置表）。");
+            log.warn("标识哈希使用开发兜底盐（可被枚举反推）：TGG_HASH_SALT / tgg.hash.salt 未配置，"
+                    + "或恰等于兜底盐字面量。生产必须配置该配置项（见 README 配置表）。");
         }
         return hasher;
     }

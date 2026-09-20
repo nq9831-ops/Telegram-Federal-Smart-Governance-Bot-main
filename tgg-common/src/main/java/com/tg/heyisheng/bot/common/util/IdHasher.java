@@ -19,9 +19,10 @@ import java.util.HexFormat;
  * 那样"哈希化"只是视觉上的遮蔽，不构成实际保护。
  * 因此这里用 HMAC-SHA256，盐值由部署方配置。
  *
- * <p><b>盐的管理</b>：从环境变量 {@code TGG_HASH_SALT} 读取。
- * 未配置时退回一个固定开发盐并<b>只警告不阻断</b>——因为本类用于日志脱敏，
- * 缺失盐不应让整个机器人起不来；但生产必须配置，否则哈希可被枚举。
+ * <p><b>盐的管理</b>：由装配层提供（Spring 配置项 {@code tgg.hash.salt}，可由环境变量
+ * {@code TGG_HASH_SALT} 覆盖）。未配置时退回一个固定开发盐并<b>只警告不阻断</b>——因为本类用于
+ * 日志脱敏，缺失盐不应让整个机器人起不来；但生产必须配置，否则哈希可被枚举。
+ * {@link #fromEnvironment()} 是给非 Spring 调用方（单测、Builder 兜底）的便捷入口。
  */
 public final class IdHasher {
 
@@ -44,7 +45,12 @@ public final class IdHasher {
         return new IdHasher(System.getenv("TGG_HASH_SALT"));
     }
 
-    /** 是否使用了开发兜底盐（生产应检查此项并告警）。 */
+    /**
+     * 有效盐是否等于开发兜底盐（生产应检查此项并告警）。
+     *
+     * <p>判据是「<b>有效盐 == 兜底盐</b>」而非「有没有显式传参」：把盐显式设成兜底字面量，
+     * 其可枚举性并不比缺省好，仍应告警。
+     */
     public boolean usingDevFallbackSalt() {
         return java.util.Arrays.equals(salt, DEV_FALLBACK_SALT.getBytes(StandardCharsets.UTF_8));
     }
