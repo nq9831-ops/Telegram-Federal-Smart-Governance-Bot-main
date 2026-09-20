@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.listing.command;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.Confirm;
 import com.tg.heyisheng.bot.listing.merchant.Merchant;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDeposit;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDepositService;
@@ -28,7 +29,8 @@ import java.util.Optional;
  * （同 {@code /listing_appeal}）——{@code @BotCommand.requiredPermission} 表达不了
  * 「资源的属主」，故不声明权限点，由本类比对 {@code ownerUserId}。
  */
-@BotCommand(value = "merchant_exit", description = "申请退出商家（触发保证金冻结）")
+@BotCommand(value = "merchant_exit", description = "申请退出商家（触发保证金冻结）",
+        confirm = Confirm.ALWAYS)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantExitCommandHandler implements CommandHandler {
 

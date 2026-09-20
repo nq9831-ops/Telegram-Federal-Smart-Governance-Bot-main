@@ -48,10 +48,18 @@ class ConfigSwitchEndToEndIT {
 
     @Test
     void fullRoundTripThroughRealChain() throws Exception {
-        // 1. 关闭
-        assertThat(dispatch("/disable")).as("管理类命令应可用").isPresent();
+        // 1. 关闭（/disable 已标注「执行前确认」：先拿卡 → 确认 → 才真的落库）
+        java.util.Optional<org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod<?>> card =
+                dispatch("/disable");
+        assertThat(card).as("管理类命令应可用").isPresent();
+        String nonce = nonceOf(card);
+        assertThat(nonce).as("危险操作应先给确认卡").isNotNull();
         assertThat(groupConfigService.findOrDefault(CHAT_ID).enabled())
-                .as("关闭必须真的写入数据库").isFalse();
+                .as("确认之前绝不能写库").isTrue();
+
+        dispatchConfirm(nonce);
+        assertThat(groupConfigService.findOrDefault(CHAT_ID).enabled())
+                .as("确认后必须真的写入数据库").isFalse();
 
         // 2. 关闭态下普通命令被拒（开关生效）
         assertThat(dispatch("/echo")).as("关闭态下普通命令不得执行").isEmpty();
@@ -74,6 +82,43 @@ class ConfigSwitchEndToEndIT {
         assertThat(groupConfigService.findOrDefault(CHAT_ID).enabled())
                 .as("被拒的请求不得写入数据库")
                 .isTrue();
+    }
+
+    /**
+     * 从确认卡里取出令牌；不是确认卡则返回 null。
+     *
+     * <p>令牌只存在于卡片按钮的 data 上——这正是真实用户点击时信息所走的路径。
+     */
+    private static String nonceOf(
+            java.util.Optional<org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod<?>> reply) {
+        if (reply.isEmpty()
+                || !(reply.get() instanceof org.telegram.telegrambots.meta.api.methods.send.SendMessage card)
+                || !(card.getReplyMarkup()
+                instanceof org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup markup)) {
+            return null;
+        }
+        String prefix = com.tg.heyisheng.bot.core.dispatch.ConfirmationRequests.CONFIRM_ACTION + ":";
+        return markup.getKeyboard().stream()
+                .flatMap(java.util.List::stream)
+                .map(button -> button.getCallbackData())
+                .filter(data -> data != null && data.startsWith(prefix))
+                .map(data -> data.substring(prefix.length()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** 以管理员身份点下「确认」——真实链路上的第二次回调。 */
+    private void dispatchConfirm(String nonce) throws Exception {
+        org.telegram.telegrambots.meta.api.objects.CallbackQuery query =
+                new org.telegram.telegrambots.meta.api.objects.CallbackQuery();
+        query.setId("cb-confirm");
+        query.setFrom(User.builder().id(ADMIN_USER).firstName("T").isBot(false).build());
+        query.setData(com.tg.heyisheng.bot.core.dispatch.ConfirmationRequests.CONFIRM_ACTION + ":" + nonce);
+
+        Update callback = new Update();
+        callback.setUpdateId(2);
+        callback.setCallbackQuery(query);
+        updateDispatcher.dispatch(callback);
     }
 
     private java.util.Optional<org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod<?>>

@@ -15,7 +15,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * 因此关闭状态下仍可执行——这是必须的，否则该群会永久锁死。
  */
 @BotCommand(value = "disable", description = "关闭本群自动化能力（需管理员权限）",
-        requiredPermission = Permission.MANAGE_CONFIG)
+        requiredPermission = Permission.MANAGE_CONFIG, confirm = Confirm.ALWAYS)
 @Component
 public class DisableCommandHandler implements CommandHandler {
 

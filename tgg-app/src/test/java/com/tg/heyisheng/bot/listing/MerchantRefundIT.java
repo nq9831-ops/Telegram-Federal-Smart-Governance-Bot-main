@@ -306,14 +306,14 @@ class MerchantRefundIT {
     void exitCommandFreezesDepositForOwnerOnly() throws Exception {
         long merchantId = activeMerchantWithLockedDeposit();
 
-        assertThat(replyTo("/merchant_exit " + merchantId, OUTSIDER_USER))
+        assertThat(replyToConfirmed("/merchant_exit " + merchantId, OUTSIDER_USER))
                 .as("他人不得代为退出")
                 .isEqualTo("只有商家本人可以申请退出。");
         assertThat(stateOf(merchantId))
                 .as("越权请求不得改动保证金状态")
                 .isEqualTo(MerchantDeposit.State.LOCKED.name());
 
-        assertThat(replyTo("/merchant_exit " + merchantId, OWNER_USER))
+        assertThat(replyToConfirmed("/merchant_exit " + merchantId, OWNER_USER))
                 .contains("保证金已冻结");
         assertThat(stateOf(merchantId)).isEqualTo(MerchantDeposit.State.FROZEN.name());
         assertThat(recordActions(merchantId))
@@ -325,7 +325,7 @@ class MerchantRefundIT {
     void exitCommandWithoutDepositGivesClearHint() throws Exception {
         long merchantId = approvedMerchant();
 
-        assertThat(replyTo("/merchant_exit " + merchantId, OWNER_USER))
+        assertThat(replyToConfirmed("/merchant_exit " + merchantId, OWNER_USER))
                 .as("没缴保证金时不应静默失败")
                 .contains("尚未缴纳保证金");
     }
@@ -367,6 +367,48 @@ class MerchantRefundIT {
         assertThat(replyTo("/merchant_deposit " + merchantId + " 100.00000000", REVIEWER_USER))
                 .as("已缴过的商家再缴一次应给明确提示，而不是重复开通")
                 .contains("无需重复");
+    }
+
+    /**
+     * 走完确认卡的往返，取回**最终**回复正文：命令 → （若回确认卡）点「确认」→ 最终回复。
+     *
+     * <p>给需要确认的命令用。/merchant_exit 被标注为 {@code confirm = ALWAYS}：
+     * 首次派发只会拿到确认卡，真正的执行发生在「本人点确认」之后——
+     * 本 helper 复刻的正是这条真实路径，而不是绕过它。
+     */
+    private String replyToConfirmed(String commandText, long userId) throws Exception {
+        Optional<BotApiMethod<?>> first = updateDispatcher.dispatch(update(commandText, userId));
+        assertThat(first).as("命令 %s 应产出回复", commandText).isPresent();
+        Object reply = first.orElseThrow();
+
+        if (!(reply instanceof SendMessage card)
+                || !(card.getReplyMarkup() instanceof org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup markup)) {
+            return ((SendMessage) reply).getText(); // 无需确认的命令：原样返回
+        }
+
+        // 令牌只能从卡片按钮上取——这正是真实用户点击时走的那条信息
+        String prefix = com.tg.heyisheng.bot.core.dispatch.ConfirmationRequests.CONFIRM_ACTION + ":";
+        String nonce = markup.getKeyboard().stream()
+                .flatMap(java.util.List::stream)
+                .map(b -> b.getCallbackData())
+                .filter(data -> data != null && data.startsWith(prefix))
+                .map(data -> data.substring(prefix.length()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("确认卡里没有确认按钮：" + commandText));
+
+        org.telegram.telegrambots.meta.api.objects.CallbackQuery query =
+                new org.telegram.telegrambots.meta.api.objects.CallbackQuery();
+        query.setId("cb-confirm");
+        query.setFrom(User.builder().id(userId).firstName("T").isBot(false).build());
+        query.setData(prefix + nonce);
+
+        Update callback = new Update();
+        callback.setUpdateId(2);
+        callback.setCallbackQuery(query);
+
+        Optional<BotApiMethod<?>> after = updateDispatcher.dispatch(callback);
+        assertThat(after).as("确认后应产出最终回复").isPresent();
+        return ((SendMessage) after.orElseThrow()).getText();
     }
 
     /** 经真实分发链发送命令，取回回复正文。 */

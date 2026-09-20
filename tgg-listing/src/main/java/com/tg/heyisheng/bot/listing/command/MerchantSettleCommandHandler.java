@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.Confirm;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDeposit;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDepositService;
 import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
@@ -41,7 +42,8 @@ import java.util.Optional;
  * 而 {@code Role} 是群内语义。非复核人返回 {@code null}（静默），与 {@code CommandDispatcher}
  * 的「权限不足即静默」一致。
  */
-@BotCommand(value = "merchant_settle", description = "结算已冻结的商家保证金（平台复核人）")
+@BotCommand(value = "merchant_settle", description = "结算已冻结的商家保证金（平台复核人）",
+        confirm = Confirm.ALWAYS)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantSettleCommandHandler implements CommandHandler {
 

@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.Confirm;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -22,7 +23,8 @@ import java.util.Locale;
  *
  * <p><b>它不代替运营者判断</b>：是否构成「需通报的泄露」是法律判断，本命令只负责计时与留痕。
  */
-@BotCommand(value = "data_breach", description = "数据泄露登记与 72h 通报记录（平台白名单）")
+@BotCommand(value = "data_breach", description = "数据泄露登记与 72h 通报记录（平台白名单）",
+        confirm = Confirm.WHEN_ARGS)
 public class DataBreachCommandHandler implements CommandHandler {
 
     static final String USAGE = "用法：\n"
