@@ -97,6 +97,16 @@ public class AdminConfiguration {
         return new AdminBootstrap(accounts, properties, Clock.systemUTC());
     }
 
+    /** 账号管理服务（仅超管可经端点调用，见 {@code AccountAdminController}）。 */
+    @Bean
+    public com.tg.heyisheng.bot.admin.identity.AccountAdminService accountAdminService(
+            AdminAccountRepository accounts,
+            com.tg.heyisheng.bot.core.platform.PlatformGrantSource platformGrants,
+            AdminAuthService adminAuthService) {
+        return new com.tg.heyisheng.bot.admin.identity.AccountAdminService(
+                accounts, platformGrants, adminAuthService, Clock.systemUTC());
+    }
+
     /**
      * 会话门禁过滤器，只挂在 {@code /admin/*} 上。
      *

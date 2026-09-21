@@ -100,7 +100,7 @@ public class ApprovalController {
         // 审批权限：超管天然全权；其余走复核人白名单（Wave 2 换成细粒度能力授权）。
         // 读端点对任一已鉴权主体开放，写（裁决）才更严——与配置中心的取舍一致。
         if (request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) != AdminRole.SUPER_ADMIN
-                && !guard.isReviewer(subjectId)) {
+                && !guard.isReviewer(subjectType, subjectId)) {
             return ResponseEntity.status(403)
                     .body(Map.of("error", "无审批权限：当前主体不是超管，且不在复核人白名单内"));
         }

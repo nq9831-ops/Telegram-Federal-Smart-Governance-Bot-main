@@ -1,22 +1,24 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.core.audit.ActorType;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
+import com.tg.heyisheng.bot.core.platform.PlatformGrantSource;
+import com.tg.heyisheng.bot.core.platform.PlatformPermission;
 
 import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 联邦管理员判定（模块八）：**全局 userId 白名单**。
+ * 联邦管理员判定（模块八）：<b>全局 userId 白名单</b>。
  *
- * <p><b>为什么不复用群内 RBAC</b>：现有 {@code Role} / {@code RoleGrantParser} 是**群内**语义
- * （格式 {@code <chatId>:<userId>[:role]}），而联邦管理员是**跨群/全局**角色——
- * 他管理的是联邦，不属于某个群。硬塞进群内模型会让授权源语义错配，
+ * <p><b>为什么不复用群内 RBAC</b>：既有 {@code Role} / {@code RoleGrantParser} 是**群内**语义
+ * （格式 {@code <chatId>:<userId>[:role]}），而联邦管理员是**跨群/全局**角色，
  * 故用独立白名单（配置 {@code tgg.federation.admins}）。
  *
- * <p>门控仍在命令层（handler 内判定），只是授权源不同。
+ * <p><b>授权源两层（模块十一 · 权限模型）</b>：优先查平台账本
+ * （{@link PlatformPermission#FEDERATION_ADMIN}），无记录时回落配置键。
  *
- * <p><b>热生效</b>：生产构造器经 {@link RuntimeConfigService} <b>调用期</b>读取名单，
- * 在配置中心改了即生效，无需重启；另一构造器为静态模式（单测 / 固定名单），行为同改造前。
+ * <p><b>主体带类型</b>：见 {@code ModerationReviewGuard} 的同款说明；配置键只对 TG 主体回落。
  */
 public class FederationAdminGuard {
 
@@ -25,11 +27,18 @@ public class FederationAdminGuard {
 
     private final RuntimeConfigService config;
     private final Set<Long> fixedIds;
+    private final PlatformGrantSource grants;
 
-    /** 热模式：调用期读取。 */
-    public FederationAdminGuard(RuntimeConfigService config) {
+    /** 热模式：调用期读取 + 平台账本。 */
+    public FederationAdminGuard(RuntimeConfigService config, PlatformGrantSource grants) {
         this.config = config;
         this.fixedIds = Set.of();
+        this.grants = grants;
+    }
+
+    /** 兼容（无账本）。 */
+    public FederationAdminGuard(RuntimeConfigService config) {
+        this(config, null);
     }
 
     /** 静态模式（单测 / 固定名单）：立即复制，行为同改造前。 */
@@ -44,11 +53,24 @@ public class FederationAdminGuard {
         }
         this.config = null;
         this.fixedIds = Set.copyOf(set);
+        this.grants = null;
     }
 
-    /** 该用户是否为联邦管理员。 */
+    /** Telegram 侧判定（主体恒为 TG 用户）。 */
     public boolean isAdmin(Long userId) {
-        return userId != null && adminIds().contains(userId);
+        return isAdmin(ActorType.TG_USER, userId);
+    }
+
+    /** 带主体类型的判定（Web 侧用）。 */
+    public boolean isAdmin(ActorType subjectType, Long subjectId) {
+        if (subjectId == null) {
+            return false;
+        }
+        if (grants != null
+                && grants.hasPermission(subjectType, subjectId, PlatformPermission.FEDERATION_ADMIN)) {
+            return true;
+        }
+        return subjectType == ActorType.TG_USER && adminIds().contains(subjectId);
     }
 
     /** 已配置的联邦管理员数量（供装配期告警与测试使用）。 */

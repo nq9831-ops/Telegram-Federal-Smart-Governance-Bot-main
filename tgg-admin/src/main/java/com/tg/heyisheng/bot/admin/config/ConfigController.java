@@ -135,7 +135,7 @@ public class ConfigController {
      * 超管 bypass 保留（超管不受能力清单限制）。
      */
     private boolean mayWrite(HttpServletRequest request) {
-        return isSuperAdmin(request) || guard.isConfigAdmin(actorId(request));
+        return isSuperAdmin(request) || guard.isConfigAdmin(actorType(request), actorId(request));
     }
 
     private static boolean isSuperAdmin(HttpServletRequest request) {

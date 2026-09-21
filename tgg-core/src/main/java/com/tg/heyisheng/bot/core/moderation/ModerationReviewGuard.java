@@ -1,6 +1,9 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.core.audit.ActorType;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
+import com.tg.heyisheng.bot.core.platform.PlatformGrantSource;
+import com.tg.heyisheng.bot.core.platform.PlatformPermission;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,22 +14,20 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 复核人判定（模块九 §10.4 · 操作员推翻权）：<b>全局 userId 白名单</b>。
+ * 复核人判定（模块九 §10.4 · 操作员推翻权）。
  *
- * <p><b>为什么不复用群内 RBAC</b>（照模块八 {@code FederationAdminGuard} / 模块六
- * {@code MerchantReviewGuard} 的取舍）：复核队列记录的是<b>跨群</b>的审核命中，复核是<b>平台层</b>
- * 动作；而 {@code Permission} / {@code Role} 是<b>群内</b>语义（{@code <chatId>:<userId>[:role]}）。
- * 硬塞进群内模型会让授权源的 {@code chatId} 语义错配——「复核人」不该因为某个群的管理员配置变化而
- * 获得或失去权能。授权源是配置 {@code tgg.moderation.reviewers}。
+ * <p><b>为什么不复用群内 RBAC</b>（照模块八/模块六的取舍）：复核队列记录的是<b>跨群</b>的审核命中，
+ * 复核是<b>平台层</b>动作；而 {@code Permission} / {@code Role} 是<b>群内</b>语义。授权源是配置
+ * {@code tgg.moderation.reviewers}（TG userId 白名单）。
  *
- * <p><b>未知即拒绝</b>：{@code null} userId 与不在名单内一律 {@code false}。
+ * <p><b>授权源现为两层（模块十一 · 权限模型）</b>：优先查平台账本
+ * {@link PlatformGrantSource}（超管授予的 {@link PlatformPermission#REVIEW_DECIDE}），
+ * 账本无记录时**回落**原有配置键——升级不破坏线上授权。
  *
- * <p><b>空名单 = 命令静默不可用</b>：不配即无人可复核——启动期打 WARN 说明，
- * 沿用本项目「缺失即显式降级、不静默」的口径（与 {@code tgg.merchant.reviewers} 一致）。
- *
- * <p><b>热生效</b>：生产构造器经 {@link RuntimeConfigService} <b>调用期</b>读取名单——
- * 在 Web 配置中心改了 reviewers，**无需重启**即生效。（另一构造器为静态模式，供单测与
- * 不依赖配置服务的上下文使用，行为与改造前一致。）
+ * <p><b>主体带类型</b>：后台账号 id 与 TG userId 数值空间重叠，故判定按 {@code (类型, id)}。
+ * Telegram 侧调用沿用 {@link #isReviewer(Long)}（委托 {@link ActorType#TG_USER}）；
+ * Web 侧用 {@link #isReviewer(ActorType, Long)}（主体来自会话）。
+ * <b>配置键只对 TG 主体回落</b>——它存的是 userId，账号 id 撞上不得误放行。
  */
 @Service
 public class ModerationReviewGuard {
@@ -38,23 +39,44 @@ public class ModerationReviewGuard {
 
     private final RuntimeConfigService config;
     private final Set<Long> fixedIds;
+    private final PlatformGrantSource grants;
 
-    /** 生产构造器：热读取。 */
+    /** 生产构造器：热读取配置 + 平台账本。 */
     @Autowired
-    public ModerationReviewGuard(RuntimeConfigService config) {
+    public ModerationReviewGuard(RuntimeConfigService config, PlatformGrantSource grants) {
         this.config = config;
         this.fixedIds = Set.of();
+        this.grants = grants;
     }
 
-    /** 静态模式（单测 / 不依赖配置服务的上下文）：立即解析，行为同改造前。 */
+    /** 兼容构造器：仅配置（无账本）——供不依赖账本的上下文与单测使用。 */
+    public ModerationReviewGuard(RuntimeConfigService config) {
+        this(config, null);
+    }
+
+    /** 静态模式（单测 / 固定名单）：立即解析，行为同改造前。 */
     public ModerationReviewGuard(String reviewers) {
         this.config = null;
         this.fixedIds = parse(reviewers);
+        this.grants = null;
     }
 
-    /** 该用户是否为复核人。 */
+    /** Telegram 侧判定（主体恒为 TG 用户）。 */
     public boolean isReviewer(Long userId) {
-        return userId != null && reviewerIds().contains(userId);
+        return isReviewer(ActorType.TG_USER, userId);
+    }
+
+    /** 带主体类型的判定（Web 侧用）。 */
+    public boolean isReviewer(ActorType subjectType, Long subjectId) {
+        if (subjectId == null) {
+            return false;
+        }
+        if (grants != null
+                && grants.hasPermission(subjectType, subjectId, PlatformPermission.REVIEW_DECIDE)) {
+            return true;
+        }
+        // 配置键存的是 TG userId——只对 TG 主体回落
+        return subjectType == ActorType.TG_USER && reviewerIds().contains(subjectId);
     }
 
     /** 已配置的复核人（热读取；静态模式下为构造时解析的结果）。 */
@@ -72,7 +94,8 @@ public class ModerationReviewGuard {
     void warnIfEmpty() {
         if (reviewerIds().isEmpty()) {
             log.warn("未配置 TGG_MODERATION_REVIEWERS：/review_list·/review_approve·/review_reject "
-                    + "对任何人不可用（不是「权限不足」，是无响应）。要启用人工复核请注入该变量。");
+                    + "对任何人不可用（不是「权限不足」，是无响应）。要启用人工复核请注入该变量，"
+                    + "或由超管在后台账本授予 REVIEW_DECIDE。");
         }
     }
 

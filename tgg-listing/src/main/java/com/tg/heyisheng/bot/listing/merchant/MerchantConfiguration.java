@@ -54,8 +54,10 @@ public class MerchantConfiguration {
      */
     @Bean
     public MerchantReviewGuard merchantReviewGuard(
-            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig) {
-        return new MerchantReviewGuard(runtimeConfig);
+            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig,
+            org.springframework.beans.factory.ObjectProvider<com.tg.heyisheng.bot.core.platform.PlatformGrantSource> platformGrants) {
+        // ObjectProvider：切片上下文可能不含 core 的账本 bean——缺失时回落配置键
+        return new MerchantReviewGuard(runtimeConfig, platformGrants.getIfAvailable());
     }
 
     /**

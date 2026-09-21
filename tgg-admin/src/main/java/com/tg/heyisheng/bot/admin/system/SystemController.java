@@ -59,10 +59,11 @@ public class SystemController {
     @PostMapping("/restart")
     public ResponseEntity<Map<String, String>> restart(HttpServletRequest request) {
         boolean superAdmin = request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) == AdminRole.SUPER_ADMIN;
+        ActorType actorType = (ActorType) request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE);
         Long actorId = (Long) request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE);
-        if (!superAdmin && !guard.isConfigAdmin(actorId)) {
+        if (!superAdmin && !guard.isConfigAdmin(actorType, actorId)) {
             return ResponseEntity.status(403)
-                    .body(Map.of("error", "无配置写权限：当前主体不是超管，且不在配置管理员白名单内"));
+                    .body(Map.of("error", "无配置写权限：当前主体不是超管，且不在配置写权限名单内"));
         }
         if (!config.getBoolean(RESTART_ENABLED_KEY, false)) {
             return ResponseEntity.status(409).body(Map.of("error",
@@ -70,7 +71,6 @@ public class SystemController {
                             + "=true（无外部监管进程的部署请勿开启——退出后不会被拉起）"));
         }
 
-        ActorType actorType = (ActorType) request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE);
         audit.record(actorType, actorId, AUDIT_ACTION, null, AuditEntry.Outcome.SUCCESS, "restart requested");
         restartAction.restart();
         return ResponseEntity.accepted().body(Map.of("result", "RESTARTING"));

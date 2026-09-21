@@ -57,8 +57,10 @@ public class FederationConfiguration {
     /** 联邦管理员判定（全局白名单，热读取）。 */
     @Bean
     public FederationAdminGuard federationAdminGuard(
-            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig) {
-        FederationAdminGuard guard = new FederationAdminGuard(runtimeConfig);
+            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig,
+            org.springframework.beans.factory.ObjectProvider<com.tg.heyisheng.bot.core.platform.PlatformGrantSource> platformGrants) {
+        // ObjectProvider：本模块的切片上下文可能不含 core 的账本 bean——缺失时回落配置键
+        FederationAdminGuard guard = new FederationAdminGuard(runtimeConfig, platformGrants.getIfAvailable());
         if (guard.size() == 0) {
             log.warn("未配置 tgg.federation.admins（TGG_FEDERATION_ADMINS）：联邦管理命令"
                     + "（/pending /approve /reject）将对任何人不可用。");
