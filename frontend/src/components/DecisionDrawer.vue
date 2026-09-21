@@ -38,7 +38,7 @@ async function submit(decision: Decision): Promise<void> {
     // 推翻会**解封当事人**——这是立即作用于 Telegram 的不可逆对外动作，必须二次确认
     try {
       await ElMessageBox.confirm(
-        `将推翻案件 #${item.id}（判定为误报），并立即解封该用户。是否继续？`,
+        `将推翻案件 #${item.id}（判定为误报），并立即解封当事人。是否继续？`,
         '确认推翻',
         { type: 'warning', confirmButtonText: '推翻并解封', cancelButtonText: '取消' },
       )
@@ -63,7 +63,7 @@ async function submit(decision: Decision): Promise<void> {
   try {
     const result = await decide(item.id, { decision, reason: reason.value.trim() })
     if (result.result === 'ALREADY_DECIDED') {
-      ElMessage.warning('该案件已有终态结论（幂等：本次未改变任何东西）')
+      ElMessage.warning('这个案件已经有最终结论了（幂等：本次没有改变任何东西）')
     } else {
       ElMessage.success(decision === 'APPROVED' ? '已维持结论' : '已推翻结论')
     }
@@ -100,7 +100,7 @@ async function submit(decision: Decision): Promise<void> {
             v-if="item.userId !== null"
             class="tg-link"
             :href="`tg://user?id=${item.userId}`"
-            title="在 Telegram 中打开该用户"
+            title="在 Telegram 中打开这个用户"
           >{{ item.userId }}</a>
           <span v-else class="dim">—（频道帖等无发布者）</span>
         </el-descriptions-item>
@@ -149,7 +149,7 @@ async function submit(decision: Decision): Promise<void> {
           <el-button :loading="busy" @click="submit('REJECTED')">推翻（误报，会解封）</el-button>
         </div>
       </template>
-      <el-alert v-else class="block" type="success" :closable="false" title="该案件已有终态结论，不能重复裁决" />
+      <el-alert v-else class="block" type="success" :closable="false" title="这个案件已经有最终结论了，不能重复裁决" />
     </template>
   </el-drawer>
 </template>

@@ -213,15 +213,15 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
 
   it('403 → 默认中性文案（不绑死某个功能区）', async () => {
     const c = await loadClient()
-    expect(c.describeError(axiosError(403))).toBe('无权限（403）：当前主体不在授权名单内。')
+    expect(c.describeError(axiosError(403))).toBe('无权限（403）：你不在授权名单内。需要权限请联系超级管理员。')
   })
 
   it('403 → 传入 forbidden 时用该功能区的具体成因（审批 / 配置中心各不同）', async () => {
     const c = await loadClient()
     expect(c.describeError(axiosError(403), c.FORBIDDEN_APPROVAL))
-      .toBe('无权限（403）：当前主体不是超管，且不在复核人白名单内，或该案件属于你本人。')
+      .toBe('无权限（403）：你不是超管，也不在复核人白名单内，或者这个案件属于你本人。请让其他复核人处理，或联系超级管理员。')
     expect(c.describeError(axiosError(403), c.FORBIDDEN_CONFIG))
-      .toBe('无权限（403）：当前主体不是超管，且不在配置写权限名单内。')
+      .toBe('无权限（403）：你不是超管，也不在配置写权限名单内。需要权限请联系超级管理员。')
   })
 
   it('无响应（连不上后端）→ 连接文案', async () => {
@@ -232,7 +232,7 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
 
   it('其他状态码 → 带 HTTP 码的兜底文案', async () => {
     const c = await loadClient()
-    expect(c.describeError(axiosError(500))).toBe('请求失败（HTTP 500）。')
+    expect(c.describeError(axiosError(500))).toBe('请求失败（HTTP 500）。稍后重试；持续失败请联系维护。')
   })
 
   it('普通 Error → 透传 message', async () => {

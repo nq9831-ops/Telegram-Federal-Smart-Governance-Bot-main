@@ -86,12 +86,12 @@ async function toggleStatus(account: AccountView): Promise<void> {
 async function resetPw(account: AccountView): Promise<void> {
   try {
     const { value } = await ElMessageBox.prompt(
-      `为「${account.username}」设置新密码（保存后该账号已被强制下线）`,
+      `为「${account.username}」设置新密码（保存后这个账号会被强制下线）`,
       '重置密码',
       { inputType: 'password', confirmButtonText: '重置', cancelButtonText: '取消' },
     )
     await resetAccountPassword(account.id, value)
-    ElMessage.success('密码已重置（该账号已强制下线）')
+    ElMessage.success('密码已重置（这个账号已被强制下线）')
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(describeError(error))
@@ -130,7 +130,7 @@ onMounted(load)
         :closable="false"
         show-icon
         title="仅超级管理员可管理账号"
-        description="超级管理员天然拥有全部能力，不受能力清单限制；操作员的能力由超管在此分配。停用 / 改密会立即吊销该账号的会话。"
+        description="超级管理员天然拥有全部能力，不受能力清单限制；操作员的能力由超管在此分配。停用 / 改密会立即吊销这个账号的会话。"
       />
 
       <el-card shadow="never" class="block">

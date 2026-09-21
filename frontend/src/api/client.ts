@@ -91,10 +91,10 @@ export async function logout(): Promise<void> {
 }
 
 /** 审批类 403 的具体成因（不在复核人白名单内 / 不能审自己的案件）。 */
-export const FORBIDDEN_APPROVAL = '无权限（403）：当前主体不是超管，且不在复核人白名单内，或该案件属于你本人。'
+export const FORBIDDEN_APPROVAL = '无权限（403）：你不是超管，也不在复核人白名单内，或者这个案件属于你本人。请让其他复核人处理，或联系超级管理员。'
 
 /** 配置中心 403 的具体成因（不在配置写权限名单内）。 */
-export const FORBIDDEN_CONFIG = '无权限（403）：当前主体不是超管，且不在配置写权限名单内。'
+export const FORBIDDEN_CONFIG = '无权限（403）：你不是超管，也不在配置写权限名单内。需要权限请联系超级管理员。'
 
 /**
  * 把 axios 错误转成能直接给运营者看的一句话。
@@ -106,12 +106,12 @@ export function describeError(error: unknown, forbidden?: string): string {
       return '登录已失效（401）：请重新登录。'
     }
     if (status === 403) {
-      return forbidden ?? '无权限（403）：当前主体不在授权名单内。'
+      return forbidden ?? '无权限（403）：你不在授权名单内。需要权限请联系超级管理员。'
     }
     if (status === undefined) {
       return '无法连接到后端：请确认服务已启动、且反向代理/开发代理配置正确。'
     }
-    return `请求失败（HTTP ${status}）。`
+    return `请求失败（HTTP ${status}）。稍后重试；持续失败请联系维护。`
   }
   return error instanceof Error ? error.message : '未知错误。'
 }
