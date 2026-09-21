@@ -26,9 +26,6 @@ import java.util.Map;
  */
 public final class MenuView {
 
-    /** 「返回主页」按钮文案。 */
-    static final String BACK_LABEL = "← 返回";
-
     /** 导航动词（分类页 / 主页之间的跳转）。 */
     static final String NAV_VERB = "nav";
 
@@ -124,7 +121,7 @@ public final class MenuView {
                     .build()));
         }
         rows.add(new InlineKeyboardRow(InlineKeyboardButton.builder()
-                .text(BACK_LABEL)
+                .text(InteractionMessages.BACK_LABEL)
                 .callbackData(navData(chatId, HOME_KEY))
                 .build()));
         return InlineKeyboardMarkup.builder().keyboard(rows).build();

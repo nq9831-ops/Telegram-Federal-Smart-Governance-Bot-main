@@ -39,10 +39,6 @@ public class CallbackCommandBridge {
 
     private static final Logger log = LoggerFactory.getLogger(CallbackCommandBridge.class);
 
-    private static final String UNKNOWN = "未知操作。";
-    private static final String TOO_FAST = "操作过于频繁，请稍后再试。";
-    private static final String FAILED = "执行失败，请稍后再试。";
-
     private final CommandDispatcher dispatcher;
     private final CommandRegistry registry;
     private final GroupConfigService groupConfigs;
@@ -86,12 +82,12 @@ public class CallbackCommandBridge {
         }
         if (command == null || registry.find(command).isEmpty()) {
             log.warn("回调引用了未注册的命令，已拒绝：command={}", command);
-            return Optional.of(answer(query, UNKNOWN));
+            return Optional.of(answer(query, InteractionMessages.UNKNOWN));
         }
         if (!callbackLimiter.tryAcquire("cb:u:" + userId)
                 || !callbackLimiter.tryAcquire("cb:g:" + chatId)) {
             log.warn("按钮触发过于频繁，已限流：command={}", command);
-            return Optional.of(answer(query, TOO_FAST));
+            return Optional.of(answer(query, InteractionMessages.TOO_FAST));
         }
 
         UpdateContext ctx = new UpdateContext(null, userId, chatId, null, command, args);
@@ -107,7 +103,7 @@ public class CallbackCommandBridge {
         } catch (Exception ex) {
             // 命令处理异常不得冒到 webhook（那会变成 500/重试风暴）
             log.warn("按钮触发的命令执行失败，已兜住：command={}", command, ex);
-            return Optional.of(answer(query, FAILED));
+            return Optional.of(answer(query, InteractionMessages.FAILED));
         }
 
         // 结果走 webhook 返回值这条**可靠**通道；「应答」只是让按钮别转圈，属尽力而为的补充。

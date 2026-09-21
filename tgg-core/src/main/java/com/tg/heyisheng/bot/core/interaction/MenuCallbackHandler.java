@@ -33,8 +33,6 @@ import java.util.Optional;
  */
 public class MenuCallbackHandler implements CallbackHandler {
 
-    private static final String UNKNOWN = "未知操作。";
-
     private final CallbackCommandBridge bridge;
     private final MenuCatalog catalog;
     private final GroupConfigService groupConfigs;
@@ -61,7 +59,7 @@ public class MenuCallbackHandler implements CallbackHandler {
         Parsed parsed = parse(query.getData());
         if (parsed == null) {
             // 必须应答：否则旧卡上的按钮会一直转圈，用户以为坏了（同 CallbackRouter 的约定）
-            return Optional.of(answer(query, UNKNOWN));
+            return Optional.of(answer(query, InteractionMessages.UNKNOWN));
         }
         if (parsed instanceof Parsed.Nav nav) {
             return Optional.of(navigate(query, nav));
@@ -81,7 +79,7 @@ public class MenuCallbackHandler implements CallbackHandler {
         Long userId = query.getFrom() == null ? null : query.getFrom().getId();
         long chatId = nav.chatId();
         if (userId == null) {
-            return answer(query, UNKNOWN);
+            return answer(query, InteractionMessages.UNKNOWN);
         }
         boolean groupEnabled = groupConfigs.findOrDefault(chatId).enabled();
         Map<MenuCategory, List<String>> grouped = catalog.grouped(chatId, userId, groupEnabled);

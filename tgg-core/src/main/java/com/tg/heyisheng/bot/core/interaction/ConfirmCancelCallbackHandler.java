@@ -21,8 +21,6 @@ import java.util.Optional;
  */
 public class ConfirmCancelCallbackHandler implements CallbackHandler {
 
-    /** 转瞬提示（按钮下方气泡）。 */
-    private static final String CANCELLED = "已取消。";
     /** 卡片上的终态文案——与按钮上的「❌ 取消」呼应，一眼可辨。 */
     static final String CANCELLED_CARD = "❌ 已取消。";
 
@@ -59,7 +57,7 @@ public class ConfirmCancelCallbackHandler implements CallbackHandler {
                 ConfirmCallbackHandler.terminalCard(consumed.get().chatId(), query, CANCELLED_CARD);
         if (card == null) {
             // 取不到消息 id（异常来源）时至少给个回执，不能什么都不做
-            return Optional.of(ConfirmCallbackHandler.answer(query, CANCELLED));
+            return Optional.of(ConfirmCallbackHandler.answer(query, InteractionMessages.CANCELLED));
         }
         bridge.acknowledge(query);
         return Optional.of(card);

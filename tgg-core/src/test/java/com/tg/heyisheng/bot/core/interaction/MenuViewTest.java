@@ -61,7 +61,7 @@ class MenuViewTest {
         List<InlineKeyboardButton> buttons = buttons(markup);
         assertThat(buttons).hasSize(2);
         assertThat(buttons.get(0).getCallbackData()).isEqualTo("menu:" + CHAT + ":run:words");
-        assertThat(buttons.get(1).getText()).isEqualTo(MenuView.BACK_LABEL);
+        assertThat(buttons.get(1).getText()).isEqualTo(InteractionMessages.BACK_LABEL);
         assertThat(buttons.get(1).getCallbackData()).isEqualTo("menu:" + CHAT + ":nav:home");
     }
 
