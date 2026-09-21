@@ -60,7 +60,7 @@ class ExportMyDataTest {
         assertThat(reply).contains("TeachCommandHandler#handle").contains("22:00-08:00");
         // 必须用**双条件**（类型 + id）：单条件会串到同 id 的后台账号记录
         verify(auditLogRepository).findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, USER);
-        verify(auditLogRepository, never()).findTop100ByOrderByIdDesc();
+        verify(auditLogRepository, never()).findByOrderByIdDesc(org.mockito.ArgumentMatchers.any());
         verify(auditLogRepository, never()).findByOccurredAtAfterOrderByIdAsc(any());
     }
 

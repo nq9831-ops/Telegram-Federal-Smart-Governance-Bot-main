@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.audit;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.Repository;
 
 import java.time.Instant;
@@ -30,8 +31,14 @@ public interface AuditLogRepository extends Repository<AuditEntry, Long> {
     /** 按 id 查（验收与排错用）。 */
     Optional<AuditEntry> findById(Long id);
 
-    /** 最近若干条（倒序 = 最新在前）。 */
-    List<AuditEntry> findTop100ByOrderByIdDesc();
+    /**
+     * 最近若干条（倒序 = 最新在前）——**条数由调用方经 {@link Pageable} 给出**。
+     *
+     * <p>刻意**不**用 {@code findTop100...} 那种把上限写进方法名的派生查询：那会让
+     * {@code AuditViewController.MAX_LIMIT}（声明 200）与实际取数（硬编码 100）**静默不一致**——
+     * 声明 200 却永远只回 ≤100，且不报任何错。
+     */
+    List<AuditEntry> findByOrderByIdDesc(Pageable pageable);
 
     /**
      * 某<b>主体</b>的审计轨迹（倒序）——双条件，不可退回单条件。

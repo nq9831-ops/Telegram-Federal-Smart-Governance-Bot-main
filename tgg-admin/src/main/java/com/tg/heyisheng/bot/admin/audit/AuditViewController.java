@@ -10,6 +10,7 @@ import com.tg.heyisheng.bot.core.platform.PlatformGrantSource;
 import com.tg.heyisheng.bot.core.platform.PlatformPermission;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Conditional;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,8 +59,7 @@ public class AuditViewController {
                     .body(Map.of("error", "无审计查看权限：当前主体不是超管，且未持有 AUDIT_READ"));
         }
         int bounded = Math.max(1, Math.min(limit, MAX_LIMIT));
-        List<Map<String, Object>> rows = audit.findTop100ByOrderByIdDesc().stream()
-                .limit(bounded)
+        List<Map<String, Object>> rows = audit.findByOrderByIdDesc(PageRequest.of(0, bounded)).stream()
                 .map(AuditViewController::toView)
                 .toList();
         return ResponseEntity.ok(rows);
