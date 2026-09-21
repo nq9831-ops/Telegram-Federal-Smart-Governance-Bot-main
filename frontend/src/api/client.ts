@@ -1,5 +1,6 @@
 import axios, { type AxiosError } from 'axios'
 import type {
+  AccountView,
   ApprovalPage,
   ApprovalStats,
   ConfigItem,
@@ -208,4 +209,94 @@ export async function restartSystem(): Promise<void> {
     const failure = response.data as { error?: string }
     throw new Error(failure?.error ?? `重启失败（HTTP ${response.status}）`)
   }
+}
+
+// ───────────────────────────── 账号管理（模块十一 · 权限模型，仅超管）─────────────────────────────
+
+/** `GET /admin/accounts` —— 列出全部账号与其能力（仅超管）。 */
+export async function fetchAccounts(): Promise<AccountView[]> {
+  const { data } = await http.get<AccountView[]>('/admin/accounts')
+  return data
+}
+
+/** 账号管理写入的失败（400/403 + `{error}`）。 */
+async function mutateAccount(
+  send: () => Promise<{ status: number; data: unknown }>,
+  failureText: string,
+): Promise<void> {
+  const response = await send()
+  if (response.status !== 200) {
+    const failure = response.data as { error?: string }
+    throw new Error(failure?.error ?? `${failureText}（HTTP ${response.status}）`)
+  }
+}
+
+/** `POST /admin/accounts` —— 建操作员（role 恒为 OPERATOR）。 */
+export async function createAccount(username: string, password: string): Promise<void> {
+  await mutateAccount(
+    () => http.post('/admin/accounts', { username, password }, {
+      validateStatus: (s) => s === 200 || s === 400 || s === 403,
+    }),
+    '创建失败',
+  )
+}
+
+/** `PUT /admin/accounts/{id}/permissions` —— 设置能力清单。 */
+export async function setAccountPermissions(id: number, permissions: string[]): Promise<void> {
+  await mutateAccount(
+    () => http.put(`/admin/accounts/${id}/permissions`, { permissions }, {
+      validateStatus: (s) => s === 200 || s === 400 || s === 403,
+    }),
+    '设置权限失败',
+  )
+}
+
+/** `PUT /admin/accounts/{id}/status` —— 停用 / 启用。 */
+export async function setAccountStatus(id: number, status: 'ACTIVE' | 'DISABLED'): Promise<void> {
+  await mutateAccount(
+    () => http.put(`/admin/accounts/${id}/status`, { status }, {
+      validateStatus: (s) => s === 200 || s === 400 || s === 403,
+    }),
+    '变更状态失败',
+  )
+}
+
+/** `PUT /admin/accounts/{id}/password` —— 重置密码（改后强制下线）。 */
+export async function resetAccountPassword(id: number, password: string): Promise<void> {
+  await mutateAccount(
+    () => http.put(`/admin/accounts/${id}/password`, { password }, {
+      validateStatus: (s) => s === 200 || s === 400 || s === 403,
+    }),
+    '重置密码失败',
+  )
+}
+
+/** `POST /admin/accounts/{id}/revoke-sessions` —— 强制下线。 */
+export async function revokeAccountSessions(id: number): Promise<void> {
+  await mutateAccount(
+    () => http.post(`/admin/accounts/${id}/revoke-sessions`, null, {
+      validateStatus: (s) => s === 200 || s === 400 || s === 403,
+    }),
+    '强制下线失败',
+  )
+}
+
+/** 平台能力点（后端 `PlatformPermission`）。 */
+export const ALL_PERMISSIONS = [
+  'REVIEW_DECIDE',
+  'CONFIG_WRITE',
+  'FEDERATION_ADMIN',
+  'MERCHANT_REVIEW',
+  'SYSTEM_RESTART',
+  'AUDIT_READ',
+] as const
+
+/** 能力点的中文说明——界面呈现用，避免裸显后端英文枚举。 */
+export const PERMISSION_LABEL: Record<string, string> = {
+  REVIEW_DECIDE: '审批裁决',
+  CONFIG_WRITE: '配置写入',
+  FEDERATION_ADMIN: '联邦管理',
+  MERCHANT_REVIEW: '商家复核',
+  SYSTEM_RESTART: '系统重启',
+  AUDIT_READ: '审计查看',
 }

@@ -133,3 +133,17 @@ export interface WritePermission {
   source: 'explicit' | 'reviewers'
   count: number
 }
+
+/**
+ * 账号视图 —— 后端 `AccountAdminService.AccountView`。
+ *
+ * `role`：SUPER_ADMIN / OPERATOR；`status`：ACTIVE / DISABLED；
+ * `permissions`：能力点名数组（超管返回全部，仅用于显示——超管天然全权）。
+ */
+export interface AccountView {
+  id: number
+  username: string
+  role: 'SUPER_ADMIN' | 'OPERATOR'
+  status: 'ACTIVE' | 'DISABLED'
+  permissions: string[]
+}

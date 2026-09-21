@@ -6,11 +6,12 @@ import { validateGate } from './gate'
 import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
 import ConfigCenter from './views/ConfigCenter.vue'
+import AccountCenter from './views/AccountCenter.vue'
 
 const session = useSession()
 const form = reactive({ username: '', password: '' })
-/** 已登录后的两个视图；项目刻意不引 vue-router（只两块，条件渲染足够）。 */
-const view = ref<'todos' | 'config'>('todos')
+/** 已登录后的三个视图；项目刻意不引 vue-router（只三块，条件渲染足够）。账号管理仅超管可见。 */
+const view = ref<'todos' | 'config' | 'accounts'>('todos')
 const submitting = ref(false)
 
 async function submit(): Promise<void> {
@@ -83,10 +84,12 @@ async function signOut(): Promise<void> {
       <el-radio-group v-model="view" size="small">
         <el-radio-button value="todos">待办中心</el-radio-button>
         <el-radio-button value="config">配置中心</el-radio-button>
+        <el-radio-button v-if="session.role === 'SUPER_ADMIN'" value="accounts">账号管理</el-radio-button>
       </el-radio-group>
     </div>
     <TodoCenter v-if="view === 'todos'" :operator="session.operatorLabel" @sign-out="signOut" />
-    <ConfigCenter v-else :operator="session.operatorLabel" @sign-out="signOut" />
+    <ConfigCenter v-else-if="view === 'config'" :operator="session.operatorLabel" @sign-out="signOut" />
+    <AccountCenter v-else :operator="session.operatorLabel" @sign-out="signOut" />
   </template>
 </template>
 
