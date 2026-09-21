@@ -81,7 +81,8 @@ public class AdminAuthController {
             return ResponseEntity.status(429).body(Map.of("error", "登录尝试过于频繁，请稍后再试"));
         }
         Optional<AdminAuthService.LoginResult> result = auth.login(
-                body.username(), body.password(), Duration.ofHours(properties.getSessionTtlHours()));
+                body.username(), body.password(), body.totpCode(),
+                Duration.ofHours(properties.getSessionTtlHours()));
         if (result.isEmpty()) {
             return ResponseEntity.status(401).body(Map.of("error", "登录名或密码错误"));
         }
@@ -114,8 +115,8 @@ public class AdminAuthController {
                 role == null ? null : role.toString()));
     }
 
-    /** 登录请求体。 */
-    public record LoginRequest(String username, String password) {
+    /** 登录请求体（{@code totpCode} 仅当账号启用 TOTP 时必填）。 */
+    public record LoginRequest(String username, String password, String totpCode) {
     }
 
     /** 取来源 IP（优先反代传递的 X-Forwarded-For 首段）。 */

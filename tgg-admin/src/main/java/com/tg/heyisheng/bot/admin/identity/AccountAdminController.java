@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,6 +49,7 @@ public class AccountAdminController {
     static final String AUDIT_PASSWORD = "admin.account.password";
     static final String AUDIT_PERMISSIONS = "admin.account.permissions";
     static final String AUDIT_REVOKE = "admin.account.revoke-sessions";
+    static final String AUDIT_TOTP = "admin.account.totp";
 
     private final AccountAdminService service;
     private final AuditService audit;
@@ -140,8 +142,37 @@ public class AccountAdminController {
         }
     }
 
-    private static boolean isSuperAdmin(HttpServletRequest request) {
-        return request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) == AdminRole.SUPER_ADMIN;
+    /** 启用 TOTP：生成本账号的密钥并返回 otpauth URL（供 authenticator app 扫码）。 */
+    @PostMapping("/{id}/totp")
+    public ResponseEntity<?> enableTotp(@PathVariable Long id, HttpServletRequest request) {
+        if (!isSuperAdmin(request)) {
+            return forbidden();
+        }
+        try {
+            String url = service.enableTotp(id);
+            auditRequest(request, AUDIT_TOTP, "account " + id + " totp enabled");
+            return ResponseEntity.ok(Map.of("otpauthUrl", url));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    /** 关闭 TOTP 第二因子。 */
+    @DeleteMapping("/{id}/totp")
+    public ResponseEntity<?> disableTotp(@PathVariable Long id, HttpServletRequest request) {
+        if (!isSuperAdmin(request)) {
+            return forbidden();
+        }
+        try {
+            service.disableTotp(id);
+            auditRequest(request, AUDIT_TOTP, "account " + id + " totp disabled");
+            return ResponseEntity.ok(Map.of("result", "OK"));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    private static boolean isSuperAdmin(HttpServletRequest request) {        return request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) == AdminRole.SUPER_ADMIN;
     }
 
     private static ResponseEntity<Map<String, String>> forbidden() {

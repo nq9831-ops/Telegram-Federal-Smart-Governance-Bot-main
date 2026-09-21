@@ -62,8 +62,19 @@ public class AdminAuthService {
      *
      * @return 成功时含明文令牌与主体；失败（用户名不存在 / 停用 / 锁定 / 密码错误）一律为空
      */
+    /** 登录（无第二因子）——兼容重载。 */
     @Transactional
     public Optional<LoginResult> login(String username, String rawPassword, Duration ttl) {
+        return login(username, rawPassword, null, ttl);
+    }
+
+    /**
+     * 登录：校验凭据（+ 可选 TOTP）并签发会话。
+     *
+     * @param totpCode 若账号已启用 TOTP，则此项必须为有效的 6 位码；未启用时忽略
+     */
+    @Transactional
+    public Optional<LoginResult> login(String username, String rawPassword, String totpCode, Duration ttl) {
         Instant now = clock.instant();
         String name = username == null ? "" : username.trim();
         Optional<AdminAccount> found = name.isEmpty() ? Optional.empty() : accounts.findByUsername(name);
@@ -80,6 +91,10 @@ public class AdminAuthService {
             // 记一次失败并在达阈值时锁定：下一次登录即被上面的 isLocked 拦下
             account.recordFailedAttempt(maxFailedAttempts, lockDuration, now);
             accounts.save(account);
+            return Optional.empty();
+        }
+        // 第二因子：已启用 TOTP 的账号必须提供有效码（密码对了也不够）
+        if (account.hasTotp() && !TotpGenerator.verify(account.getTotpSecret(), totpCode, now)) {
             return Optional.empty();
         }
         account.resetFailedAttempts(now);

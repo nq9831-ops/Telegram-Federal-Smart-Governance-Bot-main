@@ -122,6 +122,22 @@ public class AdminAccount {
         this.updatedAt = now;
     }
 
+    /** 设置的 TOTP 密钥（Base32）；为空表示未启用第二因子。 */
+    public String getTotpSecret() {
+        return totpSecret;
+    }
+
+    /** 启用 / 更换 TOTP 密钥。 */
+    public void setTotpSecret(String secret, Instant now) {
+        this.totpSecret = secret;
+        this.updatedAt = now;
+    }
+
+    /** 是否已启用 TOTP。 */
+    public boolean hasTotp() {
+        return totpSecret != null && !totpSecret.isBlank();
+    }
+
     public Long getId() {
         return id;
     }

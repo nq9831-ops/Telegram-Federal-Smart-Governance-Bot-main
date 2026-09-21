@@ -120,6 +120,22 @@ public class AccountAdminService {
         return auth.revokeAllFor(ActorType.ADMIN_ACCOUNT, accountId);
     }
 
+    /** 为账号生成并设置 TOTP 密钥，返回 {@code otpauth://} URL（供 authenticator app 扫码）。 */
+    public String enableTotp(Long accountId) {
+        AdminAccount account = require(accountId);
+        String secret = TotpGenerator.newSecret();
+        account.setTotpSecret(secret, clock.instant());
+        accounts.save(account);
+        return TotpGenerator.otpauthUrl("TGG 治理后台", account.getUsername(), secret);
+    }
+
+    /** 关闭账号的 TOTP 第二因子。 */
+    public void disableTotp(Long accountId) {
+        AdminAccount account = require(accountId);
+        account.setTotpSecret(null, clock.instant());
+        accounts.save(account);
+    }
+
     private AdminAccount require(Long accountId) {
         return accounts.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("账号不存在：" + accountId));
