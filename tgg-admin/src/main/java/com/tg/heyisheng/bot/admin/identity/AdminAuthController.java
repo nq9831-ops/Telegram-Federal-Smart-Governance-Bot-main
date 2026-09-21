@@ -2,6 +2,9 @@ package com.tg.heyisheng.bot.admin.identity;
 
 import com.tg.heyisheng.bot.admin.AdminApiTokenCondition;
 import com.tg.heyisheng.bot.admin.AdminProperties;
+import com.tg.heyisheng.bot.core.audit.ActorType;
+import com.tg.heyisheng.bot.core.platform.PlatformGrantSource;
+import com.tg.heyisheng.bot.core.platform.PlatformPermission;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.http.MediaType;
@@ -13,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -40,14 +45,17 @@ public class AdminAuthController {
     private final AdminProperties properties;
     private final TelegramLoginVerifier telegramVerifier;
     private final AdminLoginRateLimiter rateLimiter;
+    private final PlatformGrantSource grants;
 
     public AdminAuthController(AdminAuthService auth, AdminProperties properties,
                                org.springframework.beans.factory.ObjectProvider<TelegramLoginVerifier> verifier,
-                               org.springframework.beans.factory.ObjectProvider<AdminLoginRateLimiter> rateLimiter) {
+                               org.springframework.beans.factory.ObjectProvider<AdminLoginRateLimiter> rateLimiter,
+                               PlatformGrantSource grants) {
         this.auth = auth;
         this.properties = properties;
         this.telegramVerifier = verifier.getIfAvailable();
         this.rateLimiter = rateLimiter.getIfAvailable();
+        this.grants = grants;
     }
 
     /**
@@ -70,7 +78,7 @@ public class AdminAuthController {
         AdminAuthService.LoginResult r = auth.loginAsTelegramUser(
                 user.get().userId(), Duration.ofHours(properties.getSessionTtlHours()));
         return ResponseEntity.ok(new LoginResponse(r.token(), r.subject().subjectType().name(),
-                r.subject().subjectId(), null));
+                r.subject().subjectId(), null, permissionsOfSubject(r.subject())));
     }
 
     /** 账号 + 密码登录。 */
@@ -89,7 +97,8 @@ public class AdminAuthController {
         AdminAuthService.LoginResult r = result.get();
         return ResponseEntity.ok(new LoginResponse(
                 r.token(), r.subject().subjectType().name(), r.subject().subjectId(),
-                r.subject().role() == null ? null : r.subject().role().name()));
+                r.subject().role() == null ? null : r.subject().role().name(),
+                permissionsOfSubject(r.subject())));
     }
 
     /** 登出（吊销当前会话）。 */
@@ -108,11 +117,13 @@ public class AdminAuthController {
 
     /** 当前登录主体（前端据以渲染身份行；filter 已验会话）。 */
     @GetMapping("/me")
-    public ResponseEntity<MeResponse> me(HttpServletRequest request) {        Object role = request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE);
+    public ResponseEntity<MeResponse> me(HttpServletRequest request) {
+        Object role = request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE);
         return ResponseEntity.ok(new MeResponse(
                 String.valueOf(request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE)),
                 (Long) request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE),
-                role == null ? null : role.toString()));
+                role == null ? null : role.toString(),
+                permissionsOfRequest(request)));
     }
 
     /** 登录请求体（{@code totpCode} 仅当账号启用 TOTP 时必填）。 */
@@ -128,11 +139,39 @@ public class AdminAuthController {
         return request.getRemoteAddr();
     }
 
-    /** 登录成功响应：明文令牌（仅此一次）。 */
-    public record LoginResponse(String token, String subjectType, Long subjectId, String role) {
+    /** 登录成功响应：明文令牌（仅此一次）+ 主体 + 平台能力名（前端显示分区用）。 */
+    public record LoginResponse(String token, String subjectType, Long subjectId, String role,
+                                List<String> permissions) {
     }
 
-    /** 当前主体。 */
-    public record MeResponse(String subjectType, Long subjectId, String role) {
+    /** 当前主体（含平台能力名）。 */
+    public record MeResponse(String subjectType, Long subjectId, String role,
+                             List<String> permissions) {
+    }
+
+    /** 主体的平台能力名：超管天然全权（全枚举）；其余走账本。供前端按权限做显示分区。 */
+    private List<String> permissionsOfSubject(AdminAuthService.Authenticated subject) {
+        if (subject.role() == AdminRole.SUPER_ADMIN) {
+            return allPermissionNames();
+        }
+        return grantedNames(subject.subjectType(), subject.subjectId());
+    }
+
+    /** 会话主体的能力名（属性由 {@code AdminSessionFilter} 写入 request）。 */
+    private List<String> permissionsOfRequest(HttpServletRequest request) {
+        if (request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) == AdminRole.SUPER_ADMIN) {
+            return allPermissionNames();
+        }
+        return grantedNames(
+                (ActorType) request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE),
+                (Long) request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE));
+    }
+
+    private static List<String> allPermissionNames() {
+        return Arrays.stream(PlatformPermission.values()).map(Enum::name).sorted().toList();
+    }
+
+    private List<String> grantedNames(ActorType subjectType, Long subjectId) {
+        return grants.permissionsOf(subjectType, subjectId).stream().map(Enum::name).sorted().toList();
     }
 }
