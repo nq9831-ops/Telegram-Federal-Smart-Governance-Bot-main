@@ -107,17 +107,17 @@ public class CommandDispatcher {
                 + (args == null || args.isBlank() ? "" : " " + args);
 
         InlineKeyboardButton confirm = InlineKeyboardButton.builder()
-                .text("✅ 确认执行")
+                .text(DispatchMessages.CONFIRM_BUTTON)
                 .callbackData(ConfirmationRequests.CONFIRM_ACTION + ":" + nonce)
                 .build();
         InlineKeyboardButton cancel = InlineKeyboardButton.builder()
-                .text("❌ 取消")
+                .text(DispatchMessages.CANCEL_BUTTON)
                 .callbackData(ConfirmationRequests.CANCEL_ACTION + ":" + nonce)
                 .build();
 
         return SendMessage.builder()
                 .chatId(String.valueOf(ctx.chatId()))
-                .text("即将执行：" + preview + "\n请核对命令与参数；确认后将立即执行。")
+                .text(DispatchMessages.confirmPrompt(preview))
                 .replyMarkup(InlineKeyboardMarkup.builder()
                         .keyboard(List.of(new InlineKeyboardRow(confirm), new InlineKeyboardRow(cancel)))
                         .build())

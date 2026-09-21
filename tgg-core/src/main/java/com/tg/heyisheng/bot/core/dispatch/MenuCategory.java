@@ -21,22 +21,22 @@ import java.util.Optional;
 public enum MenuCategory {
 
     /** 自助功能：个人偏好与自助操作（免打扰、数据导出、连通性测试、申诉等）。 */
-    SELF_SERVICE("自助功能"),
+    SELF_SERVICE(DispatchMessages.CATEGORY_SELF_SERVICE),
 
     /** 内容审核：词库、教学规则等。 */
-    MODERATION("内容审核"),
+    MODERATION(DispatchMessages.CATEGORY_MODERATION),
 
     /** 群设置：群级开关与群属性声明。 */
-    GROUP("群设置"),
+    GROUP(DispatchMessages.CATEGORY_GROUP),
 
     /** 复核合规：平台层复核队列、合规证据、联邦申诉裁决。 */
-    REVIEW("复核合规"),
+    REVIEW(DispatchMessages.CATEGORY_REVIEW),
 
     /** 收录商家：收录库与商家资质流程。 */
-    LISTING("收录商家"),
+    LISTING(DispatchMessages.CATEGORY_LISTING),
 
     /** 兜底：尚未声明分类的可见命令。 */
-    OTHER("其他");
+    OTHER(DispatchMessages.CATEGORY_OTHER);
 
     private final String title;
 

@@ -16,7 +16,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @Component
 public class EchoCommandHandler implements CommandHandler {
 
-    static final String REPLY_TEXT = "pong";
+    static final String REPLY_TEXT = DispatchMessages.ECHO_REPLY;
 
     @Override
     public BotApiMethod<?> handle(UpdateContext ctx) {

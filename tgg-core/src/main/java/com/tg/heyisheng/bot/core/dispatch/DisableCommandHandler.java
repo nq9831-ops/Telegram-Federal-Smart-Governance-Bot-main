@@ -20,7 +20,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @Component
 public class DisableCommandHandler implements CommandHandler {
 
-    static final String REPLY = "已关闭本群的自动化能力。";
+    static final String REPLY = DispatchMessages.DISABLE_REPLY;
 
     private final GroupConfigService groupConfigService;
 

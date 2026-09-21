@@ -29,7 +29,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @Component
 public class EnableCommandHandler implements CommandHandler {
 
-    static final String REPLY = "已开启本群的自动化能力。";
+    static final String REPLY = DispatchMessages.ENABLE_REPLY;
 
     private final GroupConfigService groupConfigService;
 
