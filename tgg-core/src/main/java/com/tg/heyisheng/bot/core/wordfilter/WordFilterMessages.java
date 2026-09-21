@@ -20,10 +20,10 @@ public final class WordFilterMessages {
     public static final String ADDWORD_USAGE = "用法：/addword 违禁词\n例：/addword 加微信";
 
     /** 添加成功。 */
-    public static final String ADDWORD_ADDED = "已添加违禁词。";
+    public static final String ADDWORD_ADDED = "记下了，这个词以后会被拦。";
 
     /** 已存在或无效。 */
-    public static final String ADDWORD_IGNORED = "该词已存在或无效。";
+    public static final String ADDWORD_IGNORED = "这个词已经在了，或者无效。";
 
     // ────────────── /delword ──────────────
 
@@ -31,10 +31,10 @@ public final class WordFilterMessages {
     public static final String DELWORD_USAGE = "用法：/delword 违禁词\n例：/delword 加微信";
 
     /** 删除成功。 */
-    public static final String DELWORD_REMOVED = "已删除违禁词。";
+    public static final String DELWORD_REMOVED = "删掉了。";
 
     /** 词不存在。 */
-    public static final String DELWORD_NOT_FOUND = "本群没有该词。";
+    public static final String DELWORD_NOT_FOUND = "本群没有这个词。";
 
     // ────────────── /teach ──────────────
 
@@ -47,7 +47,7 @@ public final class WordFilterMessages {
 
     /** 教学成功回执（回显落库后的正则，即「确认」步骤）。 */
     public static String teachAccepted(String ruleId, String regex, String name) {
-        return "规则已生效（本群立即起效）：\n"
+        return "规则已经生效（本群立即起效）：\n"
                 + "编号：" + ruleId + "\n"
                 + "正则：" + regex + "\n"
                 + "描述：" + name + "\n"
@@ -61,7 +61,7 @@ public final class WordFilterMessages {
 
     /** 停用成功。 */
     public static String unteachDone(String ruleId) {
-        return "规则 " + ruleId + " 已停用（立即生效）。";
+        return "规则 " + ruleId + " 停用了（立即生效）。";
     }
 
     /** 规则不存在。 */
@@ -72,7 +72,7 @@ public final class WordFilterMessages {
     // ────────────── /words ──────────────
 
     /** 词表为空。 */
-    public static final String WORDS_EMPTY = "本群暂无违禁词。";
+    public static final String WORDS_EMPTY = "本群还没有违禁词。";
 
     /** 词表标题。 */
     public static final String WORDS_PREFIX = "本群违禁词：";
@@ -87,7 +87,7 @@ public final class WordFilterMessages {
 
     /** 规则列表为空。 */
     public static final String RULES_EMPTY =
-            "本群暂无教学规则（可发 /teach 规则id 正则 描述 添加，例：/teach SCAM_AIRDROP 免费空投 假空投骗局）。";
+            "本群还没有教学规则（可以发 /teach 规则id 正则 描述 添加，例：/teach SCAM_AIRDROP 免费空投 假空投骗局）。";
 
     /** 规则列表标题。 */
     public static final String RULES_PREFIX = "本群教学规则：";

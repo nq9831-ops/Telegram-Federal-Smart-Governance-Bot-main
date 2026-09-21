@@ -142,11 +142,11 @@ public final class ModerationMessages {
 
     /** 普通命中的群内告知（含「有疑问找谁」，不透露命中规则）。 */
     public static final String DELETED_NOTICE =
-            "⚠️ 该消息命中本群内容规则，已被删除。如对判定有疑问，请联系群管理员。";
+            "⚠️ 这条消息命中了本群内容规则，已经删掉了。有疑问直接找群管理员就行。";
 
     /** 硬红线的群内告知（删除 + 封禁一并说清）。 */
     public static final String FROZEN_NOTICE =
-            "⚠️ 该消息命中本群硬性红线，已被删除，发布者已被封禁。如对判定有疑问，请联系群管理员。";
+            "⚠️ 这条消息命中了本群硬性红线，已删除，发布者也封禁了。有疑问请联系群管理员。";
 
     /**
      * 普通命中的群内告知（**带案件号与申诉入口**）。
@@ -159,23 +159,23 @@ public final class ModerationMessages {
      * 绝不让 {@code null} 渲染进文案。
      */
     public static String deletedNoticeWithCase(Object caseId) {
-        return "⚠️ 该消息命中本群内容规则，已被删除（案件 #" + caseId
-                + "）。如认为判定有误，可发送 /case_appeal " + caseId + " 附上你的理由申诉。";
+        return "⚠️ 这条消息命中了本群内容规则，已经删掉了（案件 #" + caseId
+                + "）。觉得判错了的话，发 /case_appeal " + caseId + " 附上理由就能申诉。";
     }
 
     /** 硬红线的群内告知（带案件号与申诉入口）。无编号时降级用 {@link #FROZEN_NOTICE}。 */
     public static String frozenNoticeWithCase(Object caseId) {
-        return "⚠️ 该消息命中本群硬性红线，已被删除，发布者已被封禁（案件 #" + caseId
-                + "）。如认为判定有误，可发送 /case_appeal " + caseId + " 附上你的理由申诉。";
+        return "⚠️ 这条消息命中了本群硬性红线，已删除，发布者也封禁了（案件 #" + caseId
+                + "）。觉得判错了的话，发 /case_appeal " + caseId + " 附上理由就能申诉。";
     }
 
     /** 敏感话题首次命中的群内警告。 */
     public static final String SENSITIVE_TOPIC_WARNING =
-            "⚠️ 本群已开启敏感话题分级：该内容已被处理。再次发布将禁言 24 小时。";
+            "⚠️ 本群开了敏感话题分级，这条内容已经处理掉了。再发一次会被禁言 24 小时。";
 
     /** 敏感话题禁言的本人通知。 */
     public static String sensitiveTopicMuted(int strike) {
-        return "你在本群因敏感话题被禁言 24 小时（累计第 " + strike + " 次）。";
+        return "你在本群因敏感话题被禁言 24 小时（这是第 " + strike + " 次）。";
     }
 
     /** 红线复核 SLA 超时的催办（发给复核人，紧急级）。{@code id} 用装箱类型，保持原拼接对 null 的容忍。 */

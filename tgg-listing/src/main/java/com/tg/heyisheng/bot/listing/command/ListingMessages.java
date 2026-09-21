@@ -41,7 +41,7 @@ public final class ListingMessages {
 
     /** 找不到商家编号（复核 / 保证金 / 退出三处共用）。 */
     public static String merchantNotFound(Object id) {
-        return "未找到商家编号 " + id + "。";
+        return "没找到商家编号 " + id + "。";
     }
 
     // ────────────── /merchant_review ──────────────
@@ -53,7 +53,7 @@ public final class ListingMessages {
 
     /** 状态不允许复核。 */
     public static String merchantNotReviewable(Object status) {
-        return "该申请当前状态为 " + status + "，不可复核。";
+        return "这个申请当前状态是 " + status + "，不能复核。";
     }
 
     /** 复核结论已写入。 */
@@ -70,12 +70,12 @@ public final class ListingMessages {
 
     /** 保证金已存在。 */
     public static String depositAlreadyExists(Object state) {
-        return "该商家保证金已存在（当前 " + state + "），无需重复操作。";
+        return "这个商家的保证金已经在了（当前 " + state + "），不用重复操作。";
     }
 
     /** 当前状态不可缴纳保证金。 */
     public static String depositNotPayable(Object status) {
-        return "该商家当前状态为 " + status + "，不可缴纳保证金（需先复核通过）。";
+        return "这个商家当前状态是 " + status + "，不能缴保证金（要先复核通过）。";
     }
 
     /** 保证金已确认、入驻完成。 */
@@ -90,7 +90,7 @@ public final class ListingMessages {
 
     /** 找不到保证金记录。 */
     public static String depositNotFound(Object id) {
-        return "未找到商家编号 " + id + " 的保证金记录。";
+        return "没找到商家编号 " + id + " 的保证金记录。";
     }
 
     /** 结算失败前缀（后接原因）。 */
@@ -136,16 +136,16 @@ public final class ListingMessages {
     public static final String LISTING_ADD_USAGE = "用法：/listing_add 邀请链接\n例：/listing_add https://t.me/+AbCdEfGh";
 
     /** 非群会话。 */
-    public static final String LISTING_NOT_A_GROUP = "请在要收录的群内执行本命令。";
+    public static final String LISTING_NOT_A_GROUP = "这条命令得在要收录的群里发。";
 
     /** 邀请链接无效。 */
     public static final String LISTING_INVALID_LINK = "邀请链接无效：应以 https://t.me/ 开头。";
 
     /** 已提交收录。 */
-    public static final String LISTING_ADDED = "已提交收录，将定期验证链接有效性。";
+    public static final String LISTING_ADDED = "收录已经提交，我会定期验证链接是否还有效。";
 
     /** 已存在（重复提交已忽略）。 */
-    public static final String LISTING_ALREADY_EXISTS = "该群已在收录库中（重复提交已忽略）。";
+    public static final String LISTING_ALREADY_EXISTS = "这个群已经在收录库里了（重复提交忽略了）。";
 
     // ────────────── /listing_appeal ──────────────
 
@@ -153,19 +153,19 @@ public final class ListingMessages {
     public static final String LISTING_APPEAL_USAGE = "用法：/listing_appeal 收录编号 理由\n例：/listing_appeal 1 群只是改成邀请制了";
 
     /** 条目未下架。 */
-    public static final String LISTING_NOT_SUSPENDED = "该群当前未被下架，无需申诉。";
+    public static final String LISTING_NOT_SUSPENDED = "这个群当前没有被下架，不用申诉。";
 
     /** 仅提交者本人。 */
-    public static final String LISTING_NOT_SUBMITTER = "只有该群的提交者本人可以申诉。";
+    public static final String LISTING_NOT_SUBMITTER = "只有这个群的提交者本人能申诉。";
 
     /** 找不到收录编号。 */
     public static String listingNotFound(Object id) {
-        return "未找到收录编号 " + id + "。";
+        return "没找到收录编号 " + id + "。";
     }
 
     /** 异议期已过。 */
     public static String disputeWindowClosed(Object days) {
-        return "异议期（" + days + " 天）已过，无法申诉。";
+        return "异议期（" + days + " 天）已经过了，不能再申诉。";
     }
 
     /** 收录申诉已提交（前缀与联邦申诉共享）。 */
@@ -236,8 +236,8 @@ public final class ListingMessages {
 
     /** 收录条目下架通知（含申诉指引——没有编号的告知等于把用户引到一个用不了的入口）。 */
     public static String delistedNotice(Object id) {
-        return "你提交收录的群（编号 #" + id + "）经定期验证已失效，已从收录库下架。\n"
-                + "若你认为这是误判（例如群只是改成了邀请制），可在 7 天异议期内发送：\n"
+        return "你提交收录的群（编号 #" + id + "）定期验证已失效，已经从收录库下架。\n"
+                + "如果是误判（比如群只是改成了邀请制），可以在 7 天异议期内发：\n"
                 + "/listing_appeal " + id + " 你的申诉理由";
     }
 }

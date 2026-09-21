@@ -121,7 +121,7 @@ class MerchantSettleCommandHandlerTest {
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.empty());
 
         assertThat(textOf(handler.handle(ctx(REVIEWER, "42 NONE"))))
-                .contains("未找到").contains("42");
+                .contains("没找到商家编号").contains("42");
         verify(depositService, never()).settle(anyLong(), any(), any(), any(), any());
     }
 

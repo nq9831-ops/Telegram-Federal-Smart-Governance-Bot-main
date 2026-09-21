@@ -140,12 +140,12 @@ class ListingEndToEndIT {
         // 1. 收录提交（经真实命令链路：注册表 → 权限 → 处理器 → 幂等插入）
         assertThat(replyTo("/listing_add " + INVITE_LINK, ADMIN_USER))
                 .as("首次收录应新建条目")
-                .isEqualTo("已提交收录，将定期验证链接有效性。");
+                .isEqualTo("收录已经提交，我会定期验证链接是否还有效。");
 
         // 2. 重复提交被幂等吸收：不抛异常、不产生第二行
         assertThat(replyTo("/listing_add " + INVITE_LINK, ADMIN_USER))
                 .as("重复提交应被忽略")
-                .isEqualTo("该群已在收录库中（重复提交已忽略）。");
+                .isEqualTo("这个群已经在收录库里了（重复提交忽略了）。");
         assertThat(groups.findAll()).as("同 chatId 只应有一行").hasSize(1);
 
         ListingGroup entry = groups.findAll().get(0);
@@ -187,7 +187,7 @@ class ListingEndToEndIT {
 
         // 6. 他人不得代为申诉（提交者以外一律拒绝，且不落库）
         assertThat(replyTo("/listing_appeal " + listingId + " 我朋友说这群还在", OTHER_USER))
-                .isEqualTo("只有该群的提交者本人可以申诉。");
+                .isEqualTo("只有这个群的提交者本人能申诉。");
         assertThat(appeals.findByListingIdOrderByIdAsc(listingId)).isEmpty();
 
         // 7. 提交者本人申诉：落 PENDING

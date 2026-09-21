@@ -193,7 +193,7 @@ class MerchantOnboardingIT {
                 "用法：/merchant_review 商家编号 结论\n"
                         + "例：/merchant_review 1 approve\n"
                         + "结论可为 approve（通过）/ reject（驳回）/ need-more（要求补充材料）。");
-        assertThat(replyTo("/merchant_review 999 approve", REVIEWER_USER)).isEqualTo("未找到商家编号 999。");
+        assertThat(replyTo("/merchant_review 999 approve", REVIEWER_USER)).isEqualTo("没找到商家编号 999。");
 
         replyTo("/merchant_apply " + MERCHANT_NAME, OWNER_USER);
         long merchantId = merchantRepository.findByOwnerUserIdOrderByIdAsc(OWNER_USER).get(0).getId();

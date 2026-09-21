@@ -366,7 +366,7 @@ class MerchantRefundIT {
         replyTo("/merchant_deposit " + merchantId + " 100.00000000", REVIEWER_USER);
         assertThat(replyTo("/merchant_deposit " + merchantId + " 100.00000000", REVIEWER_USER))
                 .as("已缴过的商家再缴一次应给明确提示，而不是重复开通")
-                .contains("无需重复");
+                .contains("不用重复操作");
     }
 
     /**
