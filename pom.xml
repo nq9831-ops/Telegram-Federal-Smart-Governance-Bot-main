@@ -126,6 +126,41 @@
   </dependencyManagement>
 
   <build>
+    <!-- m2e 生命周期映射（VS Code / Eclipse 的 Maven 集成读取）。
+         cyclonedx-maven-plugin 的 `makeAggregateBom` 不在 m2e 的默认映射里，IDE 会把它报成
+         「Plugin execution not covered by lifecycle configuration」——本仓历史上重复出现 8 条。
+         这里显式声明 <ignore/>：SBOM 只在命令行/CI 构建时需要，IDE 不必执行它。
+         ⚠️ 对 Maven **完全惰性**：`org.eclipse.m2e:lifecycle-mapping` 只被 IDE 读取，不挂任何 phase/goal。
+            改完照跑 `mvn verify` 可证明无影响。 -->
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.eclipse.m2e</groupId>
+          <artifactId>lifecycle-mapping</artifactId>
+          <version>1.0.0</version>
+          <configuration>
+            <lifecycleMappingMetadata>
+              <pluginExecutions>
+                <pluginExecution>
+                  <pluginExecutionFilter>
+                    <groupId>org.cyclonedx</groupId>
+                    <artifactId>cyclonedx-maven-plugin</artifactId>
+                    <versionRange>[2.9.3,)</versionRange>
+                    <goals>
+                      <goal>makeAggregateBom</goal>
+                    </goals>
+                  </pluginExecutionFilter>
+                  <action>
+                    <ignore/>
+                  </action>
+                </pluginExecution>
+              </pluginExecutions>
+            </lifecycleMappingMetadata>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
     <plugins>
       <!-- 默认 surefire 只跑 *Test；集成测试（*IT）由 failsafe 在 verify 阶段执行。
            没有它，WebhookDispatchIT 会被静默跳过——BUILD SUCCESS 并不代表端到端跑过。 -->

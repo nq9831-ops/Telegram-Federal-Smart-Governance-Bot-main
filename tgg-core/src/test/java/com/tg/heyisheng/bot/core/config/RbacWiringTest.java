@@ -13,7 +13,6 @@ import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.permission.RoleSource;
-import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import com.tg.heyisheng.bot.core.wordfilter.BannedWordService;
 import com.tg.heyisheng.bot.core.wordfilter.TaughtRuleRepository;
 import org.junit.jupiter.api.Test;
