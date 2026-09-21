@@ -32,4 +32,17 @@ public interface GroupConfigRepository extends JpaRepository<GroupConfig, Long> 
             nativeQuery = true)
     void upsertEnabled(@Param("chatId") Long chatId, @Param("enabled") boolean enabled,
                        @Param("now") Instant now);
+
+    /**
+     * 登记/更新某群的标题（幂等）：不存在则新建（默认启用），存在则只更新 {@code title} 与 {@code updated_at}。
+     *
+     * <p>与 {@link #upsertEnabled} 同款原生 upsert——取代「先 findById 判空再 save」的并发主键冲突。
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(value = "INSERT INTO group_configs (chat_id, title, enabled, created_at, updated_at) "
+            + "VALUES (:chatId, :title, TRUE, :now, :now) "
+            + "ON DUPLICATE KEY UPDATE title = :title, updated_at = :now",
+            nativeQuery = true)
+    void upsertOnRegister(@Param("chatId") Long chatId, @Param("title") String title,
+                          @Param("now") Instant now);
 }

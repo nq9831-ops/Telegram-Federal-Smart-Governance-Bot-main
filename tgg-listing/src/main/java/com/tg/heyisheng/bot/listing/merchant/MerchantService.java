@@ -185,12 +185,6 @@ public class MerchantService {
         return activated;
     }
 
-    /** 记录等级评定结果（等级由 {@link MerchantTierEvaluator} 产出）。 */
-    @Transactional
-    public Optional<Merchant> assignTier(long merchantId, String tier) {
-        return transition(merchantId, merchant -> merchant.assignTier(tier, clock.instant()));
-    }
-
     /**
      * 按「信用分 + 保证金 + 流水量」评定等级并写入（设计文档 §3.4）。
      *

@@ -91,17 +91,21 @@ public class GroupConfigService {
         }
     }
 
-    /** 登记群组（幂等：已存在则只更新标题）。 */
+    /**
+     * 登记群组（幂等：已存在则只更新标题）。
+     *
+     * <p><b>原子性</b>：走原生 upsert（{@link GroupConfigRepository#upsertOnRegister}），
+     * 取代「先 findById 判空再 save」——后者在并发首次登记同一个群时会撞主键约束。
+     *
+     * <p><b>调用面</b>：当前生产链路不调用本方法（配置行由 {@link #setEnabled} 按需创建）；
+     * 它供集成测试与管理入口「登记群组」使用。
+     */
     @Transactional
     public GroupConfig register(Long chatId, String title) {
-        GroupConfig config = repository.findById(chatId)
-                .map(existing -> {
-                    existing.setTitle(title);
-                    return existing;
-                })
-                .orElseGet(() -> repository.save(new GroupConfig(chatId, title)));
+        repository.upsertOnRegister(chatId, title, clock.instant());
         cache.remove(chatId); // 配置已变：立即失效
-        return config;
+        return repository.findById(chatId)
+                .orElseThrow(() -> new IllegalStateException("upsert 后应能读到群组配置：" + chatId));
     }
 
     /**
