@@ -1,5 +1,10 @@
 package com.tg.heyisheng.bot.admin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tg.heyisheng.bot.admin.identity.AdminAccount;
+import com.tg.heyisheng.bot.admin.identity.AdminAccountRepository;
+import com.tg.heyisheng.bot.admin.identity.AdminRole;
+import com.tg.heyisheng.bot.admin.identity.PasswordHasher;
 import com.tg.heyisheng.bot.admin.system.RestartAction;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,9 +15,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,20 +30,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 重启端点端到端（模块十一 扩展）。
  *
- * <p><b>测试内绝不真退出</b>：把 {@link RestartAction} 换成记录替身（{@code @Primary}），
- * 于是可以断言「权限与开关都放行时才触发」——而 JVM 安然无恙。这是它能在 CI 跑的前提。
+ * <p><b>测试内绝不真退出</b>：把 {@link RestartAction} 换成记录替身（{@code @Primary}）。
+ *
+ * <p>权限：<b>超管天然全权</b>；非超管走配置写白名单。本测试用两个账号区分
+ * ——超管可重启，操作员（非超管、不在任意白名单）被拒。
  */
 @SpringBootTest(properties = {
-        "tgg.admin.api-token=test-admin-token",
-        "tgg.moderation.reviewers=777,888",
-        "tgg.admin.config-admins=777"
+        "tgg.admin.api-token=test-admin-token"
 })
 @AutoConfigureMockMvc
 class RestartApiIT {
 
-    private static final String TOKEN = "Bearer test-admin-token";
-    private static final long CONFIG_ADMIN = 777L;
-    private static final long REVIEWER_ONLY = 888L;
+    private static final String SUPER = "it-restart-super";
+    private static final String OPERATOR = "it-restart-operator";
+    private static final String PASSWORD = "it-pass-123";
     private static final AtomicBoolean RESTART_INVOKED = new AtomicBoolean(false);
 
     /** 记录替身：替代默认的「真退出」动作。 */
@@ -53,6 +60,12 @@ class RestartApiIT {
     private MockMvc mockMvc;
 
     @Autowired
+    private AdminAccountRepository accounts;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -63,32 +76,53 @@ class RestartApiIT {
         jdbcTemplate.update("DELETE FROM config_override");
         configService.reload();
         RESTART_INVOKED.set(false);
+        ensure(SUPER, AdminRole.SUPER_ADMIN);
+        ensure(OPERATOR, AdminRole.OPERATOR);
     }
 
-    private org.springframework.test.web.servlet.ResultActions postRestart(long operator) throws Exception {
+    private void ensure(String username, AdminRole role) {
+        if (accounts.findByUsername(username).isEmpty()) {
+            accounts.save(new AdminAccount(username, PasswordHasher.hash(PASSWORD), role, Instant.now()));
+        }
+    }
+
+    private String login(String username) throws Exception {
+        String json = mockMvc.perform(post("/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).get("token").asText();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions postRestart(String token) throws Exception {
         return mockMvc.perform(post("/admin/system/restart")
-                .header("Authorization", TOKEN)
-                .header("X-Operator-Id", String.valueOf(operator)));
+                .header("Authorization", "Bearer " + token));
     }
 
     @Test
-    void reviewerWithoutWritePermissionIsForbidden() throws Exception {
-        postRestart(REVIEWER_ONLY).andExpect(status().isForbidden());
+    void operatorWithoutWritePermissionIsForbidden() throws Exception {
+        postRestart(login(OPERATOR)).andExpect(status().isForbidden());
         assertThat(RESTART_INVOKED).as("被拒的请求不得触发重启").isFalse();
     }
 
     @Test
+    void missingSessionIsUnauthorized() throws Exception {
+        mockMvc.perform(post("/admin/system/restart")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void disabledByDefaultIsConflict() throws Exception {
-        postRestart(CONFIG_ADMIN).andExpect(status().isConflict());
+        postRestart(login(SUPER)).andExpect(status().isConflict());
         assertThat(RESTART_INVOKED).as("未启用时不得触发重启").isFalse();
     }
 
     @Test
     void enabledRestartIsAcceptedAndTriggersAction() throws Exception {
         // 开关是热的：写覆盖后即时生效，无需重启
-        configService.set("tgg.admin.restart-enabled", "true", CONFIG_ADMIN);
+        configService.set("tgg.admin.restart-enabled", "true", 0L);
 
-        postRestart(CONFIG_ADMIN)
+        postRestart(login(SUPER))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.result").value("RESTARTING"));
 

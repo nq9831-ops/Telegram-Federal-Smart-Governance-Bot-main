@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.dispatch;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
+import com.tg.heyisheng.bot.core.audit.ActorType;
 import com.tg.heyisheng.bot.core.audit.AuditEntry;
 import com.tg.heyisheng.bot.core.audit.AuditService;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
@@ -450,7 +451,8 @@ public class UpdateDispatcher {
                 .map(v -> "action=" + actionName + " level=" + v.riskLevel()
                         + " hardLine=" + v.hardLine())
                 .orElse("action=" + actionName);
-        auditService.record(ctx.userId(), MODERATION_AUDIT_ACTION, ctx.chatId(), caseId,
+        // 审核路径的主体（被处置者）恒为 TG 用户，显式传类型
+        auditService.record(ActorType.TG_USER, ctx.userId(), MODERATION_AUDIT_ACTION, ctx.chatId(), caseId,
                 AuditEntry.Outcome.SUCCESS, detail);
     }
 

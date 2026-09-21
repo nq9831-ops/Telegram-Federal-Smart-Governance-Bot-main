@@ -16,10 +16,9 @@ import java.time.Clock;
  * 但「不中断」绝不等于「静默」——失败会打 ERROR 并带异常栈，且这是**审计本身的降级**，
  * 需部署侧告警（已记入部署清单）。若要强一致（审计写不进就不许动作），须改造为同事务写入。
  *
- * <p><b>主体是 (类型, id) 二元组</b>：核心签名要求显式传 {@link ActorType}；
- * 旧签名（不带类型）保留为便捷重载，委托 {@link ActorType#TG_USER}——命令路径与审核路径
- * 的主体都是 TG 用户，语义等价（见 {@link ActorType} 与 V21 迁移）。
- * <b>后台路径（超管/操作员）必须用显式类型签名传 {@link ActorType#ADMIN_ACCOUNT}</b>。
+ * <p><b>主体是 (类型, id) 二元组</b>：<b>所有签名都要求显式传 {@link ActorType}</b>——
+ * 刻意<b>不提供</b>「无类型」的便捷重载，使「记错主体类型」在编译期不可能发生
+ * （命令路径与审核路径传 {@link ActorType#TG_USER}，后台操作传 {@link ActorType#ADMIN_ACCOUNT}）。
  *
  * <p><b>不含消息正文</b>：本服务只接受动作标识与结论。
  */
@@ -39,28 +38,6 @@ public class AuditService {
     AuditService(AuditLogRepository repository, Clock clock) {
         this.repository = repository;
         this.clock = clock;
-    }
-
-    /**
-     * 记一条审计（便捷重载：默认主体类型 {@link ActorType#TG_USER}，无案件号）。
-     *
-     * <p>供命令路径与审核路径使用——这些路径的主体恒为 TG 用户。
-     */
-    @Transactional
-    public void record(Long actorId, String action, Long target,
-                       AuditEntry.Outcome outcome, String detail) {
-        record(ActorType.TG_USER, actorId, action, target, null, outcome, detail);
-    }
-
-    /**
-     * 记一条带<b>案件号</b>的审计（便捷重载：默认 {@link ActorType#TG_USER}）。
-     *
-     * @param caseId 关联案件号；无则 {@code null}
-     */
-    @Transactional
-    public void record(Long actorId, String action, Long target, Long caseId,
-                       AuditEntry.Outcome outcome, String detail) {
-        record(ActorType.TG_USER, actorId, action, target, caseId, outcome, detail);
     }
 
     /**

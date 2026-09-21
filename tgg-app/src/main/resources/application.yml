@@ -73,6 +73,16 @@ tgg:
     overdue-remind-hours: ${TGG_ADMIN_OVERDUE_REMIND_HOURS:24}
     overdue-escalate-hours: ${TGG_ADMIN_OVERDUE_ESCALATE_HOURS:72}
     overdue-cron: ${TGG_ADMIN_OVERDUE_CRON:0 15 * * * *}
+    # ── 账号体系（模块十一 · 账号与权限模型）──
+    # 超管由环境变量引导创建（**无任何 API 可建超管**）；password-hash 是 PasswordHasher 生成的
+    # pbkdf2$<iter>$<saltB64>$<hashB64> 串（生成方式见 docs/DEPLOYMENT-VERIFICATION.md）。二者皆空则不创建超管。
+    super-user: ${TGG_ADMIN_SUPER_USER:}
+    super-password-hash: ${TGG_ADMIN_SUPER_PASSWORD_HASH:}
+    # 会话有效期（小时）。热生效（登录时读取）。
+    session-ttl-hours: ${TGG_ADMIN_SESSION_TTL_HOURS:12}
+    # 连续登录失败达该次数即锁定账号 / 锁定时长（分钟）。
+    login-max-failed-attempts: ${TGG_ADMIN_LOGIN_MAX_FAILED:5}
+    login-lock-minutes: ${TGG_ADMIN_LOGIN_LOCK_MINUTES:15}
   teach:
     # 模块九 §10.3 教学门槛 · 入群时长（默认 30 天）。数据来自 chat_member 事件采集（V15）。
     # ⚠️ 该门槛依赖「bot 是群管理员 + webhook 的 allowed_updates 含 chat_member」——

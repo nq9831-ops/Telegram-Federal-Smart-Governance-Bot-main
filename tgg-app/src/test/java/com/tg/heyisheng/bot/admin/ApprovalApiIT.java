@@ -1,5 +1,10 @@
 package com.tg.heyisheng.bot.admin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tg.heyisheng.bot.admin.identity.AdminAccount;
+import com.tg.heyisheng.bot.admin.identity.AdminAccountRepository;
+import com.tg.heyisheng.bot.admin.identity.AdminRole;
+import com.tg.heyisheng.bot.admin.identity.PasswordHasher;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewItem;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
@@ -13,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,32 +28,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 审批中心端到端（模块十一）——<b>真实 Spring 上下文 + 真实 MySQL</b>，不 mock 中间层。
+ * 审批中心端到端（模块十一）——<b>真实 Spring 上下文 + 真实 MySQL</b>。
  *
- * <p>为什么要到端到端这一层：门禁在 {@code Filter}、裁决在 core 服务、存储在两处表里，
- * 各自单测都绿并不能说明「带上 token 打进来能裁决成功」。
+ * <p><b>鉴权已改为服务端会话</b>：先经 {@code POST /admin/auth/login} 拿会话令牌，
+ * 再以 {@code Authorization: Bearer <令牌>} 访问。请求头里的 {@code X-Operator-Id} 已彻底移除——
+ * 身份不再可伪造。
  *
- * <p><b>两个务必靠 IT 才能守住的点</b>：
- * <ol>
- *   <li><b>404 必须真是 404</b>：本项目有全局 {@code @RestControllerAdvice} 把**业务异常**统一吞成 200
- *       （为 Telegram 避免重试风暴的既有设计）。若控制器靠抛异常表达 404，
- *       调用方会拿到 200 空体——这条只有端到端能发现。</li>
- *   <li><b>「不可自审」要在真实白名单下成立</b>：888 既是被判定者又在复核人白名单内，
- *       于是它能过门禁、却必须在裁决前被拦下。</li>
- * </ol>
+ * <p><b>两个靠 IT 才能守的点</b>：① 404 必须真是 404（全局异常处理器会吞成 200）；
+ * ② 裁决的审计主体必须记成 {@code ADMIN_ACCOUNT}（后台主体），而非 TG 用户。
  */
 @SpringBootTest(properties = {
-        "tgg.admin.api-token=test-admin-token",
-        "tgg.moderation.reviewers=777,888"
+        "tgg.admin.api-token=test-admin-token"
 })
 @AutoConfigureMockMvc
 class ApprovalApiIT {
 
-    private static final String TOKEN = "Bearer test-admin-token";
-    private static final long REVIEWER = 777L;
-    private static final long OFFENDER = 888L;
-    private static final long OUTSIDER = 999L;
     private static final long CHAT = -1002000000009L;
+    private static final long OFFENDER = 888L;
+    private static final String USERNAME = "it-approval-super";
+    private static final String PASSWORD = "it-pass-123";
 
     @Autowired
     private MockMvc mockMvc;
@@ -56,11 +55,35 @@ class ApprovalApiIT {
     private ModerationReviewRepository repository;
 
     @Autowired
+    private AdminAccountRepository accounts;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void clear() {
+    void setUp() {
         repository.deleteAll();
+        if (accounts.findByUsername(USERNAME).isEmpty()) {
+            accounts.save(new AdminAccount(USERNAME, PasswordHasher.hash(PASSWORD),
+                    AdminRole.SUPER_ADMIN, Instant.now()));
+        }
+    }
+
+    /** 登录并返回会话令牌。 */
+    private String login() throws Exception {
+        String json = mockMvc.perform(post("/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + USERNAME + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).get("token").asText();
+    }
+
+    private static String bearer(String token) {
+        return "Bearer " + token;
     }
 
     private long seed(RiskLevel level, boolean hardLine, Long subject) {
@@ -73,23 +96,14 @@ class ApprovalApiIT {
     }
 
     @Test
-    void missingTokenIsUnauthorized() throws Exception {
-        mockMvc.perform(get("/admin/approvals"))
-                .andExpect(status().isUnauthorized());
+    void missingSessionIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/admin/approvals")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void wrongTokenIsUnauthorized() throws Exception {
-        mockMvc.perform(get("/admin/approvals").header("Authorization", "Bearer wrong")
-                        .header("X-Operator-Id", String.valueOf(REVIEWER)))
+    void invalidSessionIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/admin/approvals").header("Authorization", "Bearer not-a-session"))
                 .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void nonWhitelistedOperatorIsForbidden() throws Exception {
-        mockMvc.perform(get("/admin/approvals").header("Authorization", TOKEN)
-                        .header("X-Operator-Id", String.valueOf(OUTSIDER)))
-                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -97,8 +111,7 @@ class ApprovalApiIT {
         long plainHigh = seed(RiskLevel.HIGH, false, OFFENDER);
         long hardLine = seed(RiskLevel.LOW, true, OFFENDER);
 
-        mockMvc.perform(get("/admin/approvals").header("Authorization", TOKEN)
-                        .header("X-Operator-Id", String.valueOf(REVIEWER)))
+        mockMvc.perform(get("/admin/approvals").header("Authorization", bearer(login())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(2))
                 .andExpect(jsonPath("$.items[0].id").value((int) hardLine))
@@ -107,25 +120,8 @@ class ApprovalApiIT {
 
     @Test
     void detailReturnsRealNotFoundForUnknownId() throws Exception {
-        mockMvc.perform(get("/admin/approvals/999999").header("Authorization", TOKEN)
-                        .header("X-Operator-Id", String.valueOf(REVIEWER)))
+        mockMvc.perform(get("/admin/approvals/999999").header("Authorization", bearer(login())))
                 .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void decideIsForbiddenWhenTheOperatorIsTheSubject() throws Exception {
-        long id = seed(RiskLevel.HIGH, true, OFFENDER);
-
-        mockMvc.perform(post("/admin/approvals/" + id + "/decide")
-                        .header("Authorization", TOKEN)
-                        .header("X-Operator-Id", String.valueOf(OFFENDER))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body("REJECTED")))
-                .andExpect(status().isForbidden());
-
-        assertThat(repository.findById(id).orElseThrow().getStatus())
-                .as("被拒的自审不得改变任何状态")
-                .isEqualTo(ReviewStatus.PENDING);
     }
 
     @Test
@@ -133,8 +129,7 @@ class ApprovalApiIT {
         long id = seed(RiskLevel.MEDIUM, false, OFFENDER);
 
         mockMvc.perform(post("/admin/approvals/" + id + "/decide")
-                        .header("Authorization", TOKEN)
-                        .header("X-Operator-Id", String.valueOf(REVIEWER))
+                        .header("Authorization", bearer(login()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("APPROVED")))
                 .andExpect(status().isOk())
@@ -143,20 +138,37 @@ class ApprovalApiIT {
 
         ModerationReviewItem stored = repository.findById(id).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo(ReviewStatus.APPROVED);
-        assertThat(stored.getDecidedBy()).isEqualTo(REVIEWER);
         assertThat(stored.getDecidedAt()).isNotNull();
+    }
+
+    /** 裁决的审计主体必须记成 ADMIN_ACCOUNT（后台账号），不是 TG 用户。 */
+    @Test
+    void decideIsAuditedAsAdminAccount() throws Exception {
+        long id = seed(RiskLevel.MEDIUM, false, OFFENDER);
+
+        mockMvc.perform(post("/admin/approvals/" + id + "/decide")
+                        .header("Authorization", bearer(login()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("APPROVED")))
+                .andExpect(status().isOk());
+
+        List<String> types = jdbcTemplate.queryForList(
+                "SELECT actor_type FROM audit_log WHERE action = 'admin.approval.decide' AND target = ?",
+                String.class, id);
+        assertThat(types).as("后台裁决的审计主体应为 ADMIN_ACCOUNT").contains("ADMIN_ACCOUNT");
     }
 
     @Test
     void decideIsIdempotentOnTheSecondCall() throws Exception {
         long id = seed(RiskLevel.LOW, false, OFFENDER);
+        String token = login();
 
         mockMvc.perform(post("/admin/approvals/" + id + "/decide")
-                .header("Authorization", TOKEN).header("X-Operator-Id", String.valueOf(REVIEWER))
+                .header("Authorization", bearer(token))
                 .contentType(MediaType.APPLICATION_JSON).content(body("REJECTED"))).andExpect(status().isOk());
 
         mockMvc.perform(post("/admin/approvals/" + id + "/decide")
-                        .header("Authorization", TOKEN).header("X-Operator-Id", String.valueOf(REVIEWER))
+                        .header("Authorization", bearer(token))
                         .contentType(MediaType.APPLICATION_JSON).content(body("APPROVED")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result").value("ALREADY_DECIDED"))
@@ -172,7 +184,7 @@ class ApprovalApiIT {
         long id = seed(RiskLevel.LOW, false, OFFENDER);
 
         mockMvc.perform(post("/admin/approvals/" + id + "/decide")
-                        .header("Authorization", TOKEN).header("X-Operator-Id", String.valueOf(REVIEWER))
+                        .header("Authorization", bearer(login()))
                         .contentType(MediaType.APPLICATION_JSON).content(body("DELETE")))
                 .andExpect(status().isBadRequest());
     }
@@ -181,17 +193,14 @@ class ApprovalApiIT {
     void statsCountsByStatusAndOverdue() throws Exception {
         long pendingId = seed(RiskLevel.HIGH, true, OFFENDER);
         long decidedId = seed(RiskLevel.LOW, false, OFFENDER);
-        // 把一条的入队时间推到 100 小时前——超过 24h 提醒与 72h 升级两个阈值
         jdbcTemplate.update("UPDATE moderation_review_queue SET created_at = "
                 + "DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 100 HOUR) WHERE id = ?", pendingId);
-        // 注意：必须 save **被改过的那个实例**。上一版写成「改游离实体、再 save 重新查出来的一个」，
-        // 等于什么都没保存（于是 pending 多算了 1 条）——测试自己的 bug，不是产品缺陷。
+        // 注意：必须 save **被改过的那个实例**。
         ModerationReviewItem decided = repository.findById(decidedId).orElseThrow();
-        decided.decide(ReviewStatus.APPROVED, REVIEWER, "ok", java.time.Instant.now());
+        decided.decide(ReviewStatus.APPROVED, 1L, "ok", java.time.Instant.now());
         repository.save(decided);
 
-        mockMvc.perform(get("/admin/approvals/stats").header("Authorization", TOKEN)
-                        .header("X-Operator-Id", String.valueOf(REVIEWER)))
+        mockMvc.perform(get("/admin/approvals/stats").header("Authorization", bearer(login())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pending").value(1))
                 .andExpect(jsonPath("$.approved").value(1))

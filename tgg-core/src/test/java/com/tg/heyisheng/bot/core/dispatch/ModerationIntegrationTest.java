@@ -282,6 +282,7 @@ class ModerationIntegrationTest {
         org.mockito.ArgumentCaptor<Long> caseId =
                 org.mockito.ArgumentCaptor.forClass(Long.class);
         org.mockito.Mockito.verify(audit).record(
+                org.mockito.ArgumentMatchers.eq(com.tg.heyisheng.bot.core.audit.ActorType.TG_USER),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq(UpdateDispatcher.MODERATION_AUDIT_ACTION),
                 org.mockito.ArgumentMatchers.any(),

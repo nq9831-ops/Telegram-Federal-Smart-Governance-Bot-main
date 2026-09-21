@@ -28,7 +28,7 @@ class AuditServiceTest {
 
     @Test
     void recordsEntryWithActorActionOutcome() {
-        service.record(777L, "TeachCommandHandler#handle", -100900999L,
+        service.record(ActorType.TG_USER, 777L, "TeachCommandHandler#handle", -100900999L,
                 AuditEntry.Outcome.SUCCESS, null);
 
         verify(repository).save(any(AuditEntry.class));
@@ -38,7 +38,8 @@ class AuditServiceTest {
     void repositoryFailureDoesNotPropagate() {
         when(repository.save(any(AuditEntry.class))).thenThrow(new RuntimeException("db down"));
 
-        assertThatCode(() -> service.record(777L, "X#handle", null, AuditEntry.Outcome.SUCCESS, null))
+        assertThatCode(() -> service.record(ActorType.TG_USER, 777L, "X#handle", null,
+                AuditEntry.Outcome.SUCCESS, null))
                 .as("审计失败不得中断业务（降级为 ERROR 日志）")
                 .doesNotThrowAnyException();
     }

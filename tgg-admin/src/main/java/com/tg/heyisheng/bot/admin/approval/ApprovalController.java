@@ -1,8 +1,11 @@
 package com.tg.heyisheng.bot.admin.approval;
 
 import com.tg.heyisheng.bot.admin.AdminApiTokenCondition;
-import com.tg.heyisheng.bot.admin.AdminAuthFilter;
+import com.tg.heyisheng.bot.admin.identity.AdminRole;
+import com.tg.heyisheng.bot.admin.identity.AdminSessionFilter;
 import com.tg.heyisheng.bot.common.exception.TggException;
+import com.tg.heyisheng.bot.core.audit.ActorType;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
 import com.tg.heyisheng.bot.core.moderation.ReviewStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Conditional;
@@ -28,8 +31,8 @@ import java.util.Map;
  * POST /admin/approvals/{id}/decide                       裁决（body: decision + reason）
  * </pre>
  *
- * <p><b>鉴权不在本类</b>：{@link AdminAuthFilter} 已在进门前验明 token 与 operator 白名单，
- * 并把 operator 放进请求属性。本类只取用，不重复判定——门禁只有一处实现，才不会出现
+ * <p><b>鉴权不在本类</b>：{@link AdminSessionFilter} 已在进门前验明会话，并把主体（类型 + id）
+ * 放进请求属性。本类只取用，不重复判定——门禁只有一处实现，才不会出现
  * 「某个端点漏判」这种最典型的越权。
  *
  * <p><b>状态码显式设置（重要）</b>：本项目有一个全局 {@code @RestControllerAdvice}
@@ -45,10 +48,13 @@ public class ApprovalController {
 
     private final ApprovalQueryService queries;
     private final ApprovalCommandService commands;
+    private final ModerationReviewGuard guard;
 
-    public ApprovalController(ApprovalQueryService queries, ApprovalCommandService commands) {
+    public ApprovalController(ApprovalQueryService queries, ApprovalCommandService commands,
+                              ModerationReviewGuard guard) {
         this.queries = queries;
         this.commands = commands;
+        this.guard = guard;
     }
 
     /** 待办列表；{@code PENDING} 按「硬红线 &gt; 等级 &gt; 先入先审」排序。 */
@@ -89,10 +95,19 @@ public class ApprovalController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "decision 只能是 APPROVED 或 REJECTED"));
         }
-        Long operator = (Long) request.getAttribute(AdminAuthFilter.OPERATOR_ATTRIBUTE);
+        ActorType subjectType = (ActorType) request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE);
+        Long subjectId = (Long) request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE);
+        // 审批权限：超管天然全权；其余走复核人白名单（Wave 2 换成细粒度能力授权）。
+        // 读端点对任一已鉴权主体开放，写（裁决）才更严——与配置中心的取舍一致。
+        if (request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) != AdminRole.SUPER_ADMIN
+                && !guard.isReviewer(subjectId)) {
+            return ResponseEntity.status(403)
+                    .body(Map.of("error", "无审批权限：当前主体不是超管，且不在复核人白名单内"));
+        }
 
         try {
-            ApprovalCommandService.Outcome outcome = commands.decide(id, decision, operator, body.reason());
+            ApprovalCommandService.Outcome outcome =
+                    commands.decide(id, decision, subjectType, subjectId, body.reason());
             return switch (outcome.result()) {
                 case NOT_FOUND -> ResponseEntity.notFound().build();
                 case SELF_DECISION_FORBIDDEN -> ResponseEntity.status(403)
