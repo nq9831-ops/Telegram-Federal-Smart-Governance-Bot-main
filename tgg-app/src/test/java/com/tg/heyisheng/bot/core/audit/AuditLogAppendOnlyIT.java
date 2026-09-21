@@ -39,7 +39,7 @@ class AuditLogAppendOnlyIT {
 
         assertThat(saved.getId()).as("真实落库后应有自增主键").isNotNull();
         assertThat(repository.findById(saved.getId())).isPresent();
-        assertThat(repository.findByActorIdOrderByIdDesc(actorId))
+        assertThat(repository.findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, actorId))
                 .extracting(AuditEntry::getAction)
                 .containsExactly("SomeCommandHandler#handle");
     }

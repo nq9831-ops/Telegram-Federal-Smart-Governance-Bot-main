@@ -3,12 +3,8 @@ package com.tg.heyisheng.bot.core.audit;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -18,6 +14,9 @@ import static org.mockito.Mockito.verify;
  *
  * <p><b>为什么必须测「失败也留痕」</b>：审计最危险的失效不是记错，而是<b>漏记</b>——
  * 尤其命令抛异常那条路径，若只切正常返回，失败操作就会完全无迹可查。
+ *
+ * <p><b>为什么断言里带 {@link ActorType#TG_USER}</b>：命令路径的主体恒为 TG 用户；
+ * 断言显式类型可防「有人把默认类型改成别的」时静默改变命令路径的审计归属。
  */
 class AuditAspectTest {
 
@@ -57,7 +56,7 @@ class AuditAspectTest {
 
         proxied(new FakeHandler(false), audit).handle(ctx());
 
-        verify(audit).record(777L, "FakeHandler#handle", -100900999L,
+        verify(audit).record(ActorType.TG_USER, 777L, "FakeHandler#handle", -100900999L,
                 AuditEntry.Outcome.SUCCESS, null);
     }
 
@@ -71,7 +70,7 @@ class AuditAspectTest {
                 .as("审计不得吞掉业务异常——否则命令失败会被伪装成成功")
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(audit).record(777L, "FakeHandler#handle", -100900999L,
+        verify(audit).record(ActorType.TG_USER, 777L, "FakeHandler#handle", -100900999L,
                 AuditEntry.Outcome.FAILURE, "IllegalStateException");
     }
 
@@ -86,7 +85,7 @@ class AuditAspectTest {
         com.tg.heyisheng.bot.core.dispatch.CommandHandler handler = factory.getProxy();
         handler.handle(ctx());
 
-        verify(audit).record(777L, "OtherHandler#handle", -100900999L,
+        verify(audit).record(ActorType.TG_USER, 777L, "OtherHandler#handle", -100900999L,
                 AuditEntry.Outcome.SUCCESS, null);
     }
 

@@ -11,6 +11,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,6 +24,10 @@ import static org.mockito.Mockito.when;
  * 最容易写错的写法是「查出全部再过滤」——那样一旦过滤条件写错，
  * 就会把别人的审计记录发给他。故这里除了断言内容，还断言
  * <b>没有调用任何「查全部」的入口</b>。
+ *
+ * <p><b>主体是双条件</b>（{@link ActorType} + id）：后台账号 id 与 TG userId 数值空间重叠，
+ * 单条件会串号。本类在 mock 层断言「用了双条件」；真实的跨类型隔离由
+ * {@code AuditActorTypeIT}（真库）钉住。
  */
 class ExportMyDataTest {
 
@@ -44,22 +49,25 @@ class ExportMyDataTest {
 
     @Test
     void exportsOnlyTheCallersOwnEntries() {
-        when(auditLogRepository.findByActorIdOrderByIdDesc(USER)).thenReturn(List.of(
-                new AuditEntry(USER, "TeachCommandHandler#handle", CHAT,
-                        AuditEntry.Outcome.SUCCESS, null, Instant.parse("2026-09-22T00:00:00Z"))));
+        when(auditLogRepository.findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, USER))
+                .thenReturn(List.of(new AuditEntry(ActorType.TG_USER, USER, "TeachCommandHandler#handle",
+                        CHAT, null, AuditEntry.Outcome.SUCCESS, null,
+                        Instant.parse("2026-09-22T00:00:00Z"))));
         when(preferences.quietHoursOf(USER)).thenReturn(new QuietHours(LocalTime.of(22, 0), LocalTime.of(8, 0)));
 
         String reply = text(handler.handle(ctx(USER)));
 
         assertThat(reply).contains("TeachCommandHandler#handle").contains("22:00-08:00");
-        verify(auditLogRepository).findByActorIdOrderByIdDesc(USER);
+        // 必须用**双条件**（类型 + id）：单条件会串到同 id 的后台账号记录
+        verify(auditLogRepository).findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, USER);
         verify(auditLogRepository, never()).findTop100ByOrderByIdDesc();
-        verify(auditLogRepository, never()).findByOccurredAtAfterOrderByIdAsc(org.mockito.ArgumentMatchers.any());
+        verify(auditLogRepository, never()).findByOccurredAtAfterOrderByIdAsc(any());
     }
 
     @Test
     void worksWhenUserHasNoPreferenceAndNoAudit() {
-        when(auditLogRepository.findByActorIdOrderByIdDesc(USER)).thenReturn(List.of());
+        when(auditLogRepository.findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, USER))
+                .thenReturn(List.of());
         when(preferences.quietHoursOf(USER)).thenReturn(null);
 
         String reply = text(handler.handle(ctx(USER)));
@@ -70,10 +78,12 @@ class ExportMyDataTest {
     @Test
     void truncatesToTelegramLimit() {
         List<AuditEntry> many = java.util.stream.IntStream.range(0, 300)
-                .mapToObj(i -> new AuditEntry(USER, "VeryLongCommandHandlerName#handle", CHAT,
-                        AuditEntry.Outcome.SUCCESS, null, Instant.parse("2026-09-22T00:00:00Z")))
+                .mapToObj(i -> new AuditEntry(ActorType.TG_USER, USER, "VeryLongCommandHandlerName#handle",
+                        CHAT, null, AuditEntry.Outcome.SUCCESS, null,
+                        Instant.parse("2026-09-22T00:00:00Z")))
                 .toList();
-        when(auditLogRepository.findByActorIdOrderByIdDesc(USER)).thenReturn(many);
+        when(auditLogRepository.findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, USER))
+                .thenReturn(many);
         when(preferences.quietHoursOf(USER)).thenReturn(null);
 
         String reply = text(handler.handle(ctx(USER)));

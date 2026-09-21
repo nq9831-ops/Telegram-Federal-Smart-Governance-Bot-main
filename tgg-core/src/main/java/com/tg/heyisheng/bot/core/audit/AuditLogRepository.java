@@ -14,8 +14,12 @@ import java.util.Optional;
  * 只声明需要的方法后，<b>删除在编译期就不可达</b>——比在注释里写「请勿删除」强得多
  * （本项目反复吃过「接口留了口子，实现/调用方就真去用」的亏）。
  *
+ * <p><b>按主体的查询一律双条件</b>（类型 + id）：后台账号 id 与 TG userId 落在同一数值空间，
+ * 单条件查询会让 id=42 的账号与 userId=42 的用户串号。此方法<b>取代</b>了旧的单条件
+ * {@code findByActorIdOrderByIdDesc}——后者已删除，使「单条件取主体轨迹」在编译期不可表达。
+ *
  * <p>⚠️ <b>这仍不是全部</b>：它挡得住本项目代码，挡不住运维直接执行 SQL。
- * 数据层的硬保证（触发器或回收 DELETE/UPDATE 权限）属部署侧，且触发器在受限 MySQL 上建不了
+ * 数据层的硬保证（回收 DELETE/UPDATE 权限）属部署侧，且触发器在受限 MySQL 上建不了
  * （缺 SUPER / binlog 开启时会报 ERROR 1419），故不写进迁移。
  */
 public interface AuditLogRepository extends Repository<AuditEntry, Long> {
@@ -29,9 +33,14 @@ public interface AuditLogRepository extends Repository<AuditEntry, Long> {
     /** 最近若干条（倒序 = 最新在前）。 */
     List<AuditEntry> findTop100ByOrderByIdDesc();
 
-    /** 某操作者的审计轨迹（倒序）。 */
-    List<AuditEntry> findByActorIdOrderByIdDesc(long actorId);
+    /**
+     * 某<b>主体</b>的审计轨迹（倒序）——双条件，不可退回单条件。
+     *
+     * @param actorType 主体类型（TG_USER / ADMIN_ACCOUNT）
+     * @param actorId   主体 id
+     */
+    List<AuditEntry> findByActorTypeAndActorIdOrderByIdDesc(ActorType actorType, long actorId);
 
-    /** 某时间之后的全部条目（数据导出用）。 */
+    /** 某时间之后的全部条目。 */
     List<AuditEntry> findByOccurredAtAfterOrderByIdAsc(Instant since);
 }

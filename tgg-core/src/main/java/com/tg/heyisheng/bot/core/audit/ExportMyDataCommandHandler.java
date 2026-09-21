@@ -17,9 +17,13 @@ import java.util.List;
  *
  * <p><b>自助命令，不需要权限</b>：导出的是他自己的数据，凭什么要别人批准。
  *
- * <p><b>只查 {@code actor = 自己}</b>：这是本命令唯一的安全边界，也是最容易写错的地方
- * ——一次「查全部再过滤」的写法就会把别人的审计记录发给他。故查询条件直接带 actor，
+ * <p><b>只查「(TG_USER, 自己)」</b>：这是本命令唯一的安全边界，也是最容易写错的地方
+ * ——一次「查全部再过滤」的写法就会把别人的审计记录发给他。故查询条件直接带主体（类型 + id），
  * 并有专门的测试断言「查不到他人的条目」。
+ *
+ * <p><b>为什么带类型</b>：后台账号 id 与 TG userId 落在同一 BIGINT 数值空间——若按裸
+ * {@code actor_id} 查，id=42 的**后台账号**记录会被 userId=42 的**TG 用户**读到（见 {@link ActorType}）。
+ * 故本命令用双条件，只取 {@link ActorType#TG_USER} 且 id = 自己的记录。
  *
  * <p><b>不含消息正文</b>：审计表本就不存正文（`detail` 只放结论），故导出天然安全。
  */
@@ -54,7 +58,9 @@ public class ExportMyDataCommandHandler implements CommandHandler {
                 .append(quiet == null ? "未设置免打扰时段" : "免打扰时段：" + quiet.start() + "-" + quiet.end())
                 .append('\n');
 
-        List<AuditEntry> entries = auditLogRepository.findByActorIdOrderByIdDesc(userId);
+        // 双条件：只取 TG_USER 且 id = 自己的记录（后台账号记录即便 id 撞车也不会串进来）
+        List<AuditEntry> entries = auditLogRepository
+                .findByActorTypeAndActorIdOrderByIdDesc(ActorType.TG_USER, userId);
         sb.append("\n【操作审计】共 ").append(entries.size()).append(" 条\n");
         int shown = 0;
         for (AuditEntry entry : entries) {

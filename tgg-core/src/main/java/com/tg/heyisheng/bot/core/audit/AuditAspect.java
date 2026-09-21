@@ -50,12 +50,14 @@ public class AuditAspect {
 
         try {
             Object result = joinPoint.proceed();
-            auditService.record(actorId, action, target, AuditEntry.Outcome.SUCCESS, null);
+            // 命令路径的主体恒为 TG 用户，故显式传 TG_USER（不靠默认值——默认值将来可能变）
+            auditService.record(ActorType.TG_USER, actorId, action, target,
+                    AuditEntry.Outcome.SUCCESS, null);
             return result;
         } catch (Throwable ex) {
             // 只记异常类型名——异常消息可能包含用户数据（历史上就出过正文经异常泄露的坑）
-            auditService.record(actorId, action, target, AuditEntry.Outcome.FAILURE,
-                    ex.getClass().getSimpleName());
+            auditService.record(ActorType.TG_USER, actorId, action, target,
+                    AuditEntry.Outcome.FAILURE, ex.getClass().getSimpleName());
             throw ex;
         }
     }
