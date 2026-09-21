@@ -29,13 +29,16 @@
 
 **管理面**（模块十一，可选启用）：
 
-- `Authorization: Bearer <tgg.admin.api-token>` + `X-Operator-Id` 头，两层缺一不可：
-  token 证明「够得着后台」，`X-Operator-Id` 必须落在 `TGG_MODERATION_REVIEWERS` 白名单内，
-  证明「有权审批」。
-- **token 未配置（或为空白）时整个端点不装配**——访问得 **404**（端点不存在），而非 403。
+- **服务端会话**：`POST /admin/auth/login`（账号 + 密码，或 Telegram Login Widget 验签）签发**不透明令牌**；
+  之后一律带 `Authorization: Bearer <会话令牌>`，请求头**不携带任何身份**——
+  主体（类型 / id / 角色）由服务端按令牌反查。登出 / 停用 / 改密 / 强制下线**即时生效**。
+- **`tgg.admin.api-token` 已退化为「装配开关」**：非空才装配 `/admin/*`；它**不再**参与鉴权。
+  全仓只有 `AdminApiTokenCondition`（装配门）与 `ConfigCatalog`（打码回显）读它。
+- **`X-Operator-Id` 已彻底移除**：它曾用于携带「审批人是谁」，但客户端可伪造；
+  身份改由服务端会话持有后不再需要。带它不会被识别，也不影响请求。
+- **api-token 未配置（或为空白）时整个端点不装配**——访问得 **404**（端点不存在），而非 403。
   这是刻意的 fail-closed（`AdminApiTokenCondition` 用自定义 `SpringBootCondition` 判非空，
   因为 `@ConditionalOnProperty` 会把「属性存在但为空串」也算匹配）。
-- token 是**共享密钥、不指向具体的人**（每个运维一个凭据需改为 token→userId 映射，**未实现**）。
 
 ## 三、授权
 
