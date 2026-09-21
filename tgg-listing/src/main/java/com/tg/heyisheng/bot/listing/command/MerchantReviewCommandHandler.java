@@ -43,9 +43,7 @@ public class MerchantReviewCommandHandler implements CommandHandler {
      * （把 {@code approve|reject|need-more} 整串当成参数），命令因此一直回用法，看起来像坏了。
      * 给「可照抄的示例」而不是「参数模板」——文案本身要经得起照抄。
      */
-    static final String USAGE = "用法：/merchant_review 商家编号 结论\n"
-            + "例：/merchant_review 1 approve\n"
-            + "结论可为 approve（通过）/ reject（驳回）/ need-more（要求补充材料）。";
+    static final String USAGE = ListingMessages.MERCHANT_REVIEW_USAGE;
 
     private final MerchantService service;
     private final MerchantReviewGuard guard;
@@ -68,13 +66,13 @@ public class MerchantReviewCommandHandler implements CommandHandler {
 
         Optional<Merchant> found = service.find(parsed.merchantId());
         if (found.isEmpty()) {
-            return reply(ctx, "未找到商家编号 " + parsed.merchantId() + "。");
+            return reply(ctx, ListingMessages.merchantNotFound(parsed.merchantId()));
         }
 
         Merchant.Status current = Merchant.parse(found.get().getStatus());
         if (current != Merchant.Status.SUBMITTED && current != Merchant.Status.UNDER_REVIEW
                 && current != Merchant.Status.NEED_MORE) {
-            return reply(ctx, "该申请当前状态为 " + current + "，不可复核。");
+            return reply(ctx, ListingMessages.merchantNotReviewable(current));
         }
         try {
             if (current != Merchant.Status.UNDER_REVIEW) {
@@ -86,7 +84,7 @@ public class MerchantReviewCommandHandler implements CommandHandler {
             // 不让它穿透到分发层——那会变成静默失败，而「结论没写进去却不告诉复核人」更危险。
             return reply(ctx, ex.getMessage());
         }
-        return reply(ctx, "商家 #" + parsed.merchantId() + " 复核结论已写入：" + parsed.decision() + "。");
+        return reply(ctx, ListingMessages.merchantReviewed(parsed.merchantId(), parsed.decision()));
     }
 
     /** 命令操作数解析结果：目标商家编号 + 复核结论。 */

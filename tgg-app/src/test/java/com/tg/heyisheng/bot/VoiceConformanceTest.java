@@ -64,8 +64,15 @@ class VoiceConformanceTest {
     /** 用户可见的调用点；同行出现中文字面量即视为「内联的用户可见文案」。 */
     private static final Pattern USER_VISIBLE_CALL = Pattern.compile(
             "\\.text\\(|answer\\(|reply\\(|sendMessage\\(|SendMessage\\(|return\\s");
-    /** 判据 3 的字面量长度门槛（太短的串撞车属正常，不视为重复散落）。 */
-    private static final int DEDUP_MIN_LENGTH = 5;
+    /**
+     * 判据 3 只看**整句**：中文字符数达到该门槛才算「一句话」。
+     *
+     * <p><b>为什么按中文字符数而不是总长度</b>：拼接用的分隔符与单位（{@code "、"}、{@code " 条）：\n"}）
+     * 在多个域里复用是正常的；而一整句（如 {@code "申诉已提交（编号 #"}）才是「改一处必然漏另一处」的对象。
+     * 本门槛是实测校准出来的：联邦与审核两处都用 {@code " 条）：\n"} 作为列表标题后缀（合法复用），
+     * 用总长度会误报。
+     */
+    private static final int DEDUP_MIN_CJK = 6;
 
     private static Path moduleRoot() {
         Path root = Path.of("..");
@@ -157,7 +164,7 @@ class VoiceConformanceTest {
                 Matcher m = LITERAL.matcher(line);
                 while (m.find()) {
                     String text = m.group(1);
-                    if (text.length() >= DEDUP_MIN_LENGTH && CJK.matcher(text).find()) {
+                    if (cjkCount(text) >= DEDUP_MIN_CJK) {
                         owners.computeIfAbsent(text, k -> new LinkedHashSet<>())
                                 .add(file.getFileName().toString());
                     }
@@ -194,5 +201,15 @@ class VoiceConformanceTest {
      */
     private static boolean mentionsLog(String line) {
         return line.contains("log.");
+    }
+
+    /** 字面量里的中文字符个数（判据 3 的门槛按它算，见 {@link #DEDUP_MIN_CJK}）。 */
+    private static int cjkCount(String text) {
+        Matcher m = CJK.matcher(text);
+        int count = 0;
+        while (m.find()) {
+            count++;
+        }
+        return count;
     }
 }

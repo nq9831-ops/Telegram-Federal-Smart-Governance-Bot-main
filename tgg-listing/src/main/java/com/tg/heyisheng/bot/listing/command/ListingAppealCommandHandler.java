@@ -48,9 +48,9 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAppealCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/listing_appeal 收录编号 理由\n例：/listing_appeal 1 群只是改成邀请制了";
-    static final String NOT_SUSPENDED = "该群当前未被下架，无需申诉。";
-    static final String NOT_SUBMITTER = "只有该群的提交者本人可以申诉。";
+    static final String USAGE = ListingMessages.LISTING_APPEAL_USAGE;
+    static final String NOT_SUSPENDED = ListingMessages.LISTING_NOT_SUSPENDED;
+    static final String NOT_SUBMITTER = ListingMessages.LISTING_NOT_SUBMITTER;
 
     private final ListingGroupRepository groups;
     private final ListingAppealRepository appeals;
@@ -94,7 +94,7 @@ public class ListingAppealCommandHandler implements CommandHandler {
 
         Optional<ListingGroup> found = groups.findById(listingId);
         if (found.isEmpty()) {
-            return reply(ctx, "未找到收录编号 " + listingId + "。");
+            return reply(ctx, ListingMessages.listingNotFound(listingId));
         }
         ListingGroup entry = found.get();
 
@@ -105,12 +105,12 @@ public class ListingAppealCommandHandler implements CommandHandler {
             return reply(ctx, NOT_SUSPENDED);
         }
         if (isDisputeWindowClosed(entry)) {
-            return reply(ctx, "异议期（" + properties.getDisputeWindowDays() + " 天）已过，无法申诉。");
+            return reply(ctx, ListingMessages.disputeWindowClosed(properties.getDisputeWindowDays()));
         }
 
         ListingAppeal saved = appeals.save(
                 new ListingAppeal(entry.getId(), ctx.userId(), reason, clock.instant()));
-        return reply(ctx, "申诉已提交（编号 #" + saved.getId() + "），将由管理员审核。");
+        return reply(ctx, ListingMessages.listingAppealSubmitted(saved.getId()));
     }
 
     /** 窗口从下架时刻起算；{@code suspendedAt} 缺失（异常数据）时<b>不</b>阻断申诉——宁可多收一条也不误拒。 */

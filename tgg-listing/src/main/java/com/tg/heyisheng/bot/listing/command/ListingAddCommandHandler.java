@@ -35,11 +35,11 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAddCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/listing_add 邀请链接\n例：/listing_add https://t.me/+AbCdEfGh";
-    static final String NOT_A_GROUP = "请在要收录的群内执行本命令。";
-    static final String INVALID_LINK = "邀请链接无效：应以 https://t.me/ 开头。";
-    static final String ADDED = "已提交收录，将定期验证链接有效性。";
-    static final String ALREADY_EXISTS = "该群已在收录库中（重复提交已忽略）。";
+    static final String USAGE = ListingMessages.LISTING_ADD_USAGE;
+    static final String NOT_A_GROUP = ListingMessages.LISTING_NOT_A_GROUP;
+    static final String INVALID_LINK = ListingMessages.LISTING_INVALID_LINK;
+    static final String ADDED = ListingMessages.LISTING_ADDED;
+    static final String ALREADY_EXISTS = ListingMessages.LISTING_ALREADY_EXISTS;
 
     /** 邀请链接的可接受前缀（Telegram 邀请链接恒为 t.me 域）。 */
     static final String LINK_PREFIX = "https://t.me/";

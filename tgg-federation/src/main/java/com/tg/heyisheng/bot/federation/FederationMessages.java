@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.core.dispatch.DispatchMessages;
+
 /**
  * 联邦治理（模块八：申诉提交 / 待审列表 / 通过 / 驳回）的**用户可见文案**
  * ——{@code *Messages} 家族在 federation 包的落点。
@@ -18,9 +20,9 @@ public final class FederationMessages {
     /** {@code /appeal} 用法。 */
     public static final String APPEAL_USAGE = "用法：/appeal 申诉内容\n例：/appeal 我的账号被误封了";
 
-    /** 申诉提交成功。 */
+    /** 申诉提交成功。前缀跨域共享（见 {@code DispatchMessages.APPEAL_SUBMITTED_PREFIX}）。 */
     public static String appealSubmitted(Object id) {
-        return "申诉已提交（编号 #" + id + "），将由联邦管理员审核。";
+        return DispatchMessages.APPEAL_SUBMITTED_PREFIX + id + "），将由联邦管理员审核。";
     }
 
     // ────────────── /approve · /reject ──────────────

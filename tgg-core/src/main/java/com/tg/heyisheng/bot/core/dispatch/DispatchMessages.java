@@ -30,6 +30,24 @@ public final class DispatchMessages {
      */
     public static final String GROUP_ONLY = "请在要生效的群内执行本命令。";
 
+    /**
+     * 「申诉已提交（编号 #」前缀——联邦申诉（模块八）与收录申诉（模块五）共用。
+     *
+     * <p>同样刻意跨域共享：两处各写一份的话，改一处必然漏另一处，
+     * 守门测试的「不得重复散落」判据也会拦下。
+     */
+    public static final String APPEAL_SUBMITTED_PREFIX = "申诉已提交（编号 #";
+
+    /**
+     * 列表截断提示——教学规则列表（模块九）与收录库列表（模块五）逐字相同，故共享一份。
+     *
+     * <p>Bot API 单条消息有 4096 字符上限，超长会**整条发送失败**（回复直接丢掉、调用方还以为成功），
+     * 故两处列表都必须截断说明。
+     */
+    public static String truncatedNotice(int total, int shown) {
+        return "\n…（已截断：共 " + total + " 条，本条只显示前 " + shown + " 条）";
+    }
+
     /** {@code /enable} 的回执。 */
     public static final String ENABLE_REPLY = "已开启本群的自动化能力。";
 

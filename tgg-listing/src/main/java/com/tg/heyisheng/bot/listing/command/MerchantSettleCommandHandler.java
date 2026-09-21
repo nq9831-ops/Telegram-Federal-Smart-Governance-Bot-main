@@ -48,8 +48,7 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantSettleCommandHandler implements CommandHandler {
 
-    static final String USAGE =
-            "用法：/merchant_settle 商家编号 结论\n例：/merchant_settle 1 NONE（结论可为 NONE / UNRESOLVED / WITH_COMPENSATION）";
+    static final String USAGE = ListingMessages.MERCHANT_SETTLE_USAGE;
 
     private final MerchantDepositService depositService;
     private final MerchantReviewGuard guard;
@@ -71,7 +70,7 @@ public class MerchantSettleCommandHandler implements CommandHandler {
         }
 
         if (depositService.find(parsed.merchantId()).isEmpty()) {
-            return reply(ctx, "未找到商家编号 " + parsed.merchantId() + " 的保证金记录。");
+            return reply(ctx, ListingMessages.depositNotFound(parsed.merchantId()));
         }
 
         try {
@@ -80,10 +79,10 @@ public class MerchantSettleCommandHandler implements CommandHandler {
             // 已在上面确认存在，故这里实际必非空；仍显式兜住，避免「find 与 settle 之间记录被删」时 NPE。
             return after.map(deposit -> reply(ctx, describe(parsed, deposit)))
                     .orElseGet(() -> reply(ctx,
-                            "未找到商家编号 " + parsed.merchantId() + " 的保证金记录。"));
+                            ListingMessages.depositNotFound(parsed.merchantId())));
         } catch (TggException ex) {
             // 业务守卫（非 FROZEN 结算 / 扣除超限 / 扣除无理由）必须让运营者看见原因，不得吞成静默。
-            return reply(ctx, "结算失败：" + ex.getMessage());
+            return reply(ctx, ListingMessages.SETTLE_FAILED_PREFIX + ex.getMessage());
         }
     }
 
@@ -91,13 +90,12 @@ public class MerchantSettleCommandHandler implements CommandHandler {
     private static String describe(Parsed parsed, MerchantDeposit deposit) {
         String amount = deposit.getAmount().toPlainString();
         return switch (parsed.dispute()) {
-            case NONE -> "已全额退还保证金（商家 #" + parsed.merchantId() + "，" + amount
-                    + " USDT），当前状态 " + deposit.getState() + "。";
-            case UNRESOLVED -> "争议未结：保证金保持冻结（商家 #" + parsed.merchantId() + "，" + amount
-                    + " USDT），本次未发生任何资金动作。争议结案后再执行一次本命令。";
-            case WITH_COMPENSATION -> "已按赔付扣除 " + parsed.deduction().toPlainString()
-                    + " USDT（理由：" + parsed.reason() + "），商家 #" + parsed.merchantId()
-                    + " 保证金当前状态 " + deposit.getState() + "。";
+            case NONE -> ListingMessages.settledRefunded(
+                    parsed.merchantId(), amount, deposit.getState());
+            case UNRESOLVED -> ListingMessages.settledUnresolved(parsed.merchantId(), amount);
+            case WITH_COMPENSATION -> ListingMessages.settledWithCompensation(
+                    parsed.deduction().toPlainString(), parsed.reason(), parsed.merchantId(),
+                    deposit.getState());
         };
     }
 

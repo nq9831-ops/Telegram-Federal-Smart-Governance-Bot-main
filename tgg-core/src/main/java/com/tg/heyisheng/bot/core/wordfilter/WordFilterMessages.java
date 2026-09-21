@@ -101,8 +101,8 @@ public final class WordFilterMessages {
     /** 规则行：停用标记。 */
     public static final String RULE_DISABLED_MARK = "✗（已停用）";
 
-    /** 规则列表截断提示。 */
+    /** 规则列表截断提示（句式与收录库列表共享）。 */
     public static String rulesTruncated(int total, int shown) {
-        return "\n…（已截断：共 " + total + " 条，本条只显示前 " + shown + " 条）";
+        return com.tg.heyisheng.bot.core.dispatch.DispatchMessages.truncatedNotice(total, shown);
     }
 }

@@ -34,9 +34,9 @@ import java.util.Optional;
 public class MerchantApplyCommandHandler implements CommandHandler {
 
     /** 用法文案刻意<b>不含 {@code <...>}</b>：实测会被连尖括号一起照抄，命令因而一直回用法。 */
-    static final String USAGE = "用法：/merchant_apply 商家名称\n例：/merchant_apply 测试小铺";
-    static final String NO_IDENTITY = "无法识别你的用户身份，请稍后再试。";
-    static final String NAME_TOO_LONG = "商家名称过长（上限 255 字符）。";
+    static final String USAGE = ListingMessages.MERCHANT_APPLY_USAGE;
+    static final String NO_IDENTITY = ListingMessages.MERCHANT_NO_IDENTITY;
+    static final String NAME_TOO_LONG = ListingMessages.MERCHANT_NAME_TOO_LONG;
 
     /** {@code merchants.name} 列宽上限。 */
     static final int MAX_NAME_CHARS = 255;
@@ -64,11 +64,11 @@ public class MerchantApplyCommandHandler implements CommandHandler {
 
         Optional<Merchant> open = service.findOpenByOwner(userId);
         if (open.isPresent()) {
-            return reply(ctx, "你已有在办的入驻申请（编号 #" + open.get().getId() + "），请等待复核。");
+            return reply(ctx, ListingMessages.merchantOpenApplication(open.get().getId()));
         }
 
         Merchant saved = service.submit(userId, name, null, null, null);
-        return reply(ctx, "入驻申请已提交（编号 #" + saved.getId() + "），等待资质复核。");
+        return reply(ctx, ListingMessages.merchantSubmitted(saved.getId()));
     }
 
     private static SendMessage reply(UpdateContext ctx, String text) {

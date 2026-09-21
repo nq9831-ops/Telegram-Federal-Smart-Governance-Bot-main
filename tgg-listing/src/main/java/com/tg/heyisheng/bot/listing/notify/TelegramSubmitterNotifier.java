@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.listing.notify;
 
 import com.tg.heyisheng.bot.listing.ListingGroup;
+import com.tg.heyisheng.bot.listing.command.ListingMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,8 +118,6 @@ public class TelegramSubmitterNotifier implements SubmitterNotifier {
      * 没有编号的告知等于把用户引到一个用不了的入口。
      */
     static String composeText(ListingGroup entry) {
-        return "你提交收录的群（编号 #" + entry.getId() + "）经定期验证已失效，已从收录库下架。\n"
-                + "若你认为这是误判（例如群只是改成了邀请制），可在 7 天异议期内发送：\n"
-                + "/listing_appeal " + entry.getId() + " 你的申诉理由";
+        return ListingMessages.delistedNotice(entry.getId());
     }
 }

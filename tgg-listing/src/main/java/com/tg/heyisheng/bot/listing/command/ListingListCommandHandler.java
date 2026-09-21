@@ -35,9 +35,9 @@ public class ListingListCommandHandler implements CommandHandler {
     /** 正文自留上限：给截断提示与后续可能的追加文本留出余量。 */
     static final int MAX_BODY_CHARS = 3500;
 
-    static final String EMPTY = "收录库当前没有有效条目。";
-    static final String PREFIX = "收录库（有效）：";
-    static final String UNTITLED = "（未命名）";
+    static final String EMPTY = ListingMessages.LISTING_LIST_EMPTY;
+    static final String PREFIX = ListingMessages.LISTING_LIST_PREFIX;
+    static final String UNTITLED = ListingMessages.LISTING_LIST_UNTITLED;
 
     private final ListingGroupService service;
 
@@ -58,7 +58,7 @@ public class ListingListCommandHandler implements CommandHandler {
         StringBuilder sb = new StringBuilder(PREFIX);
         int shown = 0;
         for (ListingGroup group : groups) {
-            String line = "\n#" + group.getId() + " " + titleOf(group);
+            String line = ListingMessages.listingListLine(group.getId(), titleOf(group));
             // 先判长度再追加：宁可少显示一条，也不产出超限的回复
             if (sb.length() + line.length() > MAX_BODY_CHARS) {
                 break;
@@ -67,8 +67,7 @@ public class ListingListCommandHandler implements CommandHandler {
             shown++;
         }
         if (shown < groups.size()) {
-            sb.append("\n…（已截断：共 ").append(groups.size())
-                    .append(" 条，本条只显示前 ").append(shown).append(" 条）");
+            sb.append(ListingMessages.listingListTruncated(groups.size(), shown));
         }
         return sb.toString();
     }

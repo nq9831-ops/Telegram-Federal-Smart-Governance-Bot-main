@@ -35,8 +35,8 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantExitCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/merchant_exit 商家编号\n例：/merchant_exit 1";
-    static final String NOT_OWNER = "只有商家本人可以申请退出。";
+    static final String USAGE = ListingMessages.MERCHANT_EXIT_USAGE;
+    static final String NOT_OWNER = ListingMessages.MERCHANT_NOT_OWNER;
 
     private final MerchantService merchants;
     private final MerchantDepositService depositService;
@@ -54,7 +54,7 @@ public class MerchantExitCommandHandler implements CommandHandler {
         }
         Optional<Merchant> found = merchants.find(merchantId);
         if (found.isEmpty()) {
-            return reply(ctx, "未找到商家编号 " + merchantId + "。");
+            return reply(ctx, ListingMessages.merchantNotFound(merchantId));
         }
         if (ctx.userId() == null || !ctx.userId().equals(found.get().getOwnerUserId())) {
             return reply(ctx, NOT_OWNER);
@@ -63,9 +63,9 @@ public class MerchantExitCommandHandler implements CommandHandler {
         Optional<MerchantDeposit> frozen =
                 depositService.freeze(merchantId, "商家申请退出", ctx.userId());
         if (frozen.isEmpty()) {
-            return reply(ctx, "该商家尚未缴纳保证金，无可冻结的资金。");
+            return reply(ctx, ListingMessages.EXIT_NO_DEPOSIT);
         }
-        return reply(ctx, "退出申请已受理（商家 #" + merchantId + "），保证金已冻结，等待争议核查后结算。");
+        return reply(ctx, ListingMessages.exitAccepted(merchantId));
     }
 
     private static Long parseId(String args) {

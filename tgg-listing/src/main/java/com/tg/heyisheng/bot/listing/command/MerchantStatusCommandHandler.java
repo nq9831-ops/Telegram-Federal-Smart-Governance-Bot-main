@@ -26,7 +26,7 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantStatusCommandHandler implements CommandHandler {
 
-    static final String NO_APPLICATION = "你还没有提交过商家入驻申请。\n用法：/merchant_apply 商家名称（例：/merchant_apply 测试小铺）";
+    static final String NO_APPLICATION = ListingMessages.MERCHANT_STATUS_NONE;
 
     private final MerchantService service;
 
@@ -45,21 +45,21 @@ public class MerchantStatusCommandHandler implements CommandHandler {
             return reply(ctx, NO_APPLICATION);
         }
         Merchant merchant = latest.get();
-        return reply(ctx, "商家入驻状态：\n编号 #" + merchant.getId() + " · " + merchant.getName()
-                + "\n状态：" + describe(merchant.getStatus())
-                + (merchant.getTier() == null ? "" : "\n等级：" + merchant.getTier()));
+        return reply(ctx, ListingMessages.merchantStatus(
+                merchant.getId(), merchant.getName(), describe(merchant.getStatus()),
+                merchant.getTier() == null ? "" : ListingMessages.merchantTierSuffix(merchant.getTier())));
     }
 
     /** 状态枚举 → 对用户可读的中文短句。 */
     static String describe(String status) {
         return switch (status) {
-            case "SUBMITTED" -> "已提交，等待资质复核";
-            case "UNDER_REVIEW" -> "资质复核中";
-            case "APPROVED" -> "资质已通过，等待缴纳保证金";
-            case "NEED_MORE" -> "需补充材料，请修改后重新提交";
-            case "REJECTED" -> "资质未通过";
-            case "DEPOSIT_PENDING" -> "待缴纳保证金";
-            case "ACTIVE" -> "入驻成功（营业中）";
+            case "SUBMITTED" -> ListingMessages.STATUS_SUBMITTED;
+            case "UNDER_REVIEW" -> ListingMessages.STATUS_UNDER_REVIEW;
+            case "APPROVED" -> ListingMessages.STATUS_APPROVED;
+            case "NEED_MORE" -> ListingMessages.STATUS_NEED_MORE;
+            case "REJECTED" -> ListingMessages.STATUS_REJECTED;
+            case "DEPOSIT_PENDING" -> ListingMessages.STATUS_DEPOSIT_PENDING;
+            case "ACTIVE" -> ListingMessages.STATUS_ACTIVE;
             default -> status;
         };
     }

@@ -47,9 +47,7 @@ public class MerchantDepositCommandHandler implements CommandHandler {
      * 用法文案刻意<b>不含 {@code <...>}</b>：实测有运营者把模板原样发出去（连尖括号一起），
      * 命令因而一直回用法、看起来像坏了。给「可照抄的示例」而不是「参数模板」。
      */
-    static final String USAGE = "用法：/merchant_deposit 商家编号 金额\n"
-            + "例：/merchant_deposit 1 10000\n"
-            + "（需先经 /merchant_review 复核通过）";
+    static final String USAGE = ListingMessages.MERCHANT_DEPOSIT_USAGE;
 
     private final MerchantService merchants;
     private final MerchantDepositService depositService;
@@ -76,23 +74,23 @@ public class MerchantDepositCommandHandler implements CommandHandler {
 
         Optional<Merchant> found = merchants.find(parsed.merchantId());
         if (found.isEmpty()) {
-            return reply(ctx, "未找到商家编号 " + parsed.merchantId() + "。");
+            return reply(ctx, ListingMessages.merchantNotFound(parsed.merchantId()));
         }
 
         Optional<MerchantDeposit> existing = depositService.find(parsed.merchantId());
         if (existing.isPresent()) {
-            return reply(ctx, "该商家保证金已存在（当前 " + existing.get().getState() + "），无需重复操作。");
+            return reply(ctx, ListingMessages.depositAlreadyExists(existing.get().getState()));
         }
 
         Merchant.Status status = Merchant.parse(found.get().getStatus());
         if (status != Merchant.Status.APPROVED) {
-            return reply(ctx, "该商家当前状态为 " + status + "，不可缴纳保证金（需先复核通过）。");
+            return reply(ctx, ListingMessages.depositNotPayable(status));
         }
 
         depositService.open(parsed.merchantId(), parsed.amount(), null);
         depositService.lock(parsed.merchantId());
-        return reply(ctx, "保证金已确认（商家 #" + parsed.merchantId() + "，"
-                + parsed.amount().toPlainString() + " USDT），入驻完成。");
+        return reply(ctx, ListingMessages.depositConfirmed(
+                parsed.merchantId(), parsed.amount().toPlainString()));
     }
 
     /** 命令操作数：目标商家编号 + 保证金金额。解析失败（缺参/非数字/非正数）返回 {@code null}。 */
