@@ -100,7 +100,11 @@ public class CommandDispatcher {
      */
     private static BotApiMethod<?> confirmationCard(UpdateContext ctx, String command, String nonce) {
         String args = ctx.commandArgs().orElse(null);
-        String preview = "/" + command + (args == null || args.isBlank() ? "" : " " + args);
+        // 命令名先经 CommandRegistry.normalize 再显示：库的 Message.getCommand() 会带上**前导斜杠**，
+        // 这里再前缀一个 "/" 就会渲染成 "//review_approve"（实测：合成请求的确认卡即如此）。
+        // normalize 负责去斜杠、去 @BotName 后缀、转小写——正是显示所需的口径。
+        String preview = "/" + CommandRegistry.normalize(command)
+                + (args == null || args.isBlank() ? "" : " " + args);
 
         InlineKeyboardButton confirm = InlineKeyboardButton.builder()
                 .text("✅ 确认执行")

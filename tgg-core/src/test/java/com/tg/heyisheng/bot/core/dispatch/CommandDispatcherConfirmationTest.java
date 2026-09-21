@@ -138,4 +138,23 @@ class CommandDispatcherConfirmationTest {
 
         assertThat(CALLS.get()).isEqualTo(1);
     }
+
+    /**
+     * 命令名带前导斜杠（库的 {@code Message.getCommand()} 就是这样给的）时，
+     * 确认卡不得渲染成 {@code //danger}。
+     *
+     * <p>实测来源：线上合成请求 {@code /review_approve} 的确认卡显示为
+     * 「即将执行：//review_approve」——卡片自己又前缀了一个斜杠。
+     */
+    @Test
+    void cardNeverRendersDoubleSlashWhenCommandCarriesLeadingSlash() throws Exception {
+        ConfirmationStore seam = store();
+
+        Optional<BotApiMethod<?>> result = dispatcher(seam).dispatch(ctx("/danger", "广告"));
+
+        String text = ((SendMessage) result.orElseThrow()).getText();
+        assertThat(text).as("带前导斜杠的命令名不得被再前缀一个斜杠")
+                .contains("/danger 广告")
+                .doesNotContain("//danger");
+    }
 }
