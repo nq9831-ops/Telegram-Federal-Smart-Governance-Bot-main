@@ -63,17 +63,24 @@ spec:
             # 根文件系统只读，故给 JVM 一个可写的临时目录
             - name: tmp
               mountPath: /tmp
-          # ⚠️ 本项目【未引入 Actuator】，没有 /actuator/health 可探——故只能用 tcpSocket。
-          # 它只证明端口在监听，**不证明** Flyway 迁移完成或组件装配就绪。
+          # 启动 / 就绪探针走 /actuator/health：本项目**已引入并锁定** Actuator
+          # （只暴露 health、show-details=never、probes 关闭），它前置校验 datasource——
+          # **DB 不可达时返回 503**，因而是真实的就绪判据。
+          # ⚠️ 不要退回 tcpSocket：那只证明端口在监听，**不证明** Flyway 迁移完成或组件装配就绪。
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health
               port: http
             periodSeconds: 5
             failureThreshold: 30      # 首次启动含迁移，最多容忍 150s
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health
               port: http
             periodSeconds: 10
+          # ⚠️ **liveness 刻意仍用 tcpSocket**：它绝不能依赖 DB——否则数据库抖一下，
+          # k8s 会把全部副本一起重启，而重启解决不了 DB 的问题、只会放大故障。
+          # 若确要改成 httpGet，须先配一个不含 datasource 的 health group。
           livenessProbe:
             tcpSocket:
               port: http
@@ -105,7 +112,9 @@ metadata:
     app.kubernetes.io/name: tgg
   annotations:
     # TLS 在入口层终止。
-    # ⚠️ 本项目【未实现】CSP/HSTS 与 Actuator 锁定——若需要，请在这一层统一加响应头。
+    # ⚠️ CSP/HSTS 仍归**这一层**（TLS 终止方）：应用层只发了 nosniff / X-Frame-Options /
+    # Referrer-Policy；HSTS 必须由 TLS 终止方下发，CSP 约束的是不由 Spring 托管的静态站。
+    # （Actuator 已在应用层引入并锁定，不属本层职责。）
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "1m"
 spec:
