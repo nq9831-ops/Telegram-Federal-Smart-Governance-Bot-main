@@ -1,8 +1,17 @@
 {
     // ─────────────────────────────────────────────────────────────────────────
-    // 工作区设置（本文件**入库**：见 .gitignore 的 `.vscode/*` + `!.vscode/settings.json`）。
-    // 目的：让 VS Code 的 Problems 面板对本仓库保持干净（2026-09-22 整理）。
+    // 工作区设置（入库；见 .gitignore 的 `.vscode/*` + `!.vscode/settings.json`）。
     // ─────────────────────────────────────────────────────────────────────────
+    //
+    // ⚠️⚠️ 血泪教训：**不要把 `target` / `dist` 加进下面任何一个排除列表**。
+    //   2026-09-22 我一度把 `"target"` 写进 `java.project.resourceFilters`、
+    //   `"**/target/**"` 写进 `java.import.exclusions`，导致 Java 扩展过滤掉各模块的输出目录
+    //   `*/target/classes`——而兄弟模块正是靠它解析 `com.tg.heyisheng.bot.core` 等类，于是整个
+    //   工作区爆出数百条 `The import com.tg.heyisheng.bot.core cannot be resolved` /
+    //   `UpdateContext cannot be resolved to a type`。**Maven 侧全程是绿的**
+    //   （`mvn verify` 8 模块 BUILD SUCCESS），故这类破坏只能靠 IDE 里看：
+    //   「构建绿」不等于「IDE 绿」——两者读的配置面根本不同。
+    //   规则：排除列表**只放真正的非构建输入**（参考库快照、工具备份）。
     //
     // 1) 关闭 JDT 空值分析。本仓库不使用 JDT 的 @NonNullByDefault 约定；开启后会产出上百条
     //    「Null type safety: ... needs unchecked conversion to conform to '@NonNull String'」
@@ -10,38 +19,25 @@
     //    不是缺陷；靠改代码迎合（逐处加 @SuppressWarnings/@NonNull）得不偿失。
     "java.compile.nullAnalysis.mode": "disabled",
 
-    // 2) 把「非构建输入」挡在 Java 工程之外——这是 `resilience4j does not exist` 的真正来源：
-    //    references/ 是**参考项目源码快照**（含 resilience4j 全量源码），.rivet/ 下另有工具备份
-    //    的 .java（72 个）。两者都不是本项目的编译单元（.gitignore 明确排除 references/*），
-    //    一旦被当作源码索引，就会报一堆解析不到的错误。
+    // 2) 只把**非构建输入**挡在 Java 工程之外：
+    //    - references/ 是参考项目源码快照（含 resilience4j 全量源码），.gitignore 已排除；
+    //    - .rivet/ 是工具运行态，内含 72 个备份 .java。
+    //    两者都不是本项目的编译单元，被当源码索引就会报解析错误。
+    //    （node_modules / target 等由 Java 扩展的**默认**规则处理，无需在此重复声明。）
     "java.import.exclusions": [
         "**/references/**",
-        "**/.rivet/**",
-        "**/node_modules/**",
-        "**/target/**",
-        "**/frontend/dist/**"
-    ],
-    "java.project.resourceFilters": [
-        "references",
-        ".rivet",
-        "node_modules",
-        "target",
-        "dist"
+        "**/.rivet/**"
     ],
 
-    // 3) 搜索与文件监视也不必进这些大目录。
+    // 3) 搜索与文件监视不必进这些大目录（仅影响搜索/监视，不碰 classpath，安全）。
     "search.exclude": {
         "**/references": true,
-        "**/.rivet": true,
-        "**/node_modules": true
+        "**/.rivet": true
     },
     "files.watcherExclude": {
         "**/references/**": true,
-        "**/.rivet/**": true,
-        "**/node_modules/**": true,
-        "**/target/**": true
+        "**/.rivet/**": true
     },
 
-    // 4) 前端未配置 ESLint（仓库无 eslint 配置文件），故无 lint 相关设置。
     "java.test.config": {}
 }
