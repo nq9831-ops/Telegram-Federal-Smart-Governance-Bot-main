@@ -2,8 +2,6 @@ package com.tg.heyisheng.bot.core.middleware;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * 群组配置加载中间件。
@@ -25,8 +23,6 @@ import org.slf4j.LoggerFactory;
  * 并记 ERROR 日志，因此此处不需要重复处理异常。
  */
 public class GroupConfigMiddleware implements Middleware {
-
-    private static final Logger log = LoggerFactory.getLogger(GroupConfigMiddleware.class);
 
     private final GroupConfigService groupConfigService;
 

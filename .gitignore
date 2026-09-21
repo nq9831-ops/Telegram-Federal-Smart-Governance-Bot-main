@@ -4,10 +4,14 @@ target/
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
 
-# IDE
+# IDE：编辑器个人状态不入库；但 **.vscode/settings.json 入库**——
+# 它承载「本仓库该怎么被分析」的共享约定（把 references/ 参考库快照与 .rivet/ 备份挡在
+# Java 工程之外、关闭会产生上百条推断噪声的 JDT 空值分析）。不入库＝每个新 clone 重踩一遍。
+# ⚠️ 被忽略的目录 git 不会下钻：必须写 `.vscode/*` + 取反放行单个文件（写 `.vscode/` 会让取反失效）。
 .idea/
 *.iml
-.vscode/
+.vscode/*
+!.vscode/settings.json
 *.swp
 
 # OS

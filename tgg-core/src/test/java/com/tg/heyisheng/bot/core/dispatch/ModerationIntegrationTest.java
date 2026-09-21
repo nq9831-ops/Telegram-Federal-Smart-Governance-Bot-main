@@ -40,7 +40,6 @@ class ModerationIntegrationTest {
             ModerationRule.of("SPAM_CASINO", "赌场广告", "(?i)\\d+\\s*casino", RiskLevel.LOW),
             ModerationRule.hardLine("HARD_SECRET", "索要私钥", "(?i)private\\s+key")));
 
-    private final MiddlewareChain passThrough = new MiddlewareChain(List.of());
     private final CommandDispatcher noopDispatcher =
             new CommandDispatcher(new CommandRegistry(List.of()));
 

@@ -1,0 +1,47 @@
+{
+    // ─────────────────────────────────────────────────────────────────────────
+    // 工作区设置（本文件**入库**：见 .gitignore 的 `.vscode/*` + `!.vscode/settings.json`）。
+    // 目的：让 VS Code 的 Problems 面板对本仓库保持干净（2026-09-22 整理）。
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // 1) 关闭 JDT 空值分析。本仓库不使用 JDT 的 @NonNullByDefault 约定；开启后会产出上百条
+    //    「Null type safety: ... needs unchecked conversion to conform to '@NonNull String'」
+    //    ——那是分析器与 Spring 的 org.springframework.lang.NonNull 不匹配导致的**推断噪声**，
+    //    不是缺陷；靠改代码迎合（逐处加 @SuppressWarnings/@NonNull）得不偿失。
+    "java.compile.nullAnalysis.mode": "disabled",
+
+    // 2) 把「非构建输入」挡在 Java 工程之外——这是 `resilience4j does not exist` 的真正来源：
+    //    references/ 是**参考项目源码快照**（含 resilience4j 全量源码），.rivet/ 下另有工具备份
+    //    的 .java（72 个）。两者都不是本项目的编译单元（.gitignore 明确排除 references/*），
+    //    一旦被当作源码索引，就会报一堆解析不到的错误。
+    "java.import.exclusions": [
+        "**/references/**",
+        "**/.rivet/**",
+        "**/node_modules/**",
+        "**/target/**",
+        "**/frontend/dist/**"
+    ],
+    "java.project.resourceFilters": [
+        "references",
+        ".rivet",
+        "node_modules",
+        "target",
+        "dist"
+    ],
+
+    // 3) 搜索与文件监视也不必进这些大目录。
+    "search.exclude": {
+        "**/references": true,
+        "**/.rivet": true,
+        "**/node_modules": true
+    },
+    "files.watcherExclude": {
+        "**/references/**": true,
+        "**/.rivet/**": true,
+        "**/node_modules/**": true,
+        "**/target/**": true
+    },
+
+    // 4) 前端未配置 ESLint（仓库无 eslint 配置文件），故无 lint 相关设置。
+    "java.test.config": {}
+}

@@ -122,6 +122,20 @@ jobs:
           path: target/security/dependency-scan.md
           if-no-files-found: ignore
 
+  static-checks:
+    name: Static checks (unused imports)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 纯文本分析，不需要 JDK / MySQL —— 故单独成一个 job（比挂在 build 上更省，失败信号也更清晰）。
+      # 为什么需要这道门：javac **不报**未用 import，`mvn verify` 全绿也照旧留存，
+      # 于是仓库里会静默积累（本仓库 2026-09-21/22 连清两轮：17 处/13 文件 + 1 文件）。
+      # 判据保守（宁漏不误删）：import 的简单名在「除 import 行外的全部文本」里零出现才算未用，
+      # 注释/javadoc 计为正文 —— 故仅供 {@link} 引用的 import 不会被误报。
+      - name: Unused import check
+        run: python3 tools/quality/check_unused_imports.py
+
   docker-build:
     name: Docker build（镜像可构建 + 非 root）
     runs-on: ubuntu-latest
