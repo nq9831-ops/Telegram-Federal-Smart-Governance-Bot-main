@@ -91,6 +91,37 @@ jobs:
           path: '**/target/*-reports/*.txt'
           if-no-files-found: ignore
 
+  dependency-scan:
+    name: Dependency vulnerability scan (SBOM → OSV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # 只出 SBOM（cyclonedx 插件绑在根 pom 的 package 阶段）：依赖漏洞与测试无关，
+      # 故 -DskipTests，也就**不需要** MySQL 服务。
+      - name: Generate SBOM
+        run: mvn -B -ntp -DskipTests package
+
+      # 退出码契约：0=无达标发现、1=有（即本步骤失败）、2=IO 错、3=网络/服务错。
+      # ⚠️ 网络失败**不会**退化成「0 漏洞」报告——这是脚本刻意 fail-closed 的地方。
+      - name: Scan dependencies against OSV
+        run: python3 tools/security/scan_dependencies.py --sbom target/bom.json --md-out target/security/dependency-scan.md
+
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-scan
+          path: target/security/dependency-scan.md
+          if-no-files-found: ignore
+
   docker-build:
     name: Docker build（镜像可构建 + 非 root）
     runs-on: ubuntu-latest
