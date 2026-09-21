@@ -83,6 +83,8 @@ tgg:
     # 连续登录失败达该次数即锁定账号 / 锁定时长（分钟）。
     login-max-failed-attempts: ${TGG_ADMIN_LOGIN_MAX_FAILED:5}
     login-lock-minutes: ${TGG_ADMIN_LOGIN_LOCK_MINUTES:15}
+    # 每来源 IP 每分钟允许的登录尝试次数（防跨账号爆破）。
+    login-max-per-minute: ${TGG_ADMIN_LOGIN_MAX_PER_MINUTE:20}
     # Telegram 登录（Login Widget）：bot-username 供前端 data-telegram-login；验签用 tgg.webhook.bot-token。
     tg-login:
       bot-username: ${TGG_ADMIN_TG_LOGIN_BOT_USERNAME:}

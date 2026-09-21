@@ -47,6 +47,9 @@ public class AdminProperties {
     /** 锁定时长（分钟）。 */
     private int loginLockMinutes = 15;
 
+    /** 每来源 IP 每分钟允许的登录尝试次数（防跨账号爆破）。 */
+    private int loginMaxPerMinute = 20;
+
     public String getApiToken() {
         return apiToken;
     }
@@ -121,6 +124,14 @@ public class AdminProperties {
 
     public int getLoginLockMinutes() {
         return loginLockMinutes;
+    }
+
+    public int getLoginMaxPerMinute() {
+        return loginMaxPerMinute;
+    }
+
+    public void setLoginMaxPerMinute(int loginMaxPerMinute) {
+        this.loginMaxPerMinute = loginMaxPerMinute;
     }
 
     public void setLoginLockMinutes(int loginLockMinutes) {

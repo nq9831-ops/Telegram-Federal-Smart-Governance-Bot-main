@@ -39,12 +39,15 @@ public class AdminAuthController {
     private final AdminAuthService auth;
     private final AdminProperties properties;
     private final TelegramLoginVerifier telegramVerifier;
+    private final AdminLoginRateLimiter rateLimiter;
 
     public AdminAuthController(AdminAuthService auth, AdminProperties properties,
-                               org.springframework.beans.factory.ObjectProvider<TelegramLoginVerifier> verifier) {
+                               org.springframework.beans.factory.ObjectProvider<TelegramLoginVerifier> verifier,
+                               org.springframework.beans.factory.ObjectProvider<AdminLoginRateLimiter> rateLimiter) {
         this.auth = auth;
         this.properties = properties;
         this.telegramVerifier = verifier.getIfAvailable();
+        this.rateLimiter = rateLimiter.getIfAvailable();
     }
 
     /**
@@ -72,7 +75,11 @@ public class AdminAuthController {
 
     /** 账号 + 密码登录。 */
     @PostMapping(path = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> login(@RequestBody LoginRequest body) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest body, HttpServletRequest request) {
+        // 按来源 IP 限流（补账号锁定之外的「跨账号爆破」这一维）
+        if (rateLimiter != null && !rateLimiter.tryAcquire(clientIp(request))) {
+            return ResponseEntity.status(429).body(Map.of("error", "登录尝试过于频繁，请稍后再试"));
+        }
         Optional<AdminAuthService.LoginResult> result = auth.login(
                 body.username(), body.password(), Duration.ofHours(properties.getSessionTtlHours()));
         if (result.isEmpty()) {
@@ -109,6 +116,15 @@ public class AdminAuthController {
 
     /** 登录请求体。 */
     public record LoginRequest(String username, String password) {
+    }
+
+    /** 取来源 IP（优先反代传递的 X-Forwarded-For 首段）。 */
+    private static String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     /** 登录成功响应：明文令牌（仅此一次）。 */

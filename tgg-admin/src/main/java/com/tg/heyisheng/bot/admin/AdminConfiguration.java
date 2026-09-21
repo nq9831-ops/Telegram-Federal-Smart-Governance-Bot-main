@@ -110,6 +110,14 @@ public class AdminConfiguration {
                 botToken, Duration.ofHours(properties.getTgLoginMaxAgeHours()));
     }
 
+    /** 登录限流器（按来源 IP 的滑动窗口）。 */
+    @Bean
+    public com.tg.heyisheng.bot.admin.identity.AdminLoginRateLimiter adminLoginRateLimiter(
+            AdminProperties properties) {
+        return new com.tg.heyisheng.bot.admin.identity.AdminLoginRateLimiter(
+                properties.getLoginMaxPerMinute(), Duration.ofMinutes(1), Clock.systemUTC());
+    }
+
     /** 账号管理服务（仅超管可经端点调用，见 {@code AccountAdminController}）。 */
     @Bean
     public com.tg.heyisheng.bot.admin.identity.AccountAdminService accountAdminService(
