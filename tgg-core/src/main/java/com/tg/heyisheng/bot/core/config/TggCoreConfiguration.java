@@ -355,7 +355,8 @@ public class TggCoreConfiguration {
                                              ObjectProvider<CallbackRouter> callbackRouter,
                                              ObjectProvider<JoinVerificationService> joinVerification,
                                              ObjectProvider<CreditEventSink> creditEventSink,
-                                             ObjectProvider<com.tg.heyisheng.bot.core.membership.MemberJoinRecorder> memberJoinRecorder) {
+                                             ObjectProvider<com.tg.heyisheng.bot.core.membership.MemberJoinRecorder> memberJoinRecorder,
+                                             ObjectProvider<com.tg.heyisheng.bot.core.audit.AuditService> auditService) {
         // 用 Builder 而非位置构造器：可选项已多到难以按位置阅读（见 Builder 的 javadoc）。
         // 回调路由与入群验证属模块四，受 tgg.admission.enabled 门控——未启用时取不到，传 null 即关闭该分支。
         return UpdateDispatcher.builder()
@@ -373,6 +374,9 @@ public class TggCoreConfiguration {
                 .joinVerificationService(joinVerification.getIfAvailable())
                 .creditEventSink(creditEventSink.getIfAvailable())
                 .memberJoinRecorder(memberJoinRecorder.getIfAvailable())
+                // 审核处置的审计通道（模块十 §11.2）：审核走消息路径、不经 AuditAspect，
+                // 故必须在此显式接线，否则「谁被处置」在审计里没有记录。
+                .auditService(auditService.getIfAvailable())
                 .taughtRuleDetector(taughtRuleDetector)
                 .sensitiveTopicGuard(sensitiveTopicGuard.getIfAvailable())
                 .build();

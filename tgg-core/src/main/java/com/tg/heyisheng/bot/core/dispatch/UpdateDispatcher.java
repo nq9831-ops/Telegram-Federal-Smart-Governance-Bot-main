@@ -3,6 +3,8 @@ package com.tg.heyisheng.bot.core.dispatch;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.admission.JoinVerificationService;
+import com.tg.heyisheng.bot.core.audit.AuditEntry;
+import com.tg.heyisheng.bot.core.audit.AuditService;
 import com.tg.heyisheng.bot.core.callback.CallbackRouter;
 import com.tg.heyisheng.bot.core.credit.CreditEvent;
 import com.tg.heyisheng.bot.core.credit.CreditEventSink;
@@ -75,6 +77,15 @@ public class UpdateDispatcher {
     private final CreditEventSink creditEventSink;
     /** 成员入群时间采集（模块九 §10.3「入群时长」门槛的数据源）；为 null 表示该能力未装配。 */
     private final MemberJoinRecorder memberJoinRecorder;
+    /**
+     * 审计通道；为 {@code null} 表示未装配（与 creditEventSink 同款：未装配即零影响）。
+     *
+     * <p><b>为什么审核路径必须自己写审计</b>：审计切面（{@code AuditAspect}）只切
+     * {@code CommandHandler#handle}——审核走的是**消息路径**，既不经切面也不在 tgg-admin，
+     * 所以此前「谁被处置、何时、命中了什么」在审计里是一片空白。而「可解释、可追踪」
+     * 正是本项目八条核心原则的头两条，后台案件时间线也依赖它。
+     */
+    private final AuditService auditService;
 
     /**
      * <b>唯一的公开装配入口</b>。
@@ -105,6 +116,7 @@ public class UpdateDispatcher {
         private JoinVerificationService joinVerificationService;
         private CreditEventSink creditEventSink = CreditEventSink.noop();
         private MemberJoinRecorder memberJoinRecorder;
+        private AuditService auditService;
 
         public Builder middlewareChain(MiddlewareChain value) {
             this.middlewareChain = value;
@@ -195,6 +207,12 @@ public class UpdateDispatcher {
             return this;
         }
 
+        /** 审计通道；不设置即不写审核审计（既有装配与单测行为不变）。 */
+        public Builder auditService(AuditService value) {
+            this.auditService = value;
+            return this;
+        }
+
         public UpdateDispatcher build() {
             return new UpdateDispatcher(this);
         }
@@ -217,6 +235,7 @@ public class UpdateDispatcher {
         this.joinVerificationService = b.joinVerificationService;
         this.creditEventSink = b.creditEventSink == null ? CreditEventSink.noop() : b.creditEventSink;
         this.memberJoinRecorder = b.memberJoinRecorder;
+        this.auditService = b.auditService;
     }
 
 
@@ -260,6 +279,8 @@ public class UpdateDispatcher {
             // 否则一条既违规又带命令的消息会先被执行、再被删除——本末倒置。
             Optional<BotApiMethod<?>> enforced = enforcer.enforce(ctx);
             if (enforced.isPresent()) {
+                // 审计**在动作真的发生之后**写——记「实际执行了什么」，而不是「本来打算做什么」。
+                recordModerationAudit(ctx, enforced.get());
                 return enforced;
             }
 
@@ -399,6 +420,38 @@ public class UpdateDispatcher {
 
     private static ModerationVerdict sensitiveVerdict(SensitiveTopicGuard.Outcome outcome) {
         return outcome == null ? null : outcome.verdict();
+    }
+
+    /** 审核处置的审计动作标识（与 tgg-admin 的 {@code admin.config.update} 同风格，可读优先）。 */
+    static final String MODERATION_AUDIT_ACTION = "moderation.enforce";
+
+    /**
+     * 审核处置的审计留痕（模块十 §11.2）。
+     *
+     * <p><b>为什么不走审计切面</b>：{@code AuditAspect} 只切 {@code CommandHandler#handle}，
+     * 而审核走的是**消息路径**（message → moderateInto → enforcer），既不经切面、也不在 tgg-admin。
+     * 不写这一条，「谁被处置、何时、因为什么」在审计里就是空白——后台的案件时间线与用户的处罚史
+     * 都无从谈起（原文的「可解释、可追踪」两条原则也就落不了地）。
+     *
+     * <p><b>只记结论</b>：动作类型 + 风险等级 + 是否红线。<b>不记正文、不记命中片段</b>；
+     * 规则 id 留在 {@code moderation_review_queue} 里，审计不重复也不至于撑长 detail。
+     *
+     * <p><b>actor 取被处置者</b>：本表的 {@code idx_audit_actor_time} 与
+     * {@code ExportMyDataCommandHandler} 都按 {@code actor_id} 查——被处置记录属于当事人有权
+     * 查阅与导出的范围，填 {@code null} 会让这两条路径都查不到（与命令路径的 actor=发起者同构）。
+     */
+    private void recordModerationAudit(UpdateContext ctx, BotApiMethod<?> action) {
+        if (auditService == null) {
+            return;
+        }
+        Long caseId = ctx.find(ModerationCaseRef.class).map(ModerationCaseRef::caseId).orElse(null);
+        String actionName = action.getClass().getSimpleName();
+        String detail = ctx.find(ModerationVerdict.class)
+                .map(v -> "action=" + actionName + " level=" + v.riskLevel()
+                        + " hardLine=" + v.hardLine())
+                .orElse("action=" + actionName);
+        auditService.record(ctx.userId(), MODERATION_AUDIT_ACTION, ctx.chatId(), caseId,
+                AuditEntry.Outcome.SUCCESS, detail);
     }
 
     /**

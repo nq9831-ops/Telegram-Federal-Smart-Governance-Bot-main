@@ -255,6 +255,44 @@ class ModerationIntegrationTest {
      * 真实 Telegram 消息必带 messageId，故此处更贴近现实。
      */
     /** 与 {@link #messageUpdate} 相同，但带 messageId——处置（删除）需要它定位目标。 */
+    /**
+     * 审核处置必须落审计，且<b>带上案件号</b>。
+     *
+     * <p>钉住两件事：① 这条路径确实写审计（此前完全不写——审计切面只切命令处理器，
+     * 审核走的是消息路径）；② 案件号被传下去（后台案件时间线正是按它聚合的）。
+     */
+    @Test
+    void enforcementIsAuditedWithTheCaseId() throws Exception {
+        com.tg.heyisheng.bot.core.audit.AuditService audit =
+                org.mockito.Mockito.mock(com.tg.heyisheng.bot.core.audit.AuditService.class);
+        UpdateDispatcher dispatcher = UpdateDispatcher.builder()
+                .middlewareChain(new MiddlewareChain(java.util.List.of((ctx, chain) -> true)))
+                .commandDispatcher(noopDispatcher)
+                .scrubber(new MessageScrubber())
+                .moderationLayer(layer)
+                .idHasher(com.tg.heyisheng.bot.common.util.IdHasher.fromEnvironment())
+                .actionSender(ModerationActionSender.noop())
+                // 入队替身返回案件号 7——模拟真实队列回填自增主键
+                .reviewRecorder((ctx, verdict) -> java.util.Optional.of(7L))
+                .auditService(audit)
+                .build();
+
+        dispatcher.dispatch(messageUpdateWithId("send me your private key", 77));
+
+        org.mockito.ArgumentCaptor<Long> caseId =
+                org.mockito.ArgumentCaptor.forClass(Long.class);
+        org.mockito.Mockito.verify(audit).record(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(UpdateDispatcher.MODERATION_AUDIT_ACTION),
+                org.mockito.ArgumentMatchers.any(),
+                caseId.capture(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+        org.assertj.core.api.Assertions.assertThat(caseId.getValue())
+                .as("审计要带案件号，后台才能按案件聚合出案件时间线")
+                .isEqualTo(7L);
+    }
+
     private static Update messageUpdateWithId(String text, int messageId) {
         Message message = Message.builder()
                 .messageId(messageId)

@@ -37,10 +37,10 @@ public class AuditService {
     }
 
     /**
-     * 记一条审计。
+     * 记一条审计（无案件号）。
      *
-     * @param actorId  操作者 userId；系统动作为 {@code null}
-     * @param action   动作标识（如命令处理器类名）
+     * @param actorId  与本次动作相关的用户：命令路径为发起者，审核路径为<b>被处置者</b>；纯系统动作为 {@code null}
+     * @param action   动作标识（如命令处理器类名、{@code moderation.enforce}）
      * @param target   作用对象（如 chatId / 被判主体 id）；无则 {@code null}
      * @param outcome  结果
      * @param detail   补充说明（<b>不含消息正文</b>）；可为 {@code null}
@@ -48,8 +48,23 @@ public class AuditService {
     @Transactional
     public void record(Long actorId, String action, Long target,
                        AuditEntry.Outcome outcome, String detail) {
+        record(actorId, action, target, null, outcome, detail);
+    }
+
+    /**
+     * 记一条带<b>案件号</b>的审计（审核路径）——后台据此按案件聚合出完整时间线。
+     *
+     * <p>案件号来自 {@code moderation_review_queue.id}（即告知里的「案件 #N」）。
+     * 与审核无关的动作传 {@code null}，不要用 0 冒充——那会让「无案件」与「案件 0」混淆。
+     *
+     * @param caseId 关联案件号；无则 {@code null}
+     */
+    @Transactional
+    public void record(Long actorId, String action, Long target, Long caseId,
+                       AuditEntry.Outcome outcome, String detail) {
         try {
-            repository.save(new AuditEntry(actorId, action, target, outcome, detail, clock.instant()));
+            repository.save(new AuditEntry(actorId, action, target, caseId, outcome, detail,
+                    clock.instant()));
         } catch (RuntimeException ex) {
             // 审计降级：不中断业务，但必须留下可追查的痕迹（此处无法落库，只能进日志）
             log.error("审计写入失败，已降级为日志（业务未中断）：action={} actor={}",
