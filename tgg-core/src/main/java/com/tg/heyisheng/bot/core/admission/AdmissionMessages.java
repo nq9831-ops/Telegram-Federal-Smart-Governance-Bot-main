@@ -19,16 +19,16 @@ public final class AdmissionMessages {
     public static final String PASSED = "验证通过，欢迎加入。";
 
     /** 点了别人的按钮。 */
-    public static final String NOT_YOURS = "这不是你的验证按钮。";
+    public static final String NOT_YOURS = "这不是你的验证按钮。点你自己那条验证消息里的按钮就行。";
 
     /** 验证已过期 / 已完成 / data 非法。 */
-    public static final String EXPIRED = "验证已过期或已完成。";
+    public static final String EXPIRED = "这个验证已经失效了（过期或已完成）。请联系群管理员。";
 
     // ────────────── 入群验证消息 ──────────────
 
     /** 验证提示（含一个 {@code %s}：时限）。 */
-    public static final String PROMPT_TEXT = "欢迎加入。请点击下方按钮完成验证，"
-            + "否则将在 %s 内被移出本群。";
+    public static final String PROMPT_TEXT = "欢迎加入。点一下下方按钮就完成验证；"
+            + "%s 内没点的话，会被移出本群。";
 
     /** 验证按钮文案。 */
     public static final String BUTTON_TEXT = "点击验证";

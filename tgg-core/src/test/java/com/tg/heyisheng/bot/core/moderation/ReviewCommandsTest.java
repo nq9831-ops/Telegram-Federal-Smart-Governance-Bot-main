@@ -76,7 +76,7 @@ class ReviewCommandsTest {
 
         String reply = text(new ReviewApproveCommandHandler(decisions, guard).handle(ctx(REVIEWER, "7")));
 
-        assertThat(reply).contains("终态").contains("REJECTED");
+        assertThat(reply).contains("已经有最终结论").contains("REJECTED");
     }
 
     @Test
@@ -85,7 +85,7 @@ class ReviewCommandsTest {
                 .thenReturn(outcome(ModerationReviewDecisionService.Outcome.Result.NOT_FOUND, null));
 
         assertThat(text(new ReviewApproveCommandHandler(decisions, guard).handle(ctx(REVIEWER, "7"))))
-                .contains("未找到");
+                .contains("没找到复核编号");
     }
 
     /**

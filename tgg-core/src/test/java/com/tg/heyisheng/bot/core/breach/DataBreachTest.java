@@ -119,7 +119,7 @@ class DataBreachTest {
                 .thenReturn(List.of(incident(7L, NOW.plus(Duration.ofHours(72)))));
         assertThat(text(handler.handle(ctx(REVIEWER, null))))
                 .as("未持久化的实体没有 id（本项目已记录的坑），故断言范围文本而非编号")
-                .contains("尚未通报的数据泄露事件")
+                .contains("还没通报的数据泄露事件")
                 .contains("审计表被未授权导出");
     }
 

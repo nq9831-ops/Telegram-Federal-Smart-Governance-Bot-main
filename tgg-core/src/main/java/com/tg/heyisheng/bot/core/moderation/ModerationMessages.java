@@ -26,20 +26,20 @@ public final class ModerationMessages {
 
     /** 标签属已知但不可豁免的话题。 */
     public static final String GROUPTAG_NOT_EXEMPTABLE_KNOWN =
-            "该话题属不可豁免内容（恐怖活动 / 极端主义 / 煽动战争）。";
+            "这个话题不能豁免（恐怖活动 / 极端主义 / 煽动战争）。";
 
     /** 标签不是已定义话题。 */
     public static final String GROUPTAG_NOT_EXEMPTABLE_UNKNOWN =
-            "该标签不是已定义话题，不会产生任何豁免。";
+            "这个标签不是已定义话题，不会带来任何豁免。";
 
     /** 已声明该标签。 */
-    public static final String GROUPTAG_ALREADY_DECLARED = "本群已声明该标签（无需重复）。";
+    public static final String GROUPTAG_ALREADY_DECLARED = "本群已经声明过这个标签，不用再来一次。";
 
     /** 移除时本群没有该标签。 */
-    public static final String GROUPTAG_REMOVE_MISSING = "本群没有该标签。";
+    public static final String GROUPTAG_REMOVE_MISSING = "本群没有这个标签。";
 
     /** 本群未声明任何标签。 */
-    public static final String GROUPTAG_LIST_EMPTY = "本群未声明任何话题标签。";
+    public static final String GROUPTAG_LIST_EMPTY = "本群还没声明任何话题标签。";
 
     /** 标签列表标题前缀（后接条数）。 */
     public static final String GROUPTAG_LIST_HEAD_PREFIX = "本群话题标签（";
@@ -58,7 +58,7 @@ public final class ModerationMessages {
 
     /** 标签声明成功的回执。 */
     public static String groupTagDeclared(String tag) {
-        return "已声明本群话题标签：" + tag + "（该话题的敏感分级对本群豁免；红线不受影响）。";
+        return "已声明本群话题标签：" + tag + "（这个话题的敏感分级对本群豁免；红线不受影响）。";
     }
 
     /** 标签移除成功的回执。 */
@@ -89,7 +89,7 @@ public final class ModerationMessages {
 
     /** 编号不存在。 */
     public static String reviewNotFound(long id) {
-        return "未找到复核编号 " + id + "。";
+        return "没找到复核编号 " + id + "。用 /review_list 看当前待复核的编号。";
     }
 
     /** 不能裁决自己的案件。 */
@@ -99,7 +99,7 @@ public final class ModerationMessages {
 
     /** 已是终态结论。 */
     public static String reviewAlreadyDecided(long id, ReviewStatus status) {
-        return "复核 #" + id + " 已是终态结论（" + status + "），本次未改动。";
+        return "复核 #" + id + " 已经有最终结论了（" + status + "），这次没有改动。";
     }
 
     /** 裁决成功。{@code unfrozeMention} 为真时补一句「已触发解封」。 */
@@ -181,7 +181,7 @@ public final class ModerationMessages {
     /** 红线复核 SLA 超时的催办（发给复核人，紧急级）。{@code id} 用装箱类型，保持原拼接对 null 的容忍。 */
     public static String redlineSlaOverdue(long slaHours, Long id, String ruleIds) {
         return "⚠️ 硬红线复核超时（SLA " + slaHours + " 小时）：复核 #"
-                + id + " 仍未裁决（规则 " + ruleIds + "）。"
-                + "请在 /review_list 中裁决：/review_approve 维持 或 /review_reject 推翻并解封。";
+                + id + " 还没裁决（规则 " + ruleIds + "）。"
+                + "用 /review_list 看一眼，然后 /review_approve 维持，或者 /review_reject 推翻并解封。";
     }
 }

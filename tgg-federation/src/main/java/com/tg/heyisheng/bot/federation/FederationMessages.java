@@ -22,7 +22,7 @@ public final class FederationMessages {
 
     /** 申诉提交成功。前缀跨域共享（见 {@code DispatchMessages.APPEAL_SUBMITTED_PREFIX}）。 */
     public static String appealSubmitted(Object id) {
-        return DispatchMessages.APPEAL_SUBMITTED_PREFIX + id + "），将由联邦管理员审核。";
+        return DispatchMessages.APPEAL_SUBMITTED_PREFIX + id + "），会由联邦管理员审核。";
     }
 
     // ────────────── /approve · /reject ──────────────
@@ -35,23 +35,23 @@ public final class FederationMessages {
 
     /** 通过回执。 */
     public static String approved(Object id) {
-        return "申诉 #" + id + " 已通过。";
+        return "申诉 #" + id + " 通过了。";
     }
 
     /** 驳回回执。 */
     public static String rejected(Object id) {
-        return "申诉 #" + id + " 已驳回。";
+        return "申诉 #" + id + " 驳回了。";
     }
 
     /** 编号不存在。 */
     public static String notFound(Object id) {
-        return "未找到申诉 #" + id + "。";
+        return "没找到申诉 #" + id + "。用 /pending 看当前待审的申诉编号。";
     }
 
     // ────────────── /pending ──────────────
 
     /** 没有待审申诉。 */
-    public static final String PENDING_EMPTY = "当前没有待审申诉。";
+    public static final String PENDING_EMPTY = "当前没有待审的申诉。";
 
     /** 待审列表标题前缀（后接条数）。 */
     public static final String PENDING_HEAD_PREFIX = "待审申诉（共 ";

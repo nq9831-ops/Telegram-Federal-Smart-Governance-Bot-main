@@ -22,7 +22,7 @@ public final class AdminMessages {
     public static String overdueNotice(Object id, Object riskLevel, long ageHours, boolean escalated) {
         return (escalated ? OVERDUE_TITLE_ESCALATED : OVERDUE_TITLE_REMIND)
                 + "：待办 #" + id
-                + "（等级 " + riskLevel + "，已积压 " + ageHours + " 小时）"
-                + " 仍未处理，请登录治理后台处理。";
+                + "（等级 " + riskLevel + "，已经积压 " + ageHours + " 小时）"
+                + "还没处理，去治理后台看一眼吧。";
     }
 }

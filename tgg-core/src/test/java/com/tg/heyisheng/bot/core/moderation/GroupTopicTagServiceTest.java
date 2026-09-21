@@ -120,7 +120,7 @@ class GroupTopicTagServiceTest {
 
         String reply = text(new GroupTagCommandHandler(service).handle(ctx("add gambling")));
 
-        assertThat(reply).contains("不会产生任何豁免");
+        assertThat(reply).contains("不会带来任何豁免");
         assertThat(reply).as("应告知可豁免话题，便于群管自行发现合法标签名").contains("politics");
     }
 
