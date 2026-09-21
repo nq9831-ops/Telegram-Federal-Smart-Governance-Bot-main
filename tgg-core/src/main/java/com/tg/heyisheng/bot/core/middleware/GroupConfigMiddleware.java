@@ -2,7 +2,6 @@ package com.tg.heyisheng.bot.core.middleware;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
-import com.tg.heyisheng.bot.core.groupconfig.GroupConfigView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -5,7 +5,6 @@ import com.tg.heyisheng.bot.core.callback.CallbackHandler;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
-import org.telegram.telegrambots.meta.api.objects.User;
 
 import java.util.Optional;
 

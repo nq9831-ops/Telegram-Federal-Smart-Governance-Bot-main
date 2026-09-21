@@ -1,6 +1,5 @@
 package com.tg.heyisheng.bot;
 
-import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigService;
 import org.junit.jupiter.api.BeforeEach;
