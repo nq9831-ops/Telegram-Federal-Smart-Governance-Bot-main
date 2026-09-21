@@ -51,7 +51,8 @@ jobs:
         #   character_set_server = utf8mb4 ｜ collation_server = utf8mb4_0900_ai_ci
         #   time_zone = SYSTEM ｜ system_time_zone = UTC ｜ NOW() == UTC_TIMESTAMP()
         #   · charset：默认已是 utf8mb4；且本项目**每张表**都显式声明 charset/collate
-        #     （20 个 CREATE TABLE ↔ 20 个 COLLATE，逐文件核对无遗漏），服务端默认值影响不到表；
+        #     （每张 CREATE TABLE 都显式声明 COLLATE，逐文件核对无遗漏。⚠️ 数字随迁移增长，
+        #      故此处刻意不写死——本项目已吃过「手写计数静默失真」的教训），服务端默认值影响不到表；
         #   · collation：容器默认是 utf8mb4_0900_ai_ci，与文档惯写的 utf8mb4_unicode_ci 不同，
         #     但同样因表级显式声明而不生效（包括依赖大小写不敏感唯一性的 banned_words）；
         #   · time_zone：SYSTEM 而 system_time_zone=UTC，与原先想设的 +00:00 等价。
