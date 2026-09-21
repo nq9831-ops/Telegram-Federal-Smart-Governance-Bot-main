@@ -28,8 +28,9 @@ import java.util.Map;
  * Docker {@code restart: unless-stopped} / systemd {@code Restart=always} / k8s Deployment（容器退出即重建）。
  * <b>裸 {@code java -jar} 下点了按钮＝停服不起</b>，故默认关闭（{@code tgg.admin.restart-enabled=false}）。
  *
- * <p>权限：<b>超管天然全权</b>，其余走 {@link ConfigAdminGuard}。状态码：无权限 → 403；未启用 → 409；
- * 放行 → **202 Accepted**。
+ * <p>权限：<b>仅超管可经本入口直接重启</b>（非超管一律 403）——重启是不可逆对外动作，
+ * 非超管须走双人复核（{@code POST /admin/dangerous-actions} 发起 → 超管批准）。
+ * 状态码：无权限 → 403；未启用 → 409；放行 → **202 Accepted**。
  */
 @RestController
 @Conditional(AdminApiTokenCondition.class)

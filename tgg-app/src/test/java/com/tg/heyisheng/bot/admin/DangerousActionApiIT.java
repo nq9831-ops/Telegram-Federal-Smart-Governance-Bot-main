@@ -184,14 +184,22 @@ class DangerousActionApiIT {
     }
 
     @Test
-    void approvedRequestWithoutRestartEnabledDoesNotExecute() throws Exception {
+    void approvalWithoutRestartEnabledIsRejectedAndLeavesRequestPending() throws Exception {
         long requestId = operatorRequestsRestart(login(OPERATOR));
 
-        // 未开启 restart-enabled：与直接入口同一门控，批准也不执行
+        // 未开启 restart-enabled：批准被拒（409），且**不得**把请求推成终态——
+        // 否则会出现「状态已变、审计记成功，动作却没发生」的假成功，此后 409 再也批不了。
+        mockMvc.perform(post("/admin/dangerous-actions/" + requestId + "/approve")
+                        .header("Authorization", "Bearer " + login(SUPER)))
+                .andExpect(status().isConflict());
+
+        assertThat(RESTART_INVOKED).as("部署方关掉重启开关即不接受经 Web 重启").isFalse();
+
+        // 开关开启后，原请求仍是 PENDING，可再批
+        configService.set("tgg.admin.restart-enabled", "true", 0L);
         mockMvc.perform(post("/admin/dangerous-actions/" + requestId + "/approve")
                         .header("Authorization", "Bearer " + login(SUPER)))
                 .andExpect(status().isOk());
-
-        assertThat(RESTART_INVOKED).as("部署方关掉重启开关即不接受经 Web 重启").isFalse();
+        assertThat(RESTART_INVOKED).as("开关开启后同一请求仍可批准").isTrue();
     }
 }

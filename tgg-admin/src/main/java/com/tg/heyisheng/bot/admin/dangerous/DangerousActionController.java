@@ -93,6 +93,9 @@ public class DangerousActionController {
                     .body(Map.of("error", "该请求已裁决（" + outcome.status() + "）"));
             case SAME_SUBJECT_FORBIDDEN -> ResponseEntity.status(403)
                     .body(Map.of("error", "发起人不得自行批准——该动作需另一主体复核"));
+            case DISABLED -> ResponseEntity.status(409)
+                    .body(Map.of("error", "重启未启用：请先设 tgg.admin.restart-enabled=true"
+                            + "（请求仍为待批准，开启后可再批）"));
             case APPROVED -> ResponseEntity.ok(Map.of("result", "APPROVED"));
             default -> ResponseEntity.badRequest().body(Map.of("error", outcome.result().name()));
         };
@@ -138,12 +141,18 @@ public class DangerousActionController {
     }
 
     private static Map<String, Object> toView(DangerousActionRequest r) {
+        // 主体**必须带类型**：账号 id 与 TG userId 共用 BIGINT 命名空间，只给 id 无法区分是谁
+        // （与 audit_log.actor_type 的同一条理由）。
         Map<String, Object> view = new java.util.LinkedHashMap<>();
         view.put("id", r.getId());
         view.put("actionType", r.getActionType().name());
+        view.put("requestedByType", r.getRequestedByType() == null ? null : r.getRequestedByType().name());
         view.put("requestedById", r.getRequestedById());
         view.put("status", r.getStatus().name());
+        view.put("decidedByType", r.getDecidedByType() == null ? null : r.getDecidedByType().name());
+        view.put("decidedById", r.getDecidedById());
         view.put("createdAt", String.valueOf(r.getCreatedAt()));
+        view.put("decidedAt", r.getDecidedAt() == null ? null : String.valueOf(r.getDecidedAt()));
         return view;
     }
 

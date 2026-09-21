@@ -37,7 +37,12 @@ public class DangerousActionService {
         /** 已批准并执行。 */
         APPROVED,
         /** 已拒绝。 */
-        REJECTED
+        REJECTED,
+        /**
+         * <b>未执行</b>：动作门控（{@code restart-enabled}）未开启。
+         * 请求<b>保持 PENDING</b>——部署方开启开关后仍可批准，与直接入口的 409 语义一致。
+         */
+        DISABLED
     }
 
     public record Outcome(Result result, Long requestId, DangerousActionRequest.Status status) {
@@ -78,7 +83,17 @@ public class DangerousActionService {
     /**
      * 批准并执行。
      *
-     * <p>调用方（控制器）须已校验批准人是超管；本方法校验<b>发起人 ≠ 批准人</b>与终态幂等。
+     * <p>调用方（控制器）须已校验批准人是超管；本方法校验<b>发起人 ≠ 批准人</b>、门控、以及终态幂等。
+     *
+     * <p><b>两条顺序性约束（都不是可选的）</b>：
+     * <ol>
+     *   <li><b>门控先于状态变更</b>：未启用 {@code restart-enabled} 时直接拒绝、<b>不改状态</b>。
+     *       否则会出现「审计记 SUCCESS、状态已 APPROVED，动作却没发生」的<b>假成功</b>，
+     *       且此后一律 409、无法补救。</li>
+     *   <li><b>抢占式裁决</b>：用条件更新（{@code WHERE status='PENDING'}）而非「读-改-写」，
+     *       并发双击时数据库保证只有一个事务能改成 APPROVED —— 「批准是唯一触发路径」蕴含
+     *       <b>至多执行一次</b>。</li>
+     * </ol>
      */
     @Transactional
     public Outcome approve(Long requestId, Long accountId) {
@@ -96,12 +111,22 @@ public class DangerousActionService {
                     AuditEntry.Outcome.FAILURE, "self-approve-forbidden");
             return new Outcome(Result.SAME_SUBJECT_FORBIDDEN, requestId, request.getStatus());
         }
-        request.approve(ActorType.ADMIN_ACCOUNT, accountId, null, clock.instant());
-        requests.save(request);
+        // 门控前置：未启用即拒绝，**不动状态**（可稍后启用再批）
+        if (!config.getBoolean(RESTART_ENABLED_KEY, false)) {
+            audit.record(ActorType.ADMIN_ACCOUNT, accountId, AUDIT_APPROVE, requestId,
+                    AuditEntry.Outcome.FAILURE, "restart-disabled");
+            return new Outcome(Result.DISABLED, requestId, request.getStatus());
+        }
+        // 抢占：只有抢到 PENDING→APPROVED 的那个事务才执行动作
+        int claimed = requests.approveIfPending(requestId, ActorType.ADMIN_ACCOUNT.name(), accountId,
+                null, clock.instant());
+        if (claimed == 0) {
+            return new Outcome(Result.ALREADY_DECIDED, requestId, DangerousActionRequest.Status.APPROVED);
+        }
         audit.record(ActorType.ADMIN_ACCOUNT, accountId, AUDIT_APPROVE, requestId,
                 AuditEntry.Outcome.SUCCESS, "approved " + request.getActionType());
         execute(request);
-        return new Outcome(Result.APPROVED, requestId, request.getStatus());
+        return new Outcome(Result.APPROVED, requestId, DangerousActionRequest.Status.APPROVED);
     }
 
     /** 拒绝（不执行）。 */
@@ -111,15 +136,17 @@ public class DangerousActionService {
         if (found.isEmpty()) {
             return new Outcome(Result.NOT_FOUND, requestId, null);
         }
-        DangerousActionRequest request = found.get();
-        if (!request.isPending()) {
-            return new Outcome(Result.ALREADY_DECIDED, requestId, request.getStatus());
+        if (!found.get().isPending()) {
+            return new Outcome(Result.ALREADY_DECIDED, requestId, found.get().getStatus());
         }
-        request.reject(ActorType.ADMIN_ACCOUNT, accountId, note, clock.instant());
-        requests.save(request);
+        int claimed = requests.rejectIfPending(requestId, ActorType.ADMIN_ACCOUNT.name(), accountId,
+                note, clock.instant());
+        if (claimed == 0) {
+            return new Outcome(Result.ALREADY_DECIDED, requestId, DangerousActionRequest.Status.REJECTED);
+        }
         audit.record(ActorType.ADMIN_ACCOUNT, accountId, AUDIT_REJECT, requestId,
                 AuditEntry.Outcome.SUCCESS, "rejected");
-        return new Outcome(Result.REJECTED, requestId, request.getStatus());
+        return new Outcome(Result.REJECTED, requestId, DangerousActionRequest.Status.REJECTED);
     }
 
     /** 待批准队列。 */
@@ -131,14 +158,15 @@ public class DangerousActionService {
         return requests.findById(id);
     }
 
-    /** 真正执行——当前只有重启一种，且与直接入口共用 {@code restart-enabled} 门控。 */
+    /**
+     * 真正执行——当前只有重启一种。
+     *
+     * <p><b>门控不在这里</b>：它已在 {@link #approve} 中<b>前置</b>校验。放在这里会导致
+     * 「状态已改、审计已记 SUCCESS，函数却静默 return」的假成功。
+     */
     private void execute(DangerousActionRequest request) {
-        if (request.getActionType() != DangerousActionRequest.ActionType.RESTART || restartAction == null) {
-            return;
+        if (request.getActionType() == DangerousActionRequest.ActionType.RESTART && restartAction != null) {
+            restartAction.restart();
         }
-        if (!config.getBoolean(RESTART_ENABLED_KEY, false)) {
-            return;
-        }
-        restartAction.restart();
     }
 }
