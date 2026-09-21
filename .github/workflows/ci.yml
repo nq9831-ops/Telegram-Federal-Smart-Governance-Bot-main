@@ -242,16 +242,28 @@ jobs:
         env:
           OUT_DIR: ${{ runner.temp }}/tgg-shot
         run: |
-          # --strictPort：端口被占时**直接失败**，而不是漂移到别的端口——否则探针硬编码的 4173
-          # 会连不上，报错指向「连不上」而非根因「端口漂移」。
-          pnpm preview --host 127.0.0.1 --strictPort &
-          ready=""
+          # 先起**后端替身**（tools/stub-backend.mjs）：本 job 没有后端，而 vite 把 /admin 代理到
+          # 127.0.0.1:8080 ⇒ 代理 ECONNREFUSED ⇒ 浏览器拿 502 ⇒ App.vue 挂载时调 login-config 失败
+          # ⇒ 控制台一条 `Failed to load resource ... 502` ⇒ 探针的 `errors.length > 0` 判失败。
+          # 那是**环境性假阴性**（三个主题的渲染判据其实全过）。修法是补上缺的环境，而不是放宽
+          # 探针判据——后者会连真实的资源加载失败一并放过，把门禁变成装饰。
+          node tools/stub-backend.mjs &
+          # --strictPort 由 package.json 的 preview 脚本提供（端口被占时**直接失败**而非漂移到别的
+          # 端口，否则探针硬编码的 4173 会连不上、报错指向「连不上」而非根因「端口漂移」）。
+          pnpm preview --host 127.0.0.1 &
+          stub_ready=""; preview_ready=""
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then ready=1; break; fi
+            if [ -z "$stub_ready" ] && curl -fsS http://127.0.0.1:8080/admin/auth/login-config >/dev/null; then stub_ready=1; fi
+            if [ -z "$preview_ready" ] && curl -fsS http://127.0.0.1:4173/ >/dev/null; then preview_ready=1; fi
+            if [ -n "$stub_ready" ] && [ -n "$preview_ready" ]; then break; fi
             sleep 1
           done
           # 就绪探测超时必须**显式失败**：否则探针会去连一个不存在的服务，报错不指向真正的原因。
-          if [ -z "$ready" ]; then
+          if [ -z "$stub_ready" ]; then
+            echo "::error::后端替身 30s 内未在 http://127.0.0.1:8080/admin/auth/login-config 就绪"
+            exit 1
+          fi
+          if [ -z "$preview_ready" ]; then
             echo "::error::preview 服务 30s 内未在 http://127.0.0.1:4173/ 就绪"
             exit 1
           fi
