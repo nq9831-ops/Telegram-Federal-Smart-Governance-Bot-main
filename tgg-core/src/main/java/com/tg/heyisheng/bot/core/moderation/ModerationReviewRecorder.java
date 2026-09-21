@@ -2,6 +2,8 @@ package com.tg.heyisheng.bot.core.moderation;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 
+import java.util.Optional;
+
 /**
  * 审核命中的「人工复核」消费者：把中高风险判定入队待人工确认。
  *
@@ -13,6 +15,11 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
  *
  * <p><b>默认空实现</b>：与 {@link ModerationActionSender} 同模式——让
  * {@code UpdateDispatcher} 不强依赖数据库，未装配时审核主链路照常工作。
+ *
+ * <p><b>{@code record} 为什么返回案件号</b>：队列项的自增主键<b>就是案件号</b>，
+ * 而「告知当事人 + 允许其申诉」都以它为前提（{@code /case_appeal <编号>}、审计的 {@code case_id}）。
+ * 早先返回 {@code void}，导致案件号无法贯穿到告知与审计——那是「可解释、可申诉」缺口的根因。
+ * 入队失败（或空实现）返回空，调用方据此降级为不带编号的告知，而不是渲染出 {@code #null}。
  */
 @FunctionalInterface
 public interface ModerationReviewRecorder {
@@ -24,12 +31,12 @@ public interface ModerationReviewRecorder {
      *
      * @param ctx     触发本次命中的上下文（提供 chatId / userId / messageId）
      * @param verdict 判定结果（提供规则 id 与风险等级；<b>不含正文</b>）
+     * @return 入队成功时的案件号（队列项主键）；未入队或入队失败时为空
      */
-    void record(UpdateContext ctx, ModerationVerdict verdict);
+    Optional<Long> record(UpdateContext ctx, ModerationVerdict verdict);
 
-    /** 空实现：未装配队列时不做任何记录。 */
+    /** 空实现：未装配队列时不做任何记录，也不产生案件号。 */
     static ModerationReviewRecorder noop() {
-        return (ctx, verdict) -> {
-        };
+        return (ctx, verdict) -> Optional.empty();
     }
 }

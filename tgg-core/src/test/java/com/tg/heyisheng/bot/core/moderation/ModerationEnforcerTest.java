@@ -151,6 +151,45 @@ class ModerationEnforcerTest {
                 .containsExactly(ModerationEnforcer.FROZEN_NOTICE);
     }
 
+    /**
+     * 已知案件号时，告知必须给出编号<b>与申诉入口</b>——否则当事人看到「已被删除」却无处申诉，
+     * 「可申诉」就只是文档里的一句话。案件号由 {@code UpdateDispatcher} 在入队后挂到上下文。
+     */
+    @Test
+    void noticeCarriesCaseIdAndAppealEntryWhenCaseKnown() {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        UpdateContext ctx = ctxWithVerdict(
+                new ModerationVerdict(RiskLevel.LOW, false, List.of("SPAM_CASINO")));
+        ctx.attach(new ModerationCaseRef(42L));
+
+        new ModerationEnforcer(sent::add).enforce(ctx);
+
+        String text = ((SendMessage) sent.get(0)).getText();
+        assertThat(text).as("告知要给出案件号").contains("#42");
+        assertThat(text).as("并给出可照抄的申诉入口（编号即参数）").contains("/case_appeal 42");
+        assertThat(text)
+                .as("仍不透露命中的具体规则——那等于把规则库交给想绕过的试探者")
+                .doesNotContain("SPAM_CASINO");
+    }
+
+    /**
+     * 无案件号（未装配队列 / 入队失败）时降级为原告知文案。
+     *
+     * <p>钉住两点：① 降级一致（既有断言与行为不变）；② <b>绝不把 null 当编号渲染出去</b>——
+     * 那会让当事人拿着 {@code #null} 去申诉。
+     */
+    @Test
+    void noticeFallsBackWithoutCaseIdAndNeverRendersNull() {
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+
+        new ModerationEnforcer(sent::add).enforce(ctxWithVerdict(
+                new ModerationVerdict(RiskLevel.LOW, false, List.of("SPAM_CASINO"))));
+
+        String text = ((SendMessage) sent.get(0)).getText();
+        assertThat(text).isEqualTo(ModerationEnforcer.DELETED_NOTICE);
+        assertThat(text).as("绝不能把 null 当编号渲染").doesNotContain("#null");
+    }
+
     /** 缺少 messageId 时无法定位目标：应放弃处置而非抛异常中断整条链路。 */
     @Test
     void skipsWhenMessageIdMissing() {

@@ -276,7 +276,12 @@ class ModerationIntegrationTest {
                 .middlewareChain(capturing).commandDispatcher(noopDispatcher)
                 .scrubber(new MessageScrubber()).moderationLayer(layer)
                 .idHasher(IdHasher.fromEnvironment()).actionSender(ModerationActionSender.noop())
-                .reviewRecorder((ctx, verdict) -> sink.add(verdict)).build();
+                .reviewRecorder((ctx, verdict) -> {
+                    sink.add(verdict);
+                    // 本替身不入库，故无案件号——返回空即让上游降级为不带编号的告知。
+                    // （带编号的告知由真库 IT 覆盖：它注入真实队列服务。）
+                    return java.util.Optional.empty();
+                }).build();
     }
 
     /** 与 {@link #dispatcherCapturing} 同构，但注入反刷屏检测器。 */

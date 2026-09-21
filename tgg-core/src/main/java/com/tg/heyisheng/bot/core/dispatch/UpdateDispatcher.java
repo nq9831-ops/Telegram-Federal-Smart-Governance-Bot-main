@@ -11,6 +11,7 @@ import com.tg.heyisheng.bot.core.credit.CreditSubjectType;
 import com.tg.heyisheng.bot.core.membership.MemberJoinRecorder;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
+import com.tg.heyisheng.bot.core.moderation.ModerationCaseRef;
 import com.tg.heyisheng.bot.core.moderation.ModerationEnforcer;
 import com.tg.heyisheng.bot.core.moderation.ModerationLayer;
 import com.tg.heyisheng.bot.core.moderation.ModerationPipeline;
@@ -342,7 +343,9 @@ public class UpdateDispatcher {
         }
 
         ctx.attach(verdict);
-        recordIfNeeded(ctx, verdict);
+        // 入队回填的案件号挂到上下文：处置阶段的群内告知要给出编号，当事人才有据可申诉。
+        // 未入队（clean / 空实现 / 失败）时不挂——消费方据此降级为不带编号的告知。
+        recordIfNeeded(ctx, verdict).ifPresent(id -> ctx.attach(new ModerationCaseRef(id)));
         publishCreditEventIfNeeded(ctx, verdict, sensitive);
     }
 
@@ -404,17 +407,19 @@ public class UpdateDispatcher {
      * <p>中高风险与硬红线<b>都入队</b>：clean 无需复核；硬红线虽已「立即删除 + 封禁」、
      * 不走放行复核，但须留痕以支持操作员<b>事后推翻误封</b>（解封）——这是「推翻权」
      * 最有分量的一半（§10.4.4）。入队失败不影响主链路（recorder 实现 fail-open）。
+     *
+     * @return 入队成功时的案件号；未入队（clean）或入队失败时为空
      */
-    private void recordIfNeeded(UpdateContext ctx, ModerationVerdict verdict) {
+    private Optional<Long> recordIfNeeded(UpdateContext ctx, ModerationVerdict verdict) {
         if (!verdict.needsReview()) {
-            return;
+            return Optional.empty();
         }
         // 审计日志：不记正文、不记命中片段（避免经日志这条侧路泄露原文）。
         // 用户/群标识**必须哈希化**——V5.0 明确要求，明文 id 属个人数据处理。
         log.info("审核命中：rule={} level={} hardLine={} chatHash={} userHash={}",
                 verdict.matchedRuleIds(), verdict.riskLevel(), verdict.hardLine(),
                 idHasher.hash(ctx.chatId()), idHasher.hash(ctx.userId()));
-        reviewRecorder.record(ctx, verdict);
+        return reviewRecorder.record(ctx, verdict);
     }
 
     /**

@@ -110,9 +110,16 @@ public class ModerationEnforcer {
      * <p>失败不影响删除：{@link ModerationActionSender} 的契约是实现自行吞异常。
      */
     private void notifyGroup(UpdateContext ctx, ModerationVerdict verdict) {
+        // 案件号由 UpdateDispatcher 在入队后挂到上下文（见 ModerationCaseRef）。
+        // 取不到（未装配队列 / 入队失败 / clean）时降级为原告知文案——单元测试直接
+        // new 本类、不经过 dispatcher，故走的正是降级分支，既有断言不受影响。
+        Long caseId = ctx.find(ModerationCaseRef.class).map(ModerationCaseRef::caseId).orElse(null);
+        String notice = verdict.shouldFreezeImmediately()
+                ? (caseId == null ? FROZEN_NOTICE : ModerationMessages.frozenNoticeWithCase(caseId))
+                : (caseId == null ? DELETED_NOTICE : ModerationMessages.deletedNoticeWithCase(caseId));
         actionSender.send(SendMessage.builder()
                 .chatId(String.valueOf(ctx.chatId()))
-                .text(verdict.shouldFreezeImmediately() ? FROZEN_NOTICE : DELETED_NOTICE)
+                .text(notice)
                 .build());
     }
 

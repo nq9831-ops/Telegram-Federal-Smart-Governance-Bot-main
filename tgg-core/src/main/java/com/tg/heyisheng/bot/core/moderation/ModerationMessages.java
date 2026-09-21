@@ -148,6 +148,27 @@ public final class ModerationMessages {
     public static final String FROZEN_NOTICE =
             "⚠️ 该消息命中本群硬性红线，已被删除，发布者已被封禁。如对判定有疑问，请联系群管理员。";
 
+    /**
+     * 普通命中的群内告知（**带案件号与申诉入口**）。
+     *
+     * <p><b>为什么要给出编号</b>：告知是当事人唯一的解释面，而「认为判错了」必须有可执行的去处——
+     * 没有编号就无法申诉（{@code /case_appeal <编号>}）。编号本身不泄露新信息：告知已经公开了
+     * 「这条消息被处理」，而申诉端会校验「只有当事人能申诉」，故全群看到编号也无妨。
+     *
+     * <p>无编号时（入队失败 / 未装配队列 / clean）用 {@link #DELETED_NOTICE} 降级——
+     * 绝不让 {@code null} 渲染进文案。
+     */
+    public static String deletedNoticeWithCase(Object caseId) {
+        return "⚠️ 该消息命中本群内容规则，已被删除（案件 #" + caseId
+                + "）。如认为判定有误，可发送 /case_appeal " + caseId + " 附上你的理由申诉。";
+    }
+
+    /** 硬红线的群内告知（带案件号与申诉入口）。无编号时降级用 {@link #FROZEN_NOTICE}。 */
+    public static String frozenNoticeWithCase(Object caseId) {
+        return "⚠️ 该消息命中本群硬性红线，已被删除，发布者已被封禁（案件 #" + caseId
+                + "）。如认为判定有误，可发送 /case_appeal " + caseId + " 附上你的理由申诉。";
+    }
+
     /** 敏感话题首次命中的群内警告。 */
     public static final String SENSITIVE_TOPIC_WARNING =
             "⚠️ 本群已开启敏感话题分级：该内容已被处理。再次发布将禁言 24 小时。";
