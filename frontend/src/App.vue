@@ -8,11 +8,13 @@ import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
 import ConfigCenter from './views/ConfigCenter.vue'
 import AccountCenter from './views/AccountCenter.vue'
+import MyContent from './views/MyContent.vue'
+import AuditCenter from './views/AuditCenter.vue'
 
 const session = useSession()
 const form = reactive({ username: '', password: '' })
-/** 已登录后的三个视图；项目刻意不引 vue-router（只三块，条件渲染足够）。账号管理仅超管可见。 */
-const view = ref<'todos' | 'config' | 'accounts'>('todos')
+/** 已登录后的五个视图；项目刻意不引 vue-router（条件渲染足够）。账号管理仅超管、审计按 AUDIT_READ 分区。 */
+const view = ref<'todos' | 'config' | 'accounts' | 'mine' | 'audit'>('todos')
 const submitting = ref(false)
 
 async function submit(): Promise<void> {
@@ -124,11 +126,15 @@ function mountTelegramWidget(botUsername: string): void {
       <el-radio-group v-model="view" size="small">
         <el-radio-button value="todos">待办中心</el-radio-button>
         <el-radio-button value="config">配置中心</el-radio-button>
+        <el-radio-button value="mine">我的收录</el-radio-button>
+        <el-radio-button v-if="session.canReadAudit" value="audit">审计</el-radio-button>
         <el-radio-button v-if="session.role === 'SUPER_ADMIN'" value="accounts">账号管理</el-radio-button>
       </el-radio-group>
     </div>
     <TodoCenter v-if="view === 'todos'" :operator="session.operatorLabel" @sign-out="signOut" />
     <ConfigCenter v-else-if="view === 'config'" :operator="session.operatorLabel" @sign-out="signOut" />
+    <MyContent v-else-if="view === 'mine'" :operator="session.operatorLabel" @sign-out="signOut" />
+    <AuditCenter v-else-if="view === 'audit'" :operator="session.operatorLabel" @sign-out="signOut" />
     <AccountCenter v-else :operator="session.operatorLabel" @sign-out="signOut" />
   </template>
 </template>
