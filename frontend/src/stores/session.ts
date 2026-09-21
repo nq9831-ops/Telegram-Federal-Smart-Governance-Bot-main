@@ -21,6 +21,15 @@ export const useSession = defineStore('session', () => {
   const subjectType = ref<'ADMIN_ACCOUNT' | 'TG_USER' | ''>('')
   const subjectId = ref<number | null>(null)
   const role = ref<'SUPER_ADMIN' | 'OPERATOR' | null>(null)
+  const permissions = ref<string[]>([])
+
+  /**
+   * 是否显示「审计」入口——**显示分区，不是安全边界**：真正放行/拒绝在服务端
+   * （`AuditViewController` 校验超管或 `AUDIT_READ`）。权限未知时一律不显示（保守）。
+   */
+  const canReadAudit = computed(() =>
+    role.value === 'SUPER_ADMIN' || permissions.value.includes('AUDIT_READ'),
+  )
 
   /** 顶部身份行文案。 */
   const operatorLabel = computed(() => {
@@ -41,6 +50,7 @@ export const useSession = defineStore('session', () => {
     subjectType.value = info.subjectType
     subjectId.value = info.subjectId
     role.value = info.role
+    permissions.value = info.permissions ?? []
     authenticated.value = true
   }
 
@@ -50,6 +60,7 @@ export const useSession = defineStore('session', () => {
     subjectType.value = info.subjectType
     subjectId.value = info.subjectId
     role.value = info.role
+    permissions.value = info.permissions ?? []
     authenticated.value = true
   }
 
@@ -58,8 +69,12 @@ export const useSession = defineStore('session', () => {
     subjectType.value = ''
     subjectId.value = null
     role.value = null
+    permissions.value = []
     authenticated.value = false
   }
 
-  return { authenticated, subjectType, subjectId, role, operatorLabel, signIn, signInWithTelegram, signOut }
+  return {
+    authenticated, subjectType, subjectId, role, permissions, operatorLabel, canReadAudit,
+    signIn, signInWithTelegram, signOut,
+  }
 })

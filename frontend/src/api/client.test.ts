@@ -247,5 +247,48 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
   })
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+describe('我的收录 / 审计（模块十一 · 数据范围 + 护栏）', () => {
+  it('fetchMyListings 命中 /admin/my/listings 并回传行', async () => {
+    const c = await loadClient()
+    let seen: { url?: string } | null = null
+    c.http.defaults.adapter = async (config) => {
+      seen = config
+      return {
+        data: [{ id: 7, chatId: -100, title: '测试群', status: 'ACTIVE', createdAt: 't' }],
+        status: 200, statusText: 'OK', headers: {}, config,
+      }
+    }
+    const rows = await c.fetchMyListings()
+    expect(seen!.url).toBe('/admin/my/listings')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe(7)
+  })
+
+  it('fetchAuditRecent 命中 /admin/audit/recent 且带 limit 参数', async () => {
+    const c = await loadClient()
+    let seen: { url?: string; params?: unknown } | null = null
+    c.http.defaults.adapter = async (config) => {
+      seen = config
+      return { data: [], status: 200, statusText: 'OK', headers: {}, config }
+    }
+    const rows = await c.fetchAuditRecent(50)
+    expect(seen!.url).toBe('/admin/audit/recent')
+    expect(seen!.params).toEqual({ limit: 50 })
+    expect(rows).toEqual([])
+  })
+
+  it('fetchAuditRecent 默认 limit=100（与后端默认一致）', async () => {
+    const c = await loadClient()
+    let seen: { params?: unknown } | null = null
+    c.http.defaults.adapter = async (config) => {
+      seen = config
+      return { data: [], status: 200, statusText: 'OK', headers: {}, config }
+    }
+    await c.fetchAuditRecent()
+    expect(seen!.params).toEqual({ limit: 100 })
+  })
+})
+
 // 让 `axios` 的 import 被使用（避免 TS 未使用告警）。
 void axios

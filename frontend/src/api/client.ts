@@ -3,10 +3,12 @@ import type {
   AccountView,
   ApprovalPage,
   ApprovalStats,
+  AuditEntry,
   ConfigItem,
   DecideFailure,
   DecideRequest,
   DecideSuccess,
+  MyListing,
   ReviewStatus,
   SessionInfo,
   WritePermission,
@@ -325,4 +327,30 @@ export async function telegramLogin(data: Record<string, string>): Promise<Sessi
   token = response.data.token
   localStorage.setItem(TOKEN_KEY, token)
   return response.data
+}
+
+// ───────────────────────────── 我的收录 / 审计（模块十一 · 数据范围 + 护栏）─────────────────────────────
+
+/**
+ * `GET /admin/my/listings` —— 「我提交的收录」（数据范围 OWN）。
+ *
+ * 过滤在**后端查询条件**里（`findBySubmitterUserIdOrderByIdDesc`），前端不再过滤；
+ * 后台账号没有「自己提交的收录」，恒返回空数组。
+ */
+export async function fetchMyListings(): Promise<MyListing[]> {
+  const { data } = await http.get<MyListing[]>('/admin/my/listings')
+  return data
+}
+
+/** 审计单次上限（与后端 `AuditViewController.MAX_LIMIT` 一致）。 */
+export const AUDIT_MAX_LIMIT = 200
+
+/**
+ * `GET /admin/audit/recent?limit=N` —— 最近若干条审计（倒序，只读）。
+ *
+ * 超管天然可读；其余主体需持 `AUDIT_READ`，否则后端 403（`{error}`）——由调用方按 403 渲染无权限态。
+ */
+export async function fetchAuditRecent(limit = 100): Promise<AuditEntry[]> {
+  const { data } = await http.get<AuditEntry[]>('/admin/audit/recent', { params: { limit } })
+  return data
 }

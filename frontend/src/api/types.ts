@@ -23,6 +23,8 @@ export interface SessionInfo {
   subjectType: 'ADMIN_ACCOUNT' | 'TG_USER'
   subjectId: number
   role: 'SUPER_ADMIN' | 'OPERATOR' | null
+  /** 平台能力名（超管为全枚举）——前端据此做**显示分区**；门禁仍在服务端会话。 */
+  permissions: string[]
 }
 
 /** 复核状态 —— 后端 `ReviewStatus`。 */
@@ -146,4 +148,38 @@ export interface AccountView {
   role: 'SUPER_ADMIN' | 'OPERATOR'
   status: 'ACTIVE' | 'DISABLED'
   permissions: string[]
+}
+
+// ───────────────────────────── 我的收录 / 审计（模块十一 · 数据范围 + 护栏）─────────────────────────────
+
+/**
+ * 「我提交的收录」一行 —— 后端 `MyContentController.toView`。
+ *
+ * 数据范围 OWN：后端**在查询条件里**过滤（`findBySubmitterUserIdOrderByIdDesc`），
+ * 返回的行只含当前主体自己提交的；后台账号（超管/操作员）没有「自己提交的收录」，恒返回空数组。
+ */
+export interface MyListing {
+  id: number
+  chatId: number
+  title: string
+  status: string
+  createdAt: string
+}
+
+/**
+ * 审计行 —— 后端 `AuditViewController.toView`。
+ *
+ * ⚠️ `actorType` 与 `actorId` 是**一对**，不能只按 id 判主体（后台账号 id 与 TG userId 数值空间重叠）。
+ * `detail` 由后端写入，**不含消息正文**（隐私红线）。
+ */
+export interface AuditEntry {
+  id: number
+  actorType: 'TG_USER' | 'ADMIN_ACCOUNT' | null
+  actorId: number | null
+  action: string
+  target: string | null
+  caseId: number | null
+  outcome: string | null
+  detail: string | null
+  occurredAt: string
 }
