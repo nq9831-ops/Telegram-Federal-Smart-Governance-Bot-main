@@ -83,6 +83,10 @@ public class ConfirmationStore implements ConfirmationRequests {
     /**
      * 消费一个令牌。
      *
+     * <p><b>原子</b>：并发消费同一令牌**只有一个赢家**——取走用
+     * {@code ConcurrentHashMap.remove(key, value)}（仅当映射仍等于读到的那个对象时才成功），
+     * 而不是「先 get 再 remove」。否则 webhook 重投 / 连点会让被确认的**危险命令执行两次**。
+     *
      * @param clickerId 点击者；与发起者不符时返回空<b>且不删除</b>——
      *                  既防代点，也防有人用乱点把别人的确认「消耗掉」
      * @return 命中且未过期、且点击者就是发起者时的待确认操作
@@ -96,14 +100,19 @@ public class ConfirmationStore implements ConfirmationRequests {
             return Optional.empty();
         }
         if (action.expiresAt().isBefore(clock.instant())) {
-            pending.remove(nonce);
+            pending.remove(nonce, action);
             return Optional.empty();
         }
         if (clickerId == null || !clickerId.equals(action.userId())) {
             log.warn("确认令牌的点击者与发起者不符，已拒绝（令牌保留）");
             return Optional.empty();
         }
-        pending.remove(nonce); // 一次性：消费即删
+        // 原子取走：`remove(key, value)` 只在映射**仍等于这次读到的那个对象**时才成功。
+        // 并发下两个线程都能通过上面的校验，但只有一个能取走——另一个拿到空。
+        // 这正是一次性令牌的意义：危险命令不能被执行两次。
+        if (!pending.remove(nonce, action)) {
+            return Optional.empty();
+        }
         return Optional.of(action);
     }
 

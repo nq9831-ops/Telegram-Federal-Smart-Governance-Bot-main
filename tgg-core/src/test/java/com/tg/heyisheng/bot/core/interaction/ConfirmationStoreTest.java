@@ -10,6 +10,12 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -163,5 +169,77 @@ class ConfirmationStoreTest {
         assertThat(action.get().userId()).isEqualTo(USER);
         assertThat(action.get().command()).isEqualTo("delword");
         assertThat(action.get().args()).isEqualTo("广告");
+    }
+
+    /**
+     * 闸门时钟：{@code arm(n)} 之后，前 n 次 {@code instant()} 会**互相等待**再各自返回。
+     *
+     * <p>用途：把两个线程稳定地卡在 {@code consume} 的**校验之后、取走之前**。
+     * check-then-act 的竞态只有这样才写得出**确定性**的 RED——顺序调用本来就不会失败
+     * （第一次消费已把令牌删掉），所以「再调一次应返回空」测不出这个 bug。
+     */
+    private static final class RendezvousClock extends Clock {
+        private final Clock delegate = Clock.systemUTC();
+        private final AtomicReference<CyclicBarrier> barrier = new AtomicReference<>();
+
+        void arm(int parties) {
+            barrier.set(new CyclicBarrier(parties));
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            CyclicBarrier b = barrier.get();
+            if (b != null) {
+                try {
+                    b.await(2, TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                    // 超时/中断不该让测试挂死：放行，由断言给出结论
+                }
+            }
+            return delegate.instant();
+        }
+    }
+
+    /**
+     * ★ 并发：同一令牌被两个线程同时消费，**只能有一个赢家**。
+     *
+     * <p>否则 webhook 重投 / 连点会让被确认的**危险命令执行两次**——「一次性令牌」的语义名存实亡。
+     * 旧实现是 check-then-act（{@code get} → 校验 → {@code remove} 且**忽略返回值**），
+     * 两个线程都能通过校验并各自拿到同一个待确认操作。
+     */
+    @Test
+    void concurrentConsumeOfSameNonceHasExactlyOneWinner() throws Exception {
+        RendezvousClock clock = new RendezvousClock();
+        ConfirmationStore store = new ConfirmationStore(clock);
+        String nonce = store.issue(ctx("广告"));
+
+        clock.arm(2);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Optional<ConfirmationStore.PendingAction>> first = pool.submit(() -> store.consume(nonce, USER));
+            Future<Optional<ConfirmationStore.PendingAction>> second = pool.submit(() -> store.consume(nonce, USER));
+
+            long winners = 0;
+            if (first.get(5, TimeUnit.SECONDS).isPresent()) {
+                winners++;
+            }
+            if (second.get(5, TimeUnit.SECONDS).isPresent()) {
+                winners++;
+            }
+
+            assertThat(winners).as("一次性令牌并发消费只能有一个赢家——否则危险命令执行两次").isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 }
