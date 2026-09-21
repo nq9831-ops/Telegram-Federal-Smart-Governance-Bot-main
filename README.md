@@ -113,7 +113,7 @@ MySQL 用托管实例（应用单独部署）时 **1 vCPU / 1 GB** 足够。
 |---|---|---|
 | `TGG_PERMISSION_ADMINS` | 空 | 群内管理员授权，格式 `<chatId>:<userId>[:role]`。**为空则所有管理命令对任何人不可用**（启动会 WARN） |
 | `TGG_HASH_SALT` | 空 | 标识哈希用盐。不设会退回开发兜底盐（userId 空间小，固定盐可被枚举反推） |
-| `TGG_COMMAND_MENU_ENABLED` | **`true`** | 启动期把**客户端 `/` 提示菜单**注册到 Telegram。菜单已**收敛为单一入口 `/menu`**：只注册显式声明 `@BotCommand(clientMenu = true)` 的命令（当前仅 `/menu`）；其余命令一律经 `/menu` 面板按权限呈现——自助命令（`publicCommand`）对全体成员可见、管理命令按 RBAC、平台白名单命令按可见性接缝。平台白名单类命令（复核/裁决等）**不进客户端菜单**（Telegram 无「全局按人」的 scope）。这是**唯一默认开启**的开关。缺 `TGG_BOT_TOKEN` 时跳过并 WARN；某档注册失败只 WARN、按档隔离，该档用户回落到默认档（只含 `/menu`） |
+| `TGG_COMMAND_MENU_ENABLED` | **`true`** | 启动期把**客户端 `/` 提示菜单**注册到 Telegram。菜单已**收敛为单一入口 `/menu`**：只注册显式声明 `@BotCommand(clientMenu = true)` 的命令（当前仅 `/menu`）；其余命令一律经 `/menu` 面板按权限呈现——自助命令（`publicCommand`）对全体成员可见、管理命令按 RBAC、平台白名单命令按可见性接缝。平台白名单类命令（复核/裁决等）**不进客户端菜单**（Telegram 无「全局按人」的 scope）。这是**默认开启的开关之一**（另一个是 `TGG_INTERACTION_ENABLED`，见 `application.yml`）。缺 `TGG_BOT_TOKEN` 时跳过并 WARN；某档注册失败只 WARN、按档隔离，该档用户回落到默认档（只含 `/menu`） |
 | `TGG_FAILOVER_ENABLED` | `false` | Webhook 失效后降级长轮询 |
 | `TGG_ADMISSION_ENABLED` | `false` | 入群验证 + 观察期；启用时要求 `TGG_BOT_TOKEN` |
 | `TGG_AI_DEEPSEEK_ENABLED` | `false` | L3 云端审核；启用后**消息正文会发送至 DeepSeek**（详见 `PRIVACY.md`），缺 `TGG_DEEPSEEK_API_KEY` 即启动失败 |
@@ -126,7 +126,7 @@ MySQL 用托管实例（应用单独部署）时 **1 vCPU / 1 GB** 足够。
 | `TGG_MERCHANT_REVIEWERS` | 空 | 资质复核人与保证金操作人 userId（**全局**白名单，逗号分隔）；为空则 `/merchant_review`·`/merchant_deposit` 对任何人不可用 |
 | `TGG_MERCHANT_INITIAL_SCORE` | `500` | 商家入驻成功时写入的初始信用分（需同时 `TGG_CREDIT_ENABLED=true`） |
 | `TGG_MODERATION_REVIEWERS` | 空 | 复核人 userId（**全局**白名单，逗号分隔）。为空则 `/review_list`·`/review_approve`·`/review_reject` 对任何人不可用 |
-| `TGG_ADMIN_API_TOKEN` | 空 | 模块十一 · 审批中心后端的 `Bearer` 令牌。**为空则 `/admin/approvals` 端点整体不装配**（访问得 404） |
+| `TGG_ADMIN_API_TOKEN` | 空 | 模块十一 · 审批中心后端的**装配开关**（⚠️ **不是**鉴权令牌——鉴权已改为**服务端会话**，见 `SECURITY.md`）。**为空则 `/admin/*` 端点整体不装配**（访问得 404） |
 | `TGG_ADMIN_CONFIG_ADMINS` | 空 | 配置中心**写权限**白名单（userId，逗号分隔）。**为空则回落到 `TGG_MODERATION_REVIEWERS`**（即「能审批的人也能改配置」）；想让写权限比审批更严就显式设置本项 |
 | `TGG_ADMIN_RESTART_ENABLED` | `false` | 是否允许经 Web 后台触发**优雅重启**。⚠️ 本功能只负责退出，**能否再起来取决于部署侧有无外部监管进程**（Docker restart / systemd / k8s）；裸 `java -jar` 下开启＝点了按钮就停服 |
 | `TGG_OPENAPI_ENABLED` | `false` | 启用 Swagger / OpenAPI 文档（`/swagger-ui.html`、`/v3/api-docs`）。**默认关闭**——springdoc 会暴露全部端点清单，属信息面；启用后**不要裸露公网** |

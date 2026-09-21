@@ -28,7 +28,9 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      # 应用按 UTC 读写，容器时区显式对齐
+      # DB 容器固定 UTC。
+      # ⚠️ 与应用侧**并不一致**：下面 app 服务的 `TGG_DB_URL` 带 `connectionTimeZone=Asia/Shanghai`。
+      # 两处谁对取决于实体时间字段类型（Instant 还是 LocalDateTime）——**未核实，勿当已对齐**。
       - --default-time-zone=+00:00
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MYSQL_ROOT_PASSWORD}

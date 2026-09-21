@@ -67,7 +67,8 @@ public final class ConfigCatalog {
             // ─────────── ⓒ 装配开关（可写，改后**需重启**）───────────
             new ConfigKey("tgg.command-menu.enabled", ConfigCategory.ASSEMBLY, ConfigValueType.BOOLEAN,
                     true, true, false, "true", null, null, null,
-                    "启动期把命令清单按权限分档注册到 Telegram 客户端菜单。唯一默认开启的开关。"),
+                    "启动期把命令清单按权限分档注册到 Telegram 客户端菜单。**两个**默认开启的开关之一"
+                            + "（另一个是 tgg.interaction.enabled）。"),
             new ConfigKey("tgg.interaction.enabled", ConfigCategory.ASSEMBLY, ConfigValueType.BOOLEAN,
                     true, true, false, "true", null, null, null,
                     "交互卡片（/menu 面板、危险操作确认卡）。默认开启（matchIfMissing）。"),
