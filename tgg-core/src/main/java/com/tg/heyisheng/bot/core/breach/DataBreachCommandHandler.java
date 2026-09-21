@@ -28,11 +28,7 @@ import java.util.Locale;
         confirm = Confirm.WHEN_ARGS, category = MenuCategory.REVIEW)
 public class DataBreachCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：\n"
-            + "/data_breach 影响范围 影响人数 —— 登记一起泄露事件（72 小时计时开始），例：/data_breach 用户名与手机号 1200\n"
-            + "/data_breach report 编号 —— 记录已履行通报，例：/data_breach report 1\n"
-            + "/data_breach —— 列出尚未通报的事件\n"
-            + "注：通报是运营者的法定义务，本命令只做计时与留痕。";
+    static final String USAGE = BreachMessages.USAGE;
 
     private final DataBreachService service;
     private final ModerationReviewGuard guard;
@@ -74,10 +70,9 @@ public class DataBreachCommandHandler implements CommandHandler {
         String scope = args.substring(0, args.length() - parts[parts.length - 1].length()).trim();
         try {
             DataBreachIncident incident = service.register(null, scope, count, ctx.userId());
-            return "已登记泄露事件 #" + incident.getId() + "，通报截止 " + incident.getDeadlineAt()
-                    + "（72 小时内）。履行通报后用 /data_breach report " + incident.getId() + " 记录。";
+            return BreachMessages.registered(incident.getId(), incident.getDeadlineAt());
         } catch (TggException ex) {
-            return "登记未成功：" + ex.getMessage();
+            return BreachMessages.REGISTER_FAILED_PREFIX + ex.getMessage();
         }
     }
 
@@ -89,23 +84,20 @@ public class DataBreachCommandHandler implements CommandHandler {
             return USAGE;
         }
         return service.markReported(id, ctx.userId())
-                ? "已记录泄露事件 #" + id + " 的通报。"
-                : "事件 #" + id + " 不存在，或已记录过通报（不覆盖首次通报时间——那是合规证据）。";
+                ? BreachMessages.reportRecorded(id)
+                : BreachMessages.reportMissingOrDone(id);
     }
 
     private static String render(List<DataBreachIncident> pending) {
         if (pending.isEmpty()) {
-            return "当前没有未通报的数据泄露事件。";
+            return BreachMessages.PENDING_EMPTY;
         }
-        StringBuilder sb = new StringBuilder("尚未通报的数据泄露事件：\n");
+        StringBuilder sb = new StringBuilder(BreachMessages.PENDING_HEAD);
         for (DataBreachIncident incident : pending) {
-            sb.append("#").append(incident.getId())
-                    .append(" · 发现 ").append(incident.getDetectedAt())
-                    .append(" · 截止 ").append(incident.getDeadlineAt())
-                    .append(" · 影响约 ").append(incident.getAffectedCount()).append(" 人\n")
-                    .append("   范围：").append(incident.getScope()).append('\n');
+            sb.append(BreachMessages.pendingLine(incident.getId(), incident.getDetectedAt(),
+                    incident.getDeadlineAt(), incident.getAffectedCount(), incident.getScope()));
         }
-        sb.append("履行通报后：/data_breach report 编号（例：/data_breach report 1）");
+        sb.append(BreachMessages.PENDING_FOOTER);
         return sb.toString();
     }
 

@@ -20,9 +20,9 @@ import java.util.Optional;
  */
 public class VerificationCallbackHandler implements CallbackHandler {
 
-    static final String PASSED = "验证通过，欢迎加入。";
-    static final String NOT_YOURS = "这不是你的验证按钮。";
-    static final String EXPIRED = "验证已过期或已完成。";
+    static final String PASSED = AdmissionMessages.PASSED;
+    static final String NOT_YOURS = AdmissionMessages.NOT_YOURS;
+    static final String EXPIRED = AdmissionMessages.EXPIRED;
 
     private final PendingVerificationRegistry registry;
     private final IdHasher idHasher;

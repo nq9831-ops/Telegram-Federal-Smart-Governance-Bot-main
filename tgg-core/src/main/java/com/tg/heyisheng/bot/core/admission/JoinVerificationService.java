@@ -31,9 +31,8 @@ public class JoinVerificationService {
     /** 回调 data 的 action 前缀，需与 {@link VerificationCallbackHandler#action()} 一致。 */
     static final String CALLBACK_ACTION = "verify";
 
-    private static final String PROMPT_TEXT = "欢迎加入。请点击下方按钮完成验证，"
-            + "否则将在 %s 内被移出本群。";
-    private static final String BUTTON_TEXT = "点击验证";
+    private static final String PROMPT_TEXT = AdmissionMessages.PROMPT_TEXT;
+    private static final String BUTTON_TEXT = AdmissionMessages.BUTTON_TEXT;
 
     private final PendingVerificationRegistry registry;
     private final ModerationActionSender sender;
@@ -95,14 +94,14 @@ public class JoinVerificationService {
     static String humanDuration(Duration duration) {
         long seconds = duration.toSeconds();
         if (seconds > 0 && seconds % 86400 == 0) {
-            return (seconds / 86400) + " 天";
+            return (seconds / 86400) + AdmissionMessages.UNIT_DAYS;
         }
         if (seconds > 0 && seconds % 3600 == 0) {
-            return (seconds / 3600) + " 小时";
+            return (seconds / 3600) + AdmissionMessages.UNIT_HOURS;
         }
         if (seconds > 0 && seconds % 60 == 0) {
-            return (seconds / 60) + " 分钟";
+            return (seconds / 60) + AdmissionMessages.UNIT_MINUTES;
         }
-        return seconds + " 秒";
+        return seconds + AdmissionMessages.UNIT_SECONDS;
     }
 }

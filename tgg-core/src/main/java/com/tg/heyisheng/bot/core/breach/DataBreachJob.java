@@ -42,11 +42,8 @@ public class DataBreachJob {
             return;
         }
         for (DataBreachIncident incident : due) {
-            String message = "⚠️ 数据泄露事件 #" + incident.getId() + " 尚未通报："
-                    + incident.getScope()
-                    + "（预计影响 " + incident.getAffectedCount() + " 人，通报截止 "
-                    + incident.getDeadlineAt() + "）。请尽快履行通报义务并执行 /data_breach report "
-                    + incident.getId() + " 记录。";
+            String message = BreachMessages.reminder(incident.getId(), incident.getScope(),
+                    incident.getAffectedCount(), incident.getDeadlineAt());
             log.warn("数据泄露催办：id={} 截止={} 已逾期={}", incident.getId(), incident.getDeadlineAt(),
                     incident.isOverdue(java.time.Instant.now()));
             for (Long reviewerId : guard.reviewerIds()) {
