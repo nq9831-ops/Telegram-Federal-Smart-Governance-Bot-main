@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.audit;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.notify.NotificationPreferenceService;
 import com.tg.heyisheng.bot.core.notify.QuietHours;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -23,7 +24,7 @@ import java.util.List;
  * <p><b>不含消息正文</b>：审计表本就不存正文（`detail` 只放结论），故导出天然安全。
  */
 @BotCommand(value = "export_my_data", description = "导出机器人持有的关于你的数据",
-        publicCommand = true)
+        publicCommand = true, category = MenuCategory.SELF_SERVICE)
 public class ExportMyDataCommandHandler implements CommandHandler {
 
     /** Telegram 单条消息硬上限（超长整条发送失败）。 */

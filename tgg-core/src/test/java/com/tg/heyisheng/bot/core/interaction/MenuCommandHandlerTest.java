@@ -70,6 +70,16 @@ class MenuCommandHandlerTest {
         }
     }
 
+    /** 自助命令：无权限点 + publicCommand → 对全体成员可见（客户端 / 菜单已收敛，面板是唯一发现路径）。 */
+    @BotCommand(value = "quiet_hours", description = "设置免打扰时段", publicCommand = true,
+            category = MenuCategory.SELF_SERVICE)
+    static class QuietHoursHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            return new SendMessage(String.valueOf(ctx.chatId()), "ok");
+        }
+    }
+
     private final GroupConfigService groupConfigs = mock(GroupConfigService.class);
 
     /** 生产里注册表由「全部 CommandHandler（含本处理器）」构造，故只能经惰性句柄注入——这里用 mock 复刻同一形状。 */
@@ -124,6 +134,22 @@ class MenuCommandHandlerTest {
 
         assertThat(messageOf(reply).getReplyMarkup()).as("无权时不应给键盘").isNull();
         assertThat(messageOf(reply).getText()).isEqualTo(MenuCommandHandler.NO_PERMISSION);
+    }
+
+    /** 自助命令对**普通成员**可见：客户端 / 菜单已收敛为只留 /menu，面板是唯一发现路径。 */
+    @Test
+    void listsSelfServiceCategoryForEveryMember() {
+        CommandRegistry registry = new CommandRegistry(List.of(
+                new QuietHoursHandler(), new WordsHandler(), new MenuHandler()));
+        when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
+        MenuCatalog catalog = new MenuCatalog(providerOf(registry),
+                new PermissionChecker(Role.MEMBER), List.of());
+        MenuCommandHandler handler = new MenuCommandHandler(catalog, groupConfigs);
+
+        BotApiMethod<?> reply = handler.handle(new UpdateContext(1, 99L, CHAT, "menu"));
+
+        assertThat(labelsOf(reply)).containsExactly("自助功能（1）");
+        assertThat(dataOf(reply)).containsExactly("menu:" + CHAT + ":nav:self_service");
     }
 
     /** 停用群：非恢复类分类都不该出现，但含 /enable 的「群设置」必须在——否则该群永久锁死。 */

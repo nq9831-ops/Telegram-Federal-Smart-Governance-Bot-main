@@ -81,16 +81,32 @@ public @interface BotCommand {
     MenuCategory category() default MenuCategory.OTHER;
 
     /**
-     * 本命令是否**对全体成员公开**——即进客户端菜单的「默认档」（人人都看得见的那一份）。
+     * 本命令是否**对全体成员开放的自助命令**——即进入 {@code /menu} 面板、对所有人可见。
      *
-     * <p><b>默认 {@code false}，这是刻意的 fail-closed</b>：没声明就**不进默认档**。
+     * <p><b>默认 {@code false}，这是刻意的 fail-closed</b>：没声明就不进面板。
      * 反过来（默认公开）会有一个静默且危险的失效方式——有人新增一条「门控写在 handler 里、
      * 注解权限留 {@code NONE}」的平台命令（如商家资质复核），只要忘了登记可见性接缝，它就会被
-     * 默认档广播给**所有人**，正是「客户端菜单向无权者暴露命令」那个原始缺陷的原样回归。
-     * 现在的失效方式是「客户端菜单里看不到它」——会被发现，而不是被忽略。
+     * 面板收录、对**所有人**可见，正是「向无权者暴露命令存在」那个原始缺陷的原样回归。
+     * 现在的失效方式是「面板里看不到它」——会被发现（{@code CommandMenuContentTest} 断言
+     * 该集合为空），而不是被忽略。
      *
      * <p>只对**无权限点**（{@code requiredPermission == NONE}）的命令有意义：
-     * 带权限点的命令走「逐成员档」，它的可见性由权限本身决定，与本属性无关。
+     * 带权限点的命令走 RBAC 判定，可见性由权限本身决定，与本属性无关。
+     *
+     * <p>与 {@link #clientMenu()} 的分工：本属性管「{@code /menu} 面板里有没有」，
+     * 后者管「客户端 {@code /} 提示菜单里有没有」。两者互不影响。
      */
     boolean publicCommand() default false;
+
+    /**
+     * 本命令是否出现在 **Telegram 客户端 {@code /} 提示菜单**（输入 {@code /} 时弹出的那份）。
+     *
+     * <p><b>默认 {@code false}</b>：客户端菜单已收敛为**单一入口** {@code /menu}——其余命令一律
+     * 经 {@code /menu} 面板按需呈现（从「背命令」到「点面板」）。故只有显式声明本属性的命令
+     * 才进客户端菜单；新增命令默认不进，不会让那个入口重新长成一堵命令墙。
+     *
+     * <p>只对**无权限点**（{@code requiredPermission == NONE}）的命令有意义：带权限点的命令
+     * 进客户端菜单会向无权者暴露其存在，{@code CommandMenuRegistrar.planMenus} 会剔除并告警。
+     */
+    boolean clientMenu() default false;
 }

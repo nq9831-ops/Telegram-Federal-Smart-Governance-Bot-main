@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.listing.command;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.listing.merchant.Merchant;
 import com.tg.heyisheng.bot.listing.merchant.MerchantService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -27,7 +28,8 @@ import java.util.Optional;
  * <p><b>防重复提交</b>：同一用户已有「在办」申请时拒绝新建并回显既有编号
  * （否则连续点两次就会产出两条并行申请，复核人无从判断该审哪条）。
  */
-@BotCommand(value = "merchant_apply", description = "提交商家入驻申请", publicCommand = true)
+@BotCommand(value = "merchant_apply", description = "提交商家入驻申请", publicCommand = true,
+        category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantApplyCommandHandler implements CommandHandler {
 

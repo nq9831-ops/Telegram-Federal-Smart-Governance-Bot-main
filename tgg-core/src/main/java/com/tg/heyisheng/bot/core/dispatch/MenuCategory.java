@@ -20,6 +20,9 @@ import java.util.Optional;
  */
 public enum MenuCategory {
 
+    /** 自助功能：个人偏好与自助操作（免打扰、数据导出、连通性测试、申诉等）。 */
+    SELF_SERVICE("自助功能"),
+
     /** 内容审核：词库、教学规则等。 */
     MODERATION("内容审核"),
 

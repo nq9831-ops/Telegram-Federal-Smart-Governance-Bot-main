@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.federation;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -15,7 +16,8 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * 它是用户主动提交的管理输入，不进审核判定。
  */
 @Component
-@BotCommand(value = "appeal", description = "提交联邦申诉（解封申请）", publicCommand = true)
+@BotCommand(value = "appeal", description = "提交联邦申诉（解封申请）", publicCommand = true,
+        category = MenuCategory.SELF_SERVICE)
 @ConditionalOnProperty(prefix = "tgg.federation", name = "enabled", havingValue = "true")
 public class AppealCommandHandler implements CommandHandler {
 

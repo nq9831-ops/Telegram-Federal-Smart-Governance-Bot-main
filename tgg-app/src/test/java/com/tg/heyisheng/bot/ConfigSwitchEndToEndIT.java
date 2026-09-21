@@ -64,6 +64,12 @@ class ConfigSwitchEndToEndIT {
         // 2. 关闭态下普通命令被拒（开关生效）
         assertThat(dispatch("/echo")).as("关闭态下普通命令不得执行").isEmpty();
 
+        // 2b. 关闭态下 /menu 仍必须可用 —— 客户端 / 菜单已收敛为只留 /menu，
+        //     若它连同恢复类命令一起被拒，管理员就无法从面板发现 /enable，该群永久锁死。
+        assertThat(dispatch("/menu"))
+                .as("关闭态下 /menu 必须可用，否则发现不了 /enable（群锁死）")
+                .isPresent();
+
         // 3. 关闭态下 /enable 仍必须可用 —— 锁死缺陷的回归点
         assertThat(dispatch("/enable"))
                 .as("关闭态下 /enable 必须可用，否则该群永久锁死")

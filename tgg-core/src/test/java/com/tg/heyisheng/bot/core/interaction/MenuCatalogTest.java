@@ -73,6 +73,16 @@ class MenuCatalogTest {
         }
     }
 
+    /** 自助命令：无权限点但声明 publicCommand → 对全体成员可见（客户端 / 菜单已收敛，它是唯一发现路径）。 */
+    @BotCommand(value = "quiet_hours", description = "设置免打扰时段", publicCommand = true,
+            category = MenuCategory.SELF_SERVICE)
+    static class QuietHoursHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            return new SendMessage(String.valueOf(ctx.chatId()), "ok");
+        }
+    }
+
     @BotCommand(value = "menu", description = "面板")
     static class MenuHandler implements CommandHandler {
         @Override
@@ -134,8 +144,24 @@ class MenuCatalogTest {
         MenuCatalog catalog = catalog(List.of(reviewerSeam(Set.of("review_list"))));
 
         assertThat(catalog.visibleCommands(CHAT, ADMIN, true))
-                .as("无权限点、无接缝的命令（echo/menu）不进管理面板——保持升级前语义")
+                .as("无权限点、又未声明 publicCommand 的命令（echo/menu）不进面板——fail-closed")
                 .doesNotContain("echo", "menu");
+    }
+
+    /** 自助命令（无权限点 + 声明 publicCommand）对**全体成员**可见——它是客户端菜单之外的发现路径。 */
+    @Test
+    void selfServiceCommandIsVisibleToEveryone() {
+        CommandRegistry registry = new CommandRegistry(List.of(
+                new QuietHoursHandler(), new WordsHandler(), new MenuHandler()));
+        MenuCatalog catalog = new MenuCatalog(providerOf(registry),
+                new PermissionChecker(roleSource()), List.of());
+
+        assertThat(catalog.visibleCommands(CHAT, MEMBER, true))
+                .as("普通成员也应看到自助命令")
+                .contains("quiet_hours");
+        assertThat(catalog.grouped(CHAT, MEMBER, true))
+                .as("自助命令归入「自助功能」分类")
+                .containsKey(MenuCategory.SELF_SERVICE);
     }
 
     @Test

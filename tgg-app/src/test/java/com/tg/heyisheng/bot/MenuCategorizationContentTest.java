@@ -44,12 +44,14 @@ class MenuCategorizationContentTest {
     void everyCommandThatCanEnterTheMenuHasAnExplicitCategory() {
         List<String> uncategorized = registry.mainCommands().keySet().stream()
                 .filter(name -> !PANEL_COMMAND.equals(name))
-                .filter(name -> registry.requiredPermission(name) != Permission.NONE)
+                // 能进 /menu 面板的命令：带权限点（走 RBAC）或显式声明的自助命令（publicCommand）
+                .filter(name -> registry.requiredPermission(name) != Permission.NONE
+                        || registry.publicCommand(name))
                 .filter(name -> registry.categoryOf(name) == MenuCategory.OTHER)
                 .toList();
 
         assertThat(uncategorized)
-                .as("带权限点的命令必须在 @BotCommand 里声明 category，否则会全挤进「其他」分类")
+                .as("能进面板的命令必须在 @BotCommand 里声明 category，否则会全挤进「其他」分类")
                 .isEmpty();
     }
 

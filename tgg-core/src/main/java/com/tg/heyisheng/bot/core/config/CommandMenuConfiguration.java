@@ -60,9 +60,11 @@ public class CommandMenuConfiguration {
 
         List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
                 commandRegistry, seamCommands, roleSource.grants());
-        log.info("命令菜单分档：共 {} 档（默认档 + {} 个逐成员档）；接缝类命令 {} 条不进客户端菜单"
+        log.info("客户端命令菜单：共 {} 档（默认档 + {} 个逐成员覆盖档，且各档内容一致）；"
+                        + "客户端 / 菜单只含入口命令 {} 条；接缝类命令 {} 条不进客户端菜单"
                         + "（由 /menu 的可见性接缝呈现）。",
-                menus.size(), menus.size() - 1, seamCommands.size());
+                menus.size(), menus.size() - 1,
+                menus.isEmpty() ? 0 : menus.get(0).commands().size(), seamCommands.size());
 
         String token = properties.getBotToken();
         // 无 token 时传 null（由 registrar 负责 WARN 并跳过），而不是在这里静默不装配——

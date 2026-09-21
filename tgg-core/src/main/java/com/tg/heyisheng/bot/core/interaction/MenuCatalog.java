@@ -27,7 +27,8 @@ import java.util.Map;
  * <ol>
  *   <li>有接缝的命令 → 接缝判定（各模块自己的平台白名单 Guard，与 handler 内用的是同一个）；</li>
  *   <li>其余命令 → {@code requiredPermission != NONE} 才收（保持升级前语义），再走
- *       {@link PermissionChecker}；</li>
+ *       {@link PermissionChecker}；无权限点但声明了 {@code publicCommand} 的「自助命令」对所有人可见
+ *       （客户端 {@code /} 菜单已收敛为只留 {@code /menu}，它们是唯一入口之外的发现路径）；</li>
  *   <li>群开关 → {@code groupEnabled || worksWhenDisabled}。</li>
  * </ol>
  * 任一不一致都会让面板显示「点了却无声」或（更糟）对无权者暴露命令。
@@ -115,9 +116,19 @@ public class MenuCatalog {
     /**
      * 单条命令的可见性判定。
      *
-     * <p>接缝优先：某命令若被某接缝认领，**只**由该接缝判定（不再叠加注册表权限）——
-     * 白名单类命令的注解权限是 {@code NONE}，若再走 {@code PermissionChecker} 会因
-     * {@code NONE} 恒过而与接缝结论冲突。
+     * <p>三条来源，与执行门控逐条对齐：
+     * <ol>
+     *   <li><b>接缝优先</b>：某命令若被某接缝认领，**只**由该接缝判定（不再叠加注册表权限）——
+     *       白名单类命令的注解权限是 {@code NONE}，若再走 {@code PermissionChecker} 会因
+     *       {@code NONE} 恒过而与接缝结论冲突；</li>
+     *   <li><b>自助命令</b>（无权限点 + 声明 {@code publicCommand}）→ 对全体成员可见
+     *       （客户端 {@code /} 菜单已收敛为只留 {@code /menu}，这些命令必须能从面板到达）；</li>
+     *   <li><b>其余有权限点的命令</b> → 走 {@link PermissionChecker}。</li>
+     * </ol>
+     *
+     * <p>无权限点、非接缝、又未声明 {@code publicCommand} 的命令**不进面板**（fail-closed）——
+     * 这类命令既不该对所有人可见，也不该经面板暴露；其存在应由
+     * {@code CommandMenuRegistrar.planMenus} 的启动告警与 {@code CommandMenuContentTest} 拦下。
      */
     private boolean isVisible(String command, long chatId, Long userId, CommandRegistry registry) {
         MenuVisibility seam = seamByCommand.get(command);
@@ -126,8 +137,8 @@ public class MenuCatalog {
         }
         Permission required = registry.requiredPermission(command);
         if (required == Permission.NONE) {
-            // 无权限点的命令（个人/自助类）不进管理面板——保持升级前语义
-            return false;
+            // 无权限点的命令：只有显式声明 publicCommand 的「自助命令」才进面板（fail-closed）
+            return registry.publicCommand(command);
         }
         return permissionChecker.has(chatId, userId, required);
     }

@@ -20,23 +20,21 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * 启动期把命令清单**按权限分档**注册到 Telegram——即客户端里输入 {@code /} 时弹出的提示菜单。
+ * 启动期把**客户端 {@code /} 提示菜单**注册到 Telegram。
  *
- * <p><b>为什么必须分档</b>：{@code setMyCommands} 不带 scope 就是「默认菜单」，**所有用户共享同一份**。
- * 早先的实现正是如此——把全部命令一次性注册，于是任何普通成员都能在客户端看到
- * {@code review_approve} / {@code merchant_settle} / {@code data_breach} 这些平台命令的名字。
- * 那与项目「权限不足即静默、不向无权者暴露命令存在」的纪律相悖。
+ * <p><b>客户端菜单已收敛为单一入口</b>：只注册显式声明 {@code clientMenu = true} 的命令
+ * （当前即 {@code /menu}）。这与项目「从背命令到点面板」的方向一致——普通成员不再在 {@code /}
+ * 里面对一长串（有的还带管理字样）的命令清单，而是从 {@code /menu} 面板按自身权限点用。
  *
- * <p><b>分档规则</b>（见 {@link #planMenus}，由既有事实推导，不维护新的「命令→档位」表）：
- * <ul>
- *   <li><b>接缝类</b>（被某 {@code MenuVisibility} 认领的平台白名单命令）→ <b>不进任何档</b>。
- *       Telegram 只有 per-{@code (chat,user)} 的 scope、**没有「全局按人」的 scope**，
- *       而这些命令的授权是全局 userId 白名单、与群无关——它们由 {@code /menu} 卡片的可见性接缝呈现。</li>
- *   <li><b>公开类</b>（无权限点且非接缝）→ {@link BotCommandScopeDefault}，人人可见。</li>
- *   <li><b>管理类</b>（{@code requiredPermission != NONE} 且非接缝）→ 只进「该群该人有权限」的
- *       {@link BotCommandScopeChatMember}，按该条授权的 {@code Role} 逐条过滤——
- *       例如 {@code MODERATOR} 不该看到它跑不了的 {@code /words}。</li>
- * </ul>
+ * <p><b>为什么不给每个人不同的菜单</b>：早先的实现按权限分档——管理类命令进
+ * {@code BotCommandScopeChatMember}、公开类进默认档。但那要求为**每条授权**维护一份 per-user
+ * 菜单，且给不出「全局按人」的档（Telegram 没有这种 scope）。现在客户端菜单人人一份、内容相同，
+ * 按权限呈现的职责整体让给了 {@code /menu} 面板的可见性接缝。
+ *
+ * <p><b>逐成员档为什么还在</b>：Telegram 的 scope <b>只写不可枚举</b>——无法问它「列出所有
+ * per-user 菜单」。旧版留下的 {@code BotCommandScopeChatMember} 残留若不覆盖，那些用户仍会看到
+ * 旧菜单。故对**当前配置的每条授权**用与默认档相同的内容覆盖一次；配置里已删除的旧授权其残留
+ * 无法枚举，属已知边界。
  *
  * <p><b>为什么在本地过滤</b>：Telegram 的 {@code setMyCommands} 是**全量替换**（按 scope 各算一份），
  * 一个不合法的条目会让整个请求失败、菜单保持原样（表现为「注册了但一条都没生效」）。
@@ -91,69 +89,69 @@ public class CommandMenuRegistrar {
     }
 
     /**
-     * 组装分档菜单（**纯函数**，便于单测）。
+     * 组装客户端菜单（**纯函数**，便于单测）。
      *
-     * @param registry    命令注册表（提供主命令、描述与所需权限）
+     * <p><b>内容</b>：客户端 {@code /} 菜单只含**显式声明** {@code clientMenu = true} 的命令
+     * （当前即 {@code /menu}）。其余命令一律经 {@code /menu} 面板按权限呈现。
+     *
+     * <p><b>为什么仍有「逐成员档」</b>：客户端菜单现已全局统一，本不需要 per-user 档；保留它是为了
+     * **覆盖旧版按权限分档时留下的 per-user 菜单**——Telegram 的 scope 只写不可枚举，不覆盖则老用户
+     * 仍会看到旧菜单。故对每条授权用**与默认档相同的内容**再发一次。
+     *
+     * @param registry     命令注册表（提供主命令、描述与所需权限）
      * @param seamCommands 被可见性接缝认领的命令名（即平台白名单类，不进客户端菜单）
-     * @param grants      已授权项（{@code tgg.permission.admins} 解析所得）
-     * @return 至少含一个默认档；逐成员档仅在「该授权确实能多看到至少一条管理命令」时才生成
+     * @param grants       已授权项（{@code tgg.permission.admins} 解析所得；用于覆盖旧版残留）
+     * @return 至少含一个默认档；每条授权再生成一个内容相同的逐成员档
      */
     public static List<ScopedMenu> planMenus(CommandRegistry registry,
                                              Set<String> seamCommands,
                                              List<RoleGrant> grants) {
-        Map<String, String> publicSpec = new LinkedHashMap<>();
-        Map<String, String> managementSpec = new LinkedHashMap<>();
-        List<String> unlisted = new ArrayList<>();
+        Map<String, String> clientSpec = new LinkedHashMap<>();
+        List<String> unreachable = new ArrayList<>();
         for (Map.Entry<String, String> entry : registry.mainCommands().entrySet()) {
             String name = entry.getKey();
-            if (seamCommands.contains(name)) {
-                // 接缝类：平台白名单，授权与群无关，Telegram 没有「全局按人」的 scope——由 /menu 负责
-                continue;
-            }
-            if (registry.requiredPermission(name) != Permission.NONE) {
-                managementSpec.put(name, entry.getValue());
-                continue;
-            }
-            if (registry.publicCommand(name)) {
-                publicSpec.put(name, entry.getValue());
-                continue;
-            }
-            // fail-closed：无权限点、未被接缝认领、又没声明 publicCommand → **不进任何档**。
-            // 反过来（默认公开）会让「门控在 handler 内、忘了登记接缝」的新命令被广播给所有人
-            // ——正是「客户端菜单向无权者暴露命令」那个原始缺陷的原样回归。
-            unlisted.add(name);
-        }
-        if (!unlisted.isEmpty()) {
-            log.warn("以下命令不进任何客户端菜单档（无权限点、未被可见性接缝认领、也未声明 "
-                            + "@BotCommand(publicCommand = true)）：{}"
-                            + "——若本该对所有人可见请补 publicCommand；若是平台门控命令，"
-                            + "请为其模块注册 MenuVisibility 接缝。",
-                    String.join(", ", unlisted));
-        }
-
-        List<ScopedMenu> planned = new ArrayList<>();
-        List<BotCommand> publicCommands = toMenuCommands(publicSpec);
-        planned.add(new ScopedMenu(new BotCommandScopeDefault(), "default", publicCommands));
-
-        for (RoleGrant grant : grants) {
-            Map<String, String> forGrant = new LinkedHashMap<>(publicSpec);
-            boolean extraManagement = false;
-            for (Map.Entry<String, String> entry : managementSpec.entrySet()) {
-                // 按**该条授权的角色**过滤：MODERATOR 只有 BAN_USER，不该看到 /words 这类管理命令
-                if (grant.role().has(registry.requiredPermission(entry.getKey()))) {
-                    forGrant.put(entry.getKey(), entry.getValue());
-                    extraManagement = true;
+            if (registry.clientMenu(name)) {
+                if (seamCommands.contains(name)) {
+                    // 同时声明两者是配置矛盾：接缝类的授权是平台白名单、与群无关，
+                    // 进客户端菜单等于广播给所有人。fail-closed：不进，并告警。
+                    log.warn("命令 {} 同时声明了 clientMenu 与可见性接缝——接缝类不进客户端菜单", name);
+                    continue;
                 }
-            }
-            if (!extraManagement) {
-                // 该授权不额外看到任何管理命令（如 MODERATOR/MEMBER）——不浪费一次 API 调用，
-                // 它会自然落到默认档
+                if (registry.requiredPermission(name) != Permission.NONE) {
+                    // 带权限点的命令进客户端菜单会向无权者暴露其存在。fail-closed：不进，并告警。
+                    log.warn("命令 {} 声明了 clientMenu 但带权限点（{}）——不进客户端菜单",
+                            name, registry.requiredPermission(name));
+                    continue;
+                }
+                clientSpec.put(name, entry.getValue());
                 continue;
             }
+            // 不进客户端菜单的命令：必须还能从 /menu 面板到达，否则对谁都不可见（静默失踪）。
+            // 三种可达途径：被接缝认领 / 有权限点（走 RBAC 进面板）/ 声明 publicCommand（自助命令进面板）。
+            boolean reachable = seamCommands.contains(name)
+                    || registry.requiredPermission(name) != Permission.NONE
+                    || registry.publicCommand(name);
+            if (!reachable) {
+                unreachable.add(name);
+            }
+        }
+        if (!unreachable.isEmpty()) {
+            log.warn("以下命令既不在客户端菜单、也无法经 /menu 面板到达（无权限点、未被可见性接缝认领、"
+                            + "又未声明 publicCommand）：{}"
+                            + "——若应经面板呈现请补 @BotCommand(publicCommand = true)；"
+                            + "若是平台门控命令，请为其模块注册 MenuVisibility 接缝。",
+                    String.join(", ", unreachable));
+        }
+
+        List<BotCommand> clientCommands = toMenuCommands(clientSpec);
+        List<ScopedMenu> planned = new ArrayList<>();
+        planned.add(new ScopedMenu(new BotCommandScopeDefault(), "default", clientCommands));
+        for (RoleGrant grant : grants) {
+            // 与默认档**同内容**：目的只是覆盖旧版遗留的 per-user 菜单（见方法 javadoc），不是再分档。
             planned.add(new ScopedMenu(
                     new BotCommandScopeChatMember(String.valueOf(grant.chatId()), grant.userId()),
                     "member:" + grant.chatId() + ":" + grant.userId(),
-                    toMenuCommands(forGrant)));
+                    clientCommands));
         }
         return List.copyOf(planned);
     }

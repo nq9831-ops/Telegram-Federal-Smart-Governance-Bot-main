@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.listing.command;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.listing.ListingGroup;
 import com.tg.heyisheng.bot.listing.ListingGroupService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,7 +25,8 @@ import java.util.List;
  * <p><b>不回显邀请链接</b>：{@code https://t.me/+...} 的 token 等同入群凭证，
  * 在群内公示等于把收录库变成链接分发器。列表只给「编号 + 名称」，需要链接的人自己去找群。
  */
-@BotCommand(value = "listing_list", description = "查看本节点收录库（有效群组）", publicCommand = true)
+@BotCommand(value = "listing_list", description = "查看本节点收录库（有效群组）", publicCommand = true,
+        category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingListCommandHandler implements CommandHandler {
 

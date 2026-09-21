@@ -152,10 +152,10 @@ class MenuCallbackHandlerTest {
     }
 
     /**
-     * 无权限时卡片回「没有管理权限」，并且**必须去掉按钮**。
+     * 没有任何可见命令时卡片回「没有可用的功能」，并且**必须去掉按钮**。
      *
      * <p>去按钮要传**空键盘**——{@code editMessageText} 不传 {@code replyMarkup} 会**保留**原按钮，
-     * 于是用户看到「你在此群没有管理权限」却仍能点那张卡的分类入口。
+     * 于是用户看到说明文字却仍能点那张卡的分类入口。
      */
     @Test
     void noPermissionCardLosesItsButtons() {

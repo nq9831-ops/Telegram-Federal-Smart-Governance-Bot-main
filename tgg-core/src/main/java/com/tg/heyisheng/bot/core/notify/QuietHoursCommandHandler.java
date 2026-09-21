@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.notify;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 
@@ -23,7 +24,7 @@ import java.util.Locale;
  * 而封禁/解封恰恰是他们最需要立刻知道的。
  */
 @BotCommand(value = "quiet_hours", description = "设置免打扰时段，例：/quiet_hours 22:00-08:00",
-        publicCommand = true)
+        publicCommand = true, category = MenuCategory.SELF_SERVICE)
 public class QuietHoursCommandHandler implements CommandHandler {
 
     static final String USAGE = "用法：\n"

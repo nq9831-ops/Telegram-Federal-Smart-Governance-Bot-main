@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.listing.command;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.listing.ListingAppeal;
 import com.tg.heyisheng.bot.listing.ListingAppealRepository;
 import com.tg.heyisheng.bot.listing.ListingGroup;
@@ -43,7 +44,7 @@ import java.util.Optional;
  * <p><b>日志脱敏</b>：申诉正文（{@code commandArgs}）<b>只落库、绝不进日志</b>。
  */
 @BotCommand(value = "listing_appeal", description = "对已下架的收录条目提交申诉",
-        publicCommand = true)
+        publicCommand = true, category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAppealCommandHandler implements CommandHandler {
 

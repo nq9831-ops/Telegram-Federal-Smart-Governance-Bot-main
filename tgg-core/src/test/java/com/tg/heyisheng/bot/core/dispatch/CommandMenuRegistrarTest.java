@@ -20,11 +20,12 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 命令菜单**按权限分档**注册（客户端输入 {@code /} 时的提示菜单）。
+ * 命令菜单注册：客户端 {@code /} 菜单已收敛为**单一入口** {@code /menu}。
  *
- * <p>三条不变量：① 默认档只含公开命令——普通成员不该看到任何管理命令名；
- * ② 接缝类（平台白名单）**不进任何档**（Telegram 没有「全局按人」的 scope）；
- * ③ 逐成员档按该条授权的**角色**过滤（{@code MODERATOR} 不该看到它跑不了的命令）。
+ * <p>四条不变量：① 客户端菜单只含显式声明 {@code clientMenu} 的命令（当前即 {@code /menu}）；
+ * ② 自助命令（{@code publicCommand}）**不进**客户端菜单——它由 {@code /menu} 面板承载；
+ * ③ 接缝类（平台白名单）不进任何档（Telegram 没有「全局按人」的 scope）；
+ * ④ 每条授权都生成一个与默认档**同内容**的逐成员档——只为覆盖旧版按权限分档遗留的 per-user 菜单。
  *
  * <p>{@code setMyCommands} 是**按 scope 全量替换**——一个非法条目会让该档整批失败、菜单保持原样，
  * 所以本地必须先过滤再发送。
@@ -40,6 +41,16 @@ class CommandMenuRegistrarTest {
 
     // ────────────────────────── 测试用命令 ──────────────────────────
 
+    /** 客户端菜单入口：声明 clientMenu 才进客户端菜单（当前唯一即 /menu）。 */
+    @BotCommand(value = "menu", description = "显示你可用的功能", clientMenu = true)
+    static class MenuHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            return new SendMessage(String.valueOf(ctx.chatId()), "menu");
+        }
+    }
+
+    /** 自助命令：声明 publicCommand → 进 /menu 面板，但**不进**客户端菜单。 */
     @BotCommand(value = "echo", description = "连通性测试", publicCommand = true)
     static class EchoHandler implements CommandHandler {
         @Override
@@ -49,7 +60,8 @@ class CommandMenuRegistrarTest {
     }
 
     /**
-     * 无权限点、未被接缝认领、又**没声明** {@code publicCommand}——按 fail-closed 不进任何档。
+     * 无权限点、未被接缝认领、又**没声明** {@code publicCommand}/{@code clientMenu}——三不管，
+     * 按 fail-closed 不进任何档。
      */
     @BotCommand(value = "mystery", description = "谁都没管的命令")
     static class MysteryHandler implements CommandHandler {
@@ -67,14 +79,6 @@ class CommandMenuRegistrarTest {
         }
     }
 
-    @BotCommand(value = "teach", description = "教一条规则", requiredPermission = Permission.TEACH_RULE)
-    static class TeachHandler implements CommandHandler {
-        @Override
-        public BotApiMethod<?> handle(UpdateContext ctx) {
-            return new SendMessage(String.valueOf(ctx.chatId()), "已教");
-        }
-    }
-
     /** 平台白名单类：注解无权限点，可见性由接缝给出——**不进客户端菜单**。 */
     @BotCommand(value = "review_list", description = "待复核队列")
     static class ReviewListHandler implements CommandHandler {
@@ -84,12 +88,22 @@ class CommandMenuRegistrarTest {
         }
     }
 
+    /** 带权限点却声明 clientMenu——配置矛盾，必须 fail-closed 剔除（否则向无权者暴露其存在）。 */
+    @BotCommand(value = "danger", description = "带权限点的入口", requiredPermission = Permission.BAN_USER,
+            clientMenu = true)
+    static class DangerHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            return new SendMessage(String.valueOf(ctx.chatId()), "danger");
+        }
+    }
+
     private static final Set<String> SEAMED = Set.of("review_list");
 
     private static CommandRegistry registry() {
         return new CommandRegistry(List.of(
-                new EchoHandler(), new MysteryHandler(), new WordsHandler(), new TeachHandler(),
-                new ReviewListHandler()));
+                new MenuHandler(), new EchoHandler(), new MysteryHandler(),
+                new WordsHandler(), new ReviewListHandler(), new DangerHandler()));
     }
 
     /** 命令名列表——避开 TelegramBots {@code BotCommand} 的类型名（见类 javadoc 的警告）。 */
@@ -184,36 +198,51 @@ class CommandMenuRegistrarTest {
 
     // ────────────────────────── 分档 ──────────────────────────
 
-    /** 默认档只含**公开**命令——普通成员不该在客户端看到管理命令名。 */
+    /** 客户端菜单只含显式声明 {@code clientMenu} 的命令——当前即 /menu。 */
     @Test
-    void defaultTierHoldsOnlyPublicCommands() {
+    void clientMenuHoldsOnlyExplicitlyDeclaredEntries() {
         List<CommandMenuRegistrar.ScopedMenu> menus =
                 CommandMenuRegistrar.planMenus(registry(), SEAMED, List.of());
 
         assertThat(menus).hasSize(1);
         assertThat(menus.get(0).label()).isEqualTo("default");
         assertThat(menus.get(0).scope()).isInstanceOf(BotCommandScopeDefault.class);
-        assertThat(names(menus.get(0).commands())).containsExactly("echo");
+        assertThat(names(menus.get(0).commands())).containsExactly("menu");
+    }
+
+    /** 自助命令（publicCommand）**不进**客户端菜单——它由 /menu 面板承载。 */
+    @Test
+    void publicCommandDoesNotEnterClientMenu() {
+        List<CommandMenuRegistrar.ScopedMenu> menus =
+                CommandMenuRegistrar.planMenus(registry(), SEAMED, List.of());
+
+        assertThat(names(menus.get(0).commands())).doesNotContain("echo");
+    }
+
+    /** 带权限点的命令即使声明 clientMenu 也不进（fail-closed）——否则向无权者暴露其存在。 */
+    @Test
+    void clientMenuCommandWithPermissionIsRejected() {
+        List<CommandMenuRegistrar.ScopedMenu> menus =
+                CommandMenuRegistrar.planMenus(registry(), SEAMED, List.of());
+
+        assertThat(names(menus.get(0).commands())).doesNotContain("danger");
     }
 
     /**
-     * fail-closed：无权限点、未被接缝认领、又没声明 {@code publicCommand} 的命令**不进任何档**。
-     *
-     * <p>反过来的默认（公开）会有一个静默且危险的失效方式：有人新增一条「门控写在 handler 内、
-     * 注解权限留 {@code NONE}」的平台命令，只要忘了登记可见性接缝，它就会被默认档广播给所有人
-     * ——正是「客户端菜单向无权者暴露命令」那个原始缺陷的原样回归。
+     * fail-closed：无权限点、未被接缝认领、又没声明 {@code publicCommand}/{@code clientMenu}
+     * 的命令**不进任何档**——它既不对所有人可见，也不该经面板暴露。
      */
     @Test
-    void unlistedCommandNeverAppearsInAnyTier() {
+    void unreachableCommandNeverAppearsInAnyTier() {
         List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
                 registry(), SEAMED, List.of(new RoleGrant(CHAT, USER, Role.ADMIN)));
 
         assertThat(menus).allSatisfy(menu -> assertThat(names(menu.commands()))
-                .as("档 %s 不得含未声明 publicCommand 的命令", menu.label())
+                .as("档 %s 不得含三不管命令", menu.label())
                 .doesNotContain("mystery"));
     }
 
-    /** 接缝类（平台白名单）不进任何档——包括管理档。 */
+    /** 接缝类（平台白名单）不进任何档——包括逐成员档。 */
     @Test
     void seamCommandsNeverAppearInAnyTier() {
         List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
@@ -224,31 +253,22 @@ class CommandMenuRegistrarTest {
                 .doesNotContain("review_list"));
     }
 
-    /** 有管理权的授权 → 多一档「公开 + 管理」，且 scope 精确到 (chatId, userId)。 */
+    /**
+     * 每条授权都生成一个与默认档**同内容**的逐成员档——只为覆盖旧版遗留的 per-user 菜单
+     * （客户端菜单已全局统一，逐成员档不再按角色过滤）。
+     */
     @Test
-    void adminGrantGetsPublicPlusManagementTier() {
+    void everyGrantGetsAMemberTierWithTheSameContent() {
         List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
-                registry(), SEAMED, List.of(new RoleGrant(CHAT, USER, Role.ADMIN)));
+                registry(), SEAMED, List.of(new RoleGrant(CHAT, USER, Role.MODERATOR)));
 
         assertThat(menus).hasSize(2);
         CommandMenuRegistrar.ScopedMenu member = menus.get(1);
         assertThat(member.label()).isEqualTo("member:" + CHAT + ":" + USER);
         assertThat(member.scope()).isInstanceOf(BotCommandScopeChatMember.class);
-        assertThat(names(member.commands())).containsExactly("echo", "teach", "words");
-    }
-
-    /**
-     * 按**该条授权的角色**过滤：{@code MODERATOR} 只有 {@code BAN_USER}，跑不了
-     * {@code MANAGE_CONFIG} / {@code TEACH_RULE} 的命令——不该为他多生成一档，
-     * 否则又是「显示了却用不了」。
-     */
-    @Test
-    void moderatorGrantGetsNoExtraTier() {
-        List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
-                registry(), SEAMED, List.of(new RoleGrant(CHAT, USER, Role.MODERATOR)));
-
-        assertThat(menus).hasSize(1);
-        assertThat(menus.get(0).label()).isEqualTo("default");
+        assertThat(names(member.commands()))
+                .as("逐成员档内容与默认档一致")
+                .containsExactlyElementsOf(names(menus.get(0).commands()));
     }
 
     @Test
@@ -279,8 +299,8 @@ class CommandMenuRegistrarTest {
         SetMyCommands second = (SetMyCommands) sender.sent.get(1);
         assertThat(first.getScope()).isInstanceOf(BotCommandScopeDefault.class);
         assertThat(second.getScope()).isInstanceOf(BotCommandScopeChatMember.class);
-        assertThat(names(first.getCommands())).containsExactly("echo");
-        assertThat(names(second.getCommands())).containsExactly("echo", "teach", "words");
+        assertThat(names(first.getCommands())).containsExactly("menu");
+        assertThat(names(second.getCommands())).as("逐成员档与默认档同内容").containsExactly("menu");
     }
 
     /**

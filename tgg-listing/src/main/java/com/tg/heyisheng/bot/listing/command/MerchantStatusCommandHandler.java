@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.listing.command;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.listing.merchant.Merchant;
 import com.tg.heyisheng.bot.listing.merchant.MerchantService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,7 +21,8 @@ import java.util.Optional;
  * <p><b>状态用中文短句而非枚举名</b>：{@code DEPOSIT_PENDING} 之类的内部枚举名对用户没有意义，
  * 而「待缴纳保证金」直接告诉他下一步要做什么。
  */
-@BotCommand(value = "merchant_status", description = "查看我的商家入驻状态", publicCommand = true)
+@BotCommand(value = "merchant_status", description = "查看我的商家入驻状态", publicCommand = true,
+        category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantStatusCommandHandler implements CommandHandler {
 

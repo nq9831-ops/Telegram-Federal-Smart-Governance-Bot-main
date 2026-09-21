@@ -103,18 +103,17 @@ class FederationMenuVisibilityWiringTest {
     }
 
     /**
-     * 联邦模块的两类命令各归各档：{@code /appeal} 是**成员自助**（对所有人公开），
-     * 三条裁决命令是**平台白名单**（只对联邦管理员可见）——两者不能混。
+     * 联邦模块的两类命令各有归属：{@code /appeal} 是**成员自助**（{@code publicCommand} → 经
+     * {@code /menu} 面板呈现），三条裁决命令是**平台白名单**（只对联邦管理员可见）——两者不能混。
      *
-     * <p>注意别把两个入口搞混：{@code /appeal} **不进** {@code /menu} 卡片（那是管理面板，
-     * 只收带权限点或被接缝认领的命令），但它**应该进客户端菜单的默认档**——
-     * 后者由 {@code publicCommand} 决定。故这里断言的是 {@code planMenus} 的分档结果。
+     * <p>客户端 {@code /} 菜单现已收敛为**只留 {@code /menu} 一个入口**，故这两类命令**都不**出现在
+     * {@code planMenus} 的任何档里；{@code /appeal} 靠面板对所有人可见，裁决命令靠接缝只对管理员可见。
      *
      * <p>这条不变量覆盖了 {@code appeal} 的 {@code publicCommand} 声明：federation 模块开关在
      * {@code CommandMenuContentTest} 里默认关闭，若不在这里校验，那条声明删掉也不会有测试变红。
      */
     @Test
-    void appealIsPublicWhileRulingsAreSeamed() {
+    void appealIsSelfServiceWhileRulingsAreSeamed() {
         runner.withPropertyValues("tgg.federation.enabled=true",
                         "tgg.federation.nodes=" + NODE_SPEC,
                         "tgg.federation.admins=" + ADMIN)
@@ -123,12 +122,16 @@ class FederationMenuVisibilityWiringTest {
                     List<CommandMenuRegistrar.ScopedMenu> menus = CommandMenuRegistrar.planMenus(
                             registry, context.getBean(MenuVisibility.class).commands(), List.of());
 
-                    assertThat(namesOf(menus.get(0)))
-                            .as("/appeal 是成员自助命令，应进客户端菜单的默认档")
-                            .contains("appeal");
                     assertThat(menus).allSatisfy(menu -> assertThat(namesOf(menu))
-                            .as("档 %s 不得含平台裁决命令（它们只经 /menu 呈现）", menu.label())
-                            .doesNotContain("approve", "reject", "pending"));
+                            .as("档 %s 不得含任何联邦命令：客户端菜单只留 /menu 入口", menu.label())
+                            .doesNotContain("appeal", "approve", "reject", "pending"));
+
+                    // /appeal 是自助命令 → 对普通成员可见（经面板）；三条裁决命令只对联邦管理员可见
+                    MenuCatalog catalog = catalogWith(registry, context.getBean(MenuVisibility.class));
+                    assertThat(catalog.visibleCommands(CHAT, OTHER, true))
+                            .as("/appeal 是成员自助，普通成员可用；裁决命令不得出现")
+                            .contains("appeal")
+                            .doesNotContain("approve", "reject", "pending");
                 });
     }
 
