@@ -16,6 +16,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 命令分发器：按上下文中的命令路由到对应处理器，并在路由前做权限门控。
@@ -137,6 +138,39 @@ public class CommandDispatcher {
      */
     public boolean willExecute(UpdateContext ctx) {
         return resolvableHandler(ctx).isPresent();
+    }
+
+    /**
+     * 参数承载<b>用户手写正文</b>的公开命令——它们的自由文本必须豁免审核，否则会「自己拦掉自己」：
+     * {@code /case_appeal 7 <理由>} 的理由里一旦出现违禁词，**申诉本身**就被删了，当事人永远申诉不了。
+     *
+     * <p>名单刻意**只列这三条**（申诉 / 申请类）。其余公开命令（{@code /echo}、{@code /quiet_hours}、
+     * {@code /whoami}、{@code /menu}…）的参数要么固定、要么不被系统消费，**照常送审**。
+     */
+    private static final Set<String> MODERATION_EXEMPT_PUBLIC_COMMANDS =
+            Set.of("case_appeal", "listing_appeal", "merchant_apply");
+
+    /**
+     * 这条更新是否**豁免内容审核**（供审核层使用）。
+     *
+     * <p>判据是「会真的执行一条命令」<b>且</b>属于下列之一：
+     * <ol>
+     *   <li><b>有权限要求的命令</b>——管理/运营命令属**控制面**（{@code /delword <词>} 的参数天然
+     *       含该词，送审会被自己的规则删掉，命令永不执行）；</li>
+     *   <li><b>白名单里的公开命令</b>——参数是用户手写的申诉/申请正文，送审会拦掉申诉本身。</li>
+     * </ol>
+     *
+     * <p>⚠️ <b>不能只看「已注册且在权限上放行」</b>：{@code /echo} 这类自助命令对**任何成员**
+     * 都满足该条件，而它的参数会被原样留在群里——若一并豁免，任何成员发
+     * {@code /echo <违规内容>} 就能让违规正文**免于删除**（消息不删、命令照常执行、无审核记录）。
+     */
+    public boolean exemptFromModeration(UpdateContext ctx) {
+        if (resolvableHandler(ctx).isEmpty()) {
+            return false;
+        }
+        String command = CommandRegistry.normalize(ctx.command().orElseThrow());
+        return registry.requiredPermission(command) != Permission.NONE
+                || MODERATION_EXEMPT_PUBLIC_COMMANDS.contains(command);
     }
 
     /**

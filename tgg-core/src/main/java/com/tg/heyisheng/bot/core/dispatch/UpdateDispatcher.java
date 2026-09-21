@@ -340,15 +340,19 @@ public class UpdateDispatcher {
             return;
         }
 
-        // 豁免条件：这条消息**会真的执行一条命令**（已注册 + 发送者有权限 + 群开关允许）。
+        // 豁免条件：这条消息**会真的执行一条命令**，且该命令**属控制面**或**参数承载用户正文**
+        // （判据见 CommandDispatcher#exemptFromModeration）。
         //
         // 不能用 `message.isCommand()`——那只是"文本看起来像命令"（offset 0 的 bot_command entity），
         // 与命令是否注册、发送者有无权限无关。拿它当豁免依据，任何人只要把违规内容写成
         // `/任意词 <违规内容>` 就能绕过内容审核：消息不被删，而命令又因未注册/无权限而不执行，
         // 违规内容于是留在群里。这是提交后审查抓到的 HIGH 绕过。
         //
+        // 同理**也不能只看「已注册 + 有权限」**：`/echo` 这类自助命令对任何成员都满足该条件，
+        // 一并豁免等于给"用公开命令停放违规正文"开口子（本轮全项目审查发现）。
+        //
         // 豁免的只是「审核」；消息正文仍会被 finally 里的 scrub 照常清除。
-        if (commandDispatcher.willExecute(ctx)) {
+        if (commandDispatcher.exemptFromModeration(ctx)) {
             return;
         }
 

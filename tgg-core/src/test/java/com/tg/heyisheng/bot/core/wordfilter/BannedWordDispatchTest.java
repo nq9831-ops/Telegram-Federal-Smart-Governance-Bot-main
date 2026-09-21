@@ -2,11 +2,16 @@ package com.tg.heyisheng.bot.core.wordfilter;
 
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
+import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
+import com.tg.heyisheng.bot.core.dispatch.EchoCommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.UpdateDispatcher;
 import com.tg.heyisheng.bot.core.middleware.MiddlewareChain;
+import com.tg.heyisheng.bot.core.moderation.CaseAppealCommandHandler;
+import com.tg.heyisheng.bot.core.moderation.CaseAppealRepository;
 import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewRecorder;
+import com.tg.heyisheng.bot.core.moderation.ModerationReviewRepository;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import com.tg.heyisheng.bot.core.permission.Role;
 import com.tg.heyisheng.bot.core.privacy.MessageScrubber;
@@ -152,6 +157,65 @@ class BannedWordDispatchTest {
 
         assertThat(action).as("未注册命令的外壳不得豁免审核").isPresent();
         assertThat(action.get()).as("违规内容仍须被删除").isInstanceOf(DeleteMessage.class);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 公开命令的豁免边界（豁免 = 有权限要求的命令 ∪ 白名单）
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★ 回归：**公开命令且不在白名单**的文本仍须送审。
+     *
+     * <p>豁免的初衷是「会被执行的管理命令属控制面」——但 {@code /echo} 是**任何成员都能用**的
+     * 自助命令，它的参数会被原样留在群里，不属于控制面。若一并豁免，任何成员发
+     * {@code /echo <违规内容>} 即可让违规正文**免于删除**（命令照常执行、消息留在群内且无审核记录）。
+     */
+    @Test
+    void publicCommandOutsideAllowlistIsStillModerated() throws Exception {
+        Optional<BotApiMethod<?>> action = dispatcherWithPublicEcho()
+                .dispatch(commandUpdate("/echo 广告话术", 5));
+
+        assertThat(action).as("公开命令的文本同样要过内容审核").isPresent();
+        assertThat(action.get()).as("命中本群词表 → 仍须删除").isInstanceOf(DeleteMessage.class);
+    }
+
+    /**
+     * 白名单内的公开命令仍**豁免**：{@code /case_appeal} 的参数是用户手写的申诉正文，
+     * 若送审，理由里一旦出现违禁词就会把**申诉本身**删掉——当事人永远申诉不了。
+     */
+    @Test
+    void allowlistedPublicCommandStaysExempt() throws Exception {
+        Optional<BotApiMethod<?>> action = dispatcherWithCaseAppeal()
+                .dispatch(commandUpdate("/case_appeal 7 广告话术是我引用的原文", 12));
+
+        assertThat(action).as("白名单公开命令仍豁免审核").isPresent();
+        assertThat(action.get())
+                .as("应当执行命令（回执），而不是被当作违规消息删除")
+                .isInstanceOf(SendMessage.class);
+    }
+
+    /** 装配：注册真实 {@code /echo}（publicCommand=true、无权限点）——即本回归要挡的那条路径。 */
+    private UpdateDispatcher dispatcherWithPublicEcho() {
+        return withCommandHandler(new EchoCommandHandler());
+    }
+
+    /** 装配：注册真实 {@code /case_appeal}（publicCommand=true、在白名单内）。 */
+    private UpdateDispatcher dispatcherWithCaseAppeal() {
+        return withCommandHandler(new CaseAppealCommandHandler(
+                mock(ModerationReviewRepository.class), mock(CaseAppealRepository.class)));
+    }
+
+    private UpdateDispatcher withCommandHandler(CommandHandler handler) {
+        return UpdateDispatcher.builder()
+                .middlewareChain(new MiddlewareChain(List.of()))
+                .commandDispatcher(new CommandDispatcher(
+                        new CommandRegistry(List.of(handler)), ALLOW_ALL))
+                .scrubber(new MessageScrubber())
+                .idHasher(IdHasher.fromEnvironment())
+                .actionSender(ModerationActionSender.noop())
+                .reviewRecorder(ModerationReviewRecorder.noop())
+                .bannedWordDetector(detector)
+                .build();
     }
 
     /** 带真实 /delword 命令的 dispatcher，并放行权限——用于验证命令消息能否穿过审核链到达命令层。 */
