@@ -21,6 +21,15 @@ public final class DispatchMessages {
     /** {@code /echo} 的固定回复。 */
     public static final String ECHO_REPLY = "pong";
 
+    /**
+     * 「需在群会话内执行」的统一提示。
+     *
+     * <p>刻意放在这里（跨域共享）而**不**各域各写一份：wordfilter 的 {@code /teach} 与 moderation 的
+     * {@code /group_tag} 都要用它，两处各写一份就是「改一处必然漏另一处」——
+     * 守门测试的「不得重复散落」判据也会拦下。
+     */
+    public static final String GROUP_ONLY = "请在要生效的群内执行本命令。";
+
     /** {@code /enable} 的回执。 */
     public static final String ENABLE_REPLY = "已开启本群的自动化能力。";
 

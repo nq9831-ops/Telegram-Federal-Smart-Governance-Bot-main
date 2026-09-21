@@ -42,9 +42,6 @@ public final class WordFilterMessages {
     public static final String TEACH_USAGE =
             "用法：/teach 规则id 正则 描述\n例：/teach SCAM_AIRDROP \"免费空投\\\\d+\" 假空投骗局";
 
-    /** 非群会话。 */
-    public static final String TEACH_NOT_A_GROUP = "请在要生效的群内执行本命令。";
-
     /** 规则未生效前缀（后接原因）。 */
     public static final String TEACH_REJECTED_PREFIX = "规则未生效：";
 

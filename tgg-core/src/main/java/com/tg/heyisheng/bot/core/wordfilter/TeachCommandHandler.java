@@ -3,6 +3,7 @@ package com.tg.heyisheng.bot.core.wordfilter;
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
+import com.tg.heyisheng.bot.core.dispatch.DispatchMessages;
 import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.moderation.RiskLevel;
@@ -36,7 +37,7 @@ import java.util.Optional;
 public class TeachCommandHandler implements CommandHandler {
 
     static final String USAGE = WordFilterMessages.TEACH_USAGE;
-    static final String NOT_A_GROUP = WordFilterMessages.TEACH_NOT_A_GROUP;
+    static final String NOT_A_GROUP = DispatchMessages.GROUP_ONLY;
 
     private final TaughtRuleService service;
     /** 教学门槛（§10.3）；默认放行——未接线时行为与升级前逐字一致。 */

@@ -47,19 +47,16 @@ public class ReviewListCommandHandler implements CommandHandler {
         }
         List<ModerationReviewItem> pending = decisions.listPending();
         if (pending.isEmpty()) {
-            return reply(ctx, "当前没有待复核的审核命中。");
+            return reply(ctx, ModerationMessages.REVIEW_LIST_EMPTY);
         }
 
-        StringBuilder sb = new StringBuilder("待复核（共 ").append(pending.size()).append(" 条）：\n");
+        StringBuilder sb = new StringBuilder(ModerationMessages.REVIEW_LIST_HEAD_PREFIX
+                + pending.size() + ModerationMessages.REVIEW_LIST_HEAD_SUFFIX);
         for (ModerationReviewItem item : pending) {
-            String line = "#" + item.getId()
-                    + " · 群 " + item.getChatId()
-                    + " · 规则 " + item.getRuleIds()
-                    + " · " + item.getRiskLevel()
-                    + (item.isHardLine() ? " · 硬红线(已封禁)" : "")
-                    + "\n";
+            String line = ModerationMessages.reviewListLine(item.getId(), item.getChatId(),
+                    item.getRuleIds(), String.valueOf(item.getRiskLevel()), item.isHardLine());
             if (sb.length() + line.length() > TELEGRAM_TEXT_LIMIT - TRUNCATION_RESERVE) {
-                sb.append("…（已截断，请先处理列表中的条目）\n");
+                sb.append(ModerationMessages.REVIEW_LIST_TRUNCATED);
                 break;
             }
             sb.append(line);

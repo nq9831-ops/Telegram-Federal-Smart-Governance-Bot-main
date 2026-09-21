@@ -19,9 +19,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 public class ReviewRejectCommandHandler implements CommandHandler {
 
     /** 用法文案刻意不含 {@code <...>}/{@code [...]}——模板符号会被连符号一起照抄。 */
-    static final String USAGE = "用法：/review_reject 编号\n"
-            + "例：/review_reject 7（编号后也可再跟一句备注，如 /review_reject 7 误报）\n"
-            + "备注是裁决理由，请勿粘贴消息正文（备注会落库）。";
+    static final String USAGE = ModerationMessages.REVIEW_REJECT_USAGE;
 
     private final ModerationReviewDecisionService decisions;
     private final ModerationReviewGuard guard;

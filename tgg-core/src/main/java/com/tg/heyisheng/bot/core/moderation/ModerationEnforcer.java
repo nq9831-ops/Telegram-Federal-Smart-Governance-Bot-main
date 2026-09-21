@@ -36,12 +36,10 @@ public class ModerationEnforcer {
      * 文案刻意**不透露命中的具体规则**：那等于把规则库交给想绕过的试探者；
      * 说清「已删除 + 有疑问找谁」即可。
      */
-    static final String DELETED_NOTICE =
-            "⚠️ 该消息命中本群内容规则，已被删除。如对判定有疑问，请联系群管理员。";
+    static final String DELETED_NOTICE = ModerationMessages.DELETED_NOTICE;
 
     /** 硬红线：删除 + 封禁，一并说清（不让封禁成为「无声消失」）。 */
-    static final String FROZEN_NOTICE =
-            "⚠️ 该消息命中本群硬性红线，已被删除，发布者已被封禁。如对判定有疑问，请联系群管理员。";
+    static final String FROZEN_NOTICE = ModerationMessages.FROZEN_NOTICE;
 
     /** 主动处置通道（封禁、告知等）；默认空实现，装配层注入真实通道。 */
     private final ModerationActionSender actionSender;

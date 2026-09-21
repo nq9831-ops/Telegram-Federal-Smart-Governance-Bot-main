@@ -50,19 +50,19 @@ final class ReviewDecisionCommandSupport {
         } catch (TggException ex) {
             // 输入问题（如备注超长）：如实回显原因。不让异常穿透到分发层——那会变成静默失败，
             // 而「裁决没生效却不告诉操作员」比直接报错危险得多。
-            return reply(ctx, "裁决未生效：" + ex.getMessage());
+            return reply(ctx, ModerationMessages.REVIEW_REJECTED_PREFIX + ex.getMessage());
         }
 
-        String verb = decision == ReviewStatus.APPROVED ? "维持" : "推翻";
+        String verb = decision == ReviewStatus.APPROVED
+                ? ModerationMessages.VERB_APPROVE
+                : ModerationMessages.VERB_REJECT;
         return switch (outcome.result()) {
-            case NOT_FOUND -> reply(ctx, "未找到复核编号 " + id + "。");
-            case SELF_DECISION_FORBIDDEN -> reply(ctx,
-                    "不能裁决自己的案件：复核 #" + id + " 的当事人就是你。请让其他复核人处理。");
-            case ALREADY_DECIDED -> reply(ctx, "复核 #" + id + " 已是终态结论（" + outcome.status()
-                    + "），本次未改动。");
-            case DECIDED -> reply(ctx, "复核 #" + id + " 已" + verb + "：" + outcome.status()
-                    + (decision == ReviewStatus.REJECTED && outcome.status() == ReviewStatus.REJECTED
-                    ? "（若原判为硬红线，已触发解封）" : "。"));
+            case NOT_FOUND -> reply(ctx, ModerationMessages.reviewNotFound(id));
+            case SELF_DECISION_FORBIDDEN -> reply(ctx, ModerationMessages.reviewSelfDecision(id));
+            case ALREADY_DECIDED -> reply(ctx,
+                    ModerationMessages.reviewAlreadyDecided(id, outcome.status()));
+            case DECIDED -> reply(ctx, ModerationMessages.reviewDecided(id, verb, outcome.status(),
+                    decision == ReviewStatus.REJECTED && outcome.status() == ReviewStatus.REJECTED));
         };
     }
 

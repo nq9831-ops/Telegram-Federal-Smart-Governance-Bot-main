@@ -117,7 +117,7 @@ public class SensitiveTopicGuard {
             // 首次：群内警告（可观察，且给出「再犯将禁言」的明确预期）
             actionSender.send(SendMessage.builder()
                     .chatId(String.valueOf(chatId))
-                    .text("⚠️ 本群已开启敏感话题分级：该内容已被处理。再次发布将禁言 24 小时。")
+                    .text(ModerationMessages.SENSITIVE_TOPIC_WARNING)
                     .build());
             return false;
         }
@@ -139,7 +139,7 @@ public class SensitiveTopicGuard {
         // 否则冤处置会在无人知晓的情况下持续生效。通知只带结论与次数，**不含消息正文**。
         if (notifications != null) {
             notifications.notify(new Notification(NotificationLevel.IMPORTANT, userId,
-                    "你在本群因敏感话题被禁言 24 小时（累计第 " + strike + " 次）。"));
+                    ModerationMessages.sensitiveTopicMuted(strike)));
         }
         return true;
     }

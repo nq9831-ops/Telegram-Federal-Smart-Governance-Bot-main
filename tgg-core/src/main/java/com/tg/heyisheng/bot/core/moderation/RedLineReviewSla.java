@@ -91,9 +91,8 @@ public class RedLineReviewSla {
             return;
         }
         for (ModerationReviewItem item : overdue) {
-            String message = "⚠️ 硬红线复核超时（SLA " + sla.toHours() + " 小时）：复核 #"
-                    + item.getId() + " 仍未裁决（规则 " + item.getRuleIds() + "）。"
-                    + "请在 /review_list 中裁决：/review_approve 维持 或 /review_reject 推翻并解封。";
+            String message = ModerationMessages.redlineSlaOverdue(
+                    sla.toHours(), item.getId(), item.getRuleIds());
             log.warn("红线复核超时：id={} rule={} level={}",
                     item.getId(), item.getRuleIds(), item.getRiskLevel());
             for (Long reviewerId : guard.reviewerIds()) {

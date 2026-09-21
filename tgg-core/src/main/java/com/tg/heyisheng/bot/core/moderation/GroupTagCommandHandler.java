@@ -5,6 +5,7 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.dispatch.DispatchMessages;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -30,9 +31,8 @@ import java.util.Locale;
         requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.GROUP)
 public class GroupTagCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/group_tag add 标签（remove 删除 / list 列出）\n"
-            + "例：/group_tag add gambling —— 声明本群为赌博话题群，敏感话题分级对赌博豁免（红线不豁免）。";
-    static final String NOT_A_GROUP = "请在要生效的群内执行本命令。";
+    static final String USAGE = ModerationMessages.GROUPTAG_USAGE;
+    static final String NOT_A_GROUP = DispatchMessages.GROUP_ONLY;
 
     private final GroupTopicTagService service;
 
@@ -64,7 +64,7 @@ public class GroupTagCommandHandler implements CommandHandler {
             };
         } catch (TggException ex) {
             // 输入问题（空/超长/非法字符）：如实回显，不静默失败
-            return reply(ctx, "标签未生效：" + ex.getMessage());
+            return reply(ctx, ModerationMessages.GROUPTAG_REJECTED_PREFIX + ex.getMessage());
         }
     }
 
@@ -75,32 +75,33 @@ public class GroupTagCommandHandler implements CommandHandler {
         // 都回「豁免已生效」——弱代理为真、强谓词为假，运维会被误导（提交后审查抓到的 HIGH）。
         if (!SensitiveTopicDetector.isExemptableTag(clean)) {
             String why = SensitiveTopicDetector.knownTags().contains(clean)
-                    ? "该话题属不可豁免内容（恐怖活动 / 极端主义 / 煽动战争）。"
-                    : "该标签不是已定义话题，不会产生任何豁免。";
-            return "标签「" + clean + "」已记录，但" + why
-                    + "\n可豁免话题：" + String.join(" / ", SensitiveTopicDetector.knownTags());
+                    ? ModerationMessages.GROUPTAG_NOT_EXEMPTABLE_KNOWN
+                    : ModerationMessages.GROUPTAG_NOT_EXEMPTABLE_UNKNOWN;
+            return ModerationMessages.groupTagRecordedNotExemptable(
+                    clean, why, String.join(" / ", SensitiveTopicDetector.knownTags()));
         }
         return added
-                ? "已声明本群话题标签：" + clean + "（该话题的敏感分级对本群豁免；红线不受影响）。"
-                : "本群已声明该标签（无需重复）。";
+                ? ModerationMessages.groupTagDeclared(clean)
+                : ModerationMessages.GROUPTAG_ALREADY_DECLARED;
     }
 
     private String removeReply(long chatId, String tag) {
         return service.remove(chatId, tag)
-                ? "已移除本群话题标签：" + GroupTopicTagService.requireTag(tag) + "。"
-                : "本群没有该标签。";
+                ? ModerationMessages.groupTagRemoved(GroupTopicTagService.requireTag(tag))
+                : ModerationMessages.GROUPTAG_REMOVE_MISSING;
     }
 
     private String listReply(long chatId) {
         List<GroupTopicTag> tags = service.listOf(chatId);
         if (tags.isEmpty()) {
-            return "本群未声明任何话题标签。";
+            return ModerationMessages.GROUPTAG_LIST_EMPTY;
         }
-        StringBuilder sb = new StringBuilder("本群话题标签（" + tags.size() + "）：\n");
+        StringBuilder sb = new StringBuilder(ModerationMessages.GROUPTAG_LIST_HEAD_PREFIX
+                + tags.size() + ModerationMessages.GROUPTAG_LIST_HEAD_SUFFIX);
         for (GroupTopicTag tag : tags) {
             sb.append("· ").append(tag.getTag()).append('\n');
         }
-        sb.append("（命中这些话题的敏感分级被豁免；红线不豁免。）");
+        sb.append(ModerationMessages.GROUPTAG_LIST_FOOTER);
         return sb.toString();
     }
 
