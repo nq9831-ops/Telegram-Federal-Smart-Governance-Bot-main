@@ -1,8 +1,10 @@
 package com.tg.heyisheng.bot.core.moderation;
 
 import com.tg.heyisheng.bot.common.exception.TggException;
+import com.tg.heyisheng.bot.core.credit.CreditEventSink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,19 +53,31 @@ public class ModerationReviewDecisionService {
 
     private final ModerationReviewRepository repository;
     private final ModerationActionSender actionSender;
+    /** 信用分通道；{@code null} = 未装配（模块七未启用）——推翻照常，只是不退分。 */
+    private final CreditEventSink creditSink;
     private final Clock clock;
 
     @Autowired
     public ModerationReviewDecisionService(ModerationReviewRepository repository,
-                                           ModerationActionSender actionSender) {
-        this(repository, actionSender, Clock.systemUTC());
+                                           ModerationActionSender actionSender,
+                                           ObjectProvider<CreditEventSink> creditSinkProvider) {
+        this(repository, actionSender, creditSinkProvider.getIfAvailable(), Clock.systemUTC());
+    }
+
+    /** 兼容构造器（单测 / 无信用分模块）：不装配退分通道。 */
+    ModerationReviewDecisionService(ModerationReviewRepository repository,
+                                    ModerationActionSender actionSender,
+                                    Clock clock) {
+        this(repository, actionSender, (CreditEventSink) null, clock);
     }
 
     ModerationReviewDecisionService(ModerationReviewRepository repository,
                                     ModerationActionSender actionSender,
+                                    CreditEventSink creditSink,
                                     Clock clock) {
         this.repository = repository;
         this.actionSender = actionSender == null ? ModerationActionSender.noop() : actionSender;
+        this.creditSink = creditSink;
         this.clock = clock;
     }
 
@@ -111,9 +125,46 @@ public class ModerationReviewDecisionService {
         repository.save(item);
         enforce(item, decision);
 
+        if (decision == ReviewStatus.REJECTED) {
+            // 推翻 = 「这次判定错了」，把该次命中扣掉的信用分还回去——这是「推翻权」的完整含义：
+            // 只解封不退分，当事人仍会卡在信用分阈值触发的联邦封禁档。
+            // 独立于 enforce：退分只需 (chatId, messageId)，不依赖 userId 是否齐备。
+            refundCreditFor(item);
+        }
+
         log.info("复核裁决：id={} decision={} hardLine={} level={} operator={}",
                 id, decision, item.isHardLine(), item.getRiskLevel(), operator);
         return Outcome.decided(item);
+    }
+
+    /**
+     * 推翻案件后退回该次命中<b>实际</b>扣掉的信用分（模块十一）。
+     *
+     * <p><b>幂等键由案件精确推导</b>：扣分事件用的是 {@code moderation:<chatId>:<messageId>}
+     * （与入队同一 {@code UpdateContext}），故此处用同一对字段重建——<b>不是</b>猜。
+     * 案件缺 {@code messageId}（频道帖）时无从推导，<b>不退分</b>并留日志：宁可不退，
+     * 也不能拿一个凑出来的键去查（可能命中别人的流水）。
+     *
+     * <p><b>不退分也不影响裁决</b>：信用分是增强环节（与 {@code CreditEventSink#publish} 同款取舍），
+     * 未装配模块七时 {@code creditSink} 为 {@code null}，本方法直接返回。
+     */
+    private void refundCreditFor(ModerationReviewItem item) {
+        if (creditSink == null) {
+            return;
+        }
+        if (item.getMessageId() == null) {
+            log.warn("案件缺 messageId，无法推导信用幂等键——跳过退分：caseId={}", item.getId());
+            return;
+        }
+        try {
+            String original = "moderation:" + item.getChatId() + ":" + item.getMessageId();
+            String reversal = "moderation-reversal:" + item.getChatId() + ":" + item.getMessageId();
+            boolean refunded = creditSink.reverse(original, reversal, "case-rejected:" + item.getId());
+            log.info("推翻案件退分：caseId={} refunded={}", item.getId(), refunded);
+        } catch (RuntimeException ex) {
+            // 实现契约要求 sink 自行吞异常；此处再兜一层，确保退分永不阻断裁决。
+            log.error("推翻案件退分失败，已忽略：caseId={}", item.getId(), ex);
+        }
     }
 
     /**

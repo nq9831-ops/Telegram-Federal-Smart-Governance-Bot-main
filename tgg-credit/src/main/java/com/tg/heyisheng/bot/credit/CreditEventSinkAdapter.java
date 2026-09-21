@@ -33,6 +33,17 @@ public class CreditEventSinkAdapter implements CreditEventSink {
     }
 
     @Override
+    public boolean reverse(String originalIdempotencyKey, String reversalIdempotencyKey, String reason) {
+        try {
+            return creditService.reverseOf(originalIdempotencyKey, reversalIdempotencyKey, reason);
+        } catch (RuntimeException ex) {
+            // 退分失败不得让裁决回滚（与 publish 同一取舍）
+            log.error("信用分反向补偿失败，已吞掉（不中断裁决链路）", ex);
+            return false;
+        }
+    }
+
+    @Override
     public void publish(CreditEvent event) {
         try {
             CreditOutcome outcome = creditService.apply(event);

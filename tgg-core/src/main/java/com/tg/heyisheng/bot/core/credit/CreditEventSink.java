@@ -19,6 +19,24 @@ public interface CreditEventSink {
      */
     void publish(CreditEvent event);
 
+    /**
+     * 反向补偿：按原事件的幂等键退回它<b>实际</b>扣掉的分（模块十一 · 推翻案件后）。
+     *
+     * <p><b>默认空实现</b>：未装配信用分（或为 {@link #noop()}）时无从退分，返回 {@code false}
+     * ——与 {@link #publish} 同属"未接线即零影响"的取舍。
+     *
+     * <p><b>吞异常是契约</b>：与 {@link #publish} 一致。退分是裁决流程的旁挂环节，
+     * 不能因它失败而让裁决本身回滚（状态已落库、解封动作已发出）。
+     *
+     * @param originalIdempotencyKey 原扣分事件的幂等键（{@code moderation:<chatId>:<messageId>}）
+     * @param reversalIdempotencyKey 补偿自身的幂等键（须与原键不同）
+     * @param reason                 说明（不含正文）
+     * @return {@code true} = 本次真的退了分
+     */
+    default boolean reverse(String originalIdempotencyKey, String reversalIdempotencyKey, String reason) {
+        return false;
+    }
+
     /** 空实现：未装配信用分模块时不做任何发布。 */
     static CreditEventSink noop() {
         return event -> {

@@ -58,4 +58,12 @@ public interface CreditEventRecordRepository extends JpaRepository<CreditEventRe
     @Query(value = "UPDATE credit_events SET score_after = :scoreAfter WHERE idempotency_key = :key",
             nativeQuery = true)
     int updateScoreAfter(@Param("key") String idempotencyKey, @Param("scoreAfter") int scoreAfter);
+
+    /**
+     * 按幂等键取流水行——<b>反向补偿的前提</b>。
+     *
+     * <p>退分量必须取自原流水的 {@code score_before / score_after}（那是数据库夹取后的<b>实际</b>变化），
+     * 而不是用规则引擎重算：分数 10 时硬红线 −100 实际只扣 10，重算会退 100。
+     */
+    java.util.Optional<CreditEventRecord> findByIdempotencyKey(String idempotencyKey);
 }

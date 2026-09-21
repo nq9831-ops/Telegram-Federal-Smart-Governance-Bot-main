@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.core.credit.CreditEventSink;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.RestrictChatMember;
@@ -14,7 +15,11 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -49,6 +54,17 @@ class ModerationReviewDecisionServiceTest {
         return new ModerationReviewItem(CHAT, USER, 77, List.of("R1"), level, hardLine);
     }
 
+    /** 真实场景下 id 由数据库生成；mock 返回的实体需手工补上（退分要用它组审计说明）。 */
+    private static void setId(ModerationReviewItem item, long id) {
+        try {
+            java.lang.reflect.Field f = ModerationReviewItem.class.getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(item, id);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("测试夹具无法写入 id", ex);
+        }
+    }
+
     @Test
     void rejectOverturnsHardLineBanByUnbanning() {
         ModerationReviewItem i = item(RiskLevel.HIGH, true);
@@ -68,6 +84,70 @@ class ModerationReviewDecisionServiceTest {
         UnbanChatMember unban = (UnbanChatMember) sent.get(0);
         assertThat(String.valueOf(unban.getChatId())).isEqualTo(String.valueOf(CHAT));
         assertThat(unban.getUserId()).isEqualTo(USER);
+    }
+
+    /**
+     * <b>推翻必须退分</b>：误判扣掉的分要还回去，否则「解封了但分还是 0」——
+     * 用户仍卡在信用分阈值触发的联邦封禁档。
+     *
+     * <p>幂等键必须由案件的 {@code (chatId, messageId)} <b>精确推导</b>（形状与生产端一致），
+     * 否则退分查不到原流水、静默无效。
+     */
+    @Test
+    void rejectingRefundsTheCreditDeductedForThatMessage() {
+        ModerationReviewItem i = item(RiskLevel.HIGH, true);
+        setId(i, ID);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+        CreditEventSink sink = mock(CreditEventSink.class);
+
+        new ModerationReviewDecisionService(repository, sender, sink, Clock.fixed(NOW, ZoneOffset.UTC))
+                .decide(ID, ReviewStatus.REJECTED, OPERATOR, "误报");
+
+        verify(sink).reverse(
+                "moderation:" + CHAT + ":77",
+                "moderation-reversal:" + CHAT + ":77",
+                "case-rejected:" + ID);
+    }
+
+    /** 维持（APPROVED）不退款：分是正确的，撤回它等于纵容违规。 */
+    @Test
+    void approvingDoesNotRefund() {
+        ModerationReviewItem i = item(RiskLevel.HIGH, false);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+        CreditEventSink sink = mock(CreditEventSink.class);
+
+        new ModerationReviewDecisionService(repository, sender, sink, Clock.fixed(NOW, ZoneOffset.UTC))
+                .decide(ID, ReviewStatus.APPROVED, OPERATOR, "确认");
+
+        verify(sink, never()).reverse(anyString(), anyString(), anyString());
+    }
+
+    /**
+     * 案件缺 {@code messageId}（频道帖等）时无法推导幂等键——<b>不退分</b>并留日志。
+     * 宁可不退，也不能用一个猜出来的键去查（可能命中别人的流水）。
+     */
+    @Test
+    void rejectWithoutMessageIdSkipsRefund() {
+        ModerationReviewItem i = new ModerationReviewItem(CHAT, USER, null, List.of("R1"), RiskLevel.HIGH, true);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+        CreditEventSink sink = mock(CreditEventSink.class);
+
+        new ModerationReviewDecisionService(repository, sender, sink, Clock.fixed(NOW, ZoneOffset.UTC))
+                .decide(ID, ReviewStatus.REJECTED, OPERATOR, "误报");
+
+        verify(sink, never()).reverse(any(), any(), any());
+    }
+
+    /** 未装配信用分（sink 缺省）时推翻照常工作——信用分是增强，不是裁决的前提。 */
+    @Test
+    void rejectWorksWithoutCreditModule() {
+        ModerationReviewItem i = item(RiskLevel.HIGH, true);
+        when(repository.findById(ID)).thenReturn(Optional.of(i));
+
+        ModerationReviewDecisionService.Outcome outcome =
+                service().decide(ID, ReviewStatus.REJECTED, OPERATOR, "误报");
+
+        assertThat(outcome.result()).isEqualTo(ModerationReviewDecisionService.Outcome.Result.DECIDED);
     }
 
     @Test

@@ -2,12 +2,14 @@ package com.tg.heyisheng.bot.credit;
 
 import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.credit.CreditEvent;
+import com.tg.heyisheng.bot.core.credit.CreditEventType;
 import com.tg.heyisheng.bot.core.credit.CreditSubjectType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * 信用记账服务（模块七）：把一条信用事件落到账本，并判定应触发的处罚档位。
@@ -67,6 +69,14 @@ public class CreditService {
     public CreditOutcome apply(CreditEvent event) {
         if (event == null) {
             return null;
+        }
+        if (event.eventType() == CreditEventType.MODERATION_REVERSAL) {
+            // 补偿事件**不得**走扣分路径：规则引擎会按 severity 重算出一个**负**增量（等于再扣一次），
+            // 且重算量与实际扣减量在夹取场景下不同。它只能由 reverseOf 处理。
+            // 显式拒绝而非静默跳过——静默会把补偿流水写成 delta=0 并占掉幂等键，
+            // 使之后**正确的**退分被去重挡掉，形成"看起来退过、实际没退"。
+            throw new IllegalArgumentException(
+                    "MODERATION_REVERSAL 是补偿事件，必须经 CreditService.reverseOf 处理，不可 apply");
         }
 
         int delta = ruleEngine.deltaFor(event);
@@ -172,6 +182,83 @@ public class CreditService {
         return repository.findBySubjectTypeAndSubjectId(subjectType, subjectId)
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
+    }
+
+    /**
+     * 反向补偿：按<b>原事件的幂等键</b>退回它<b>实际</b>扣掉的分（模块十一 · 推翻案件）。
+     *
+     * <p><b>为什么退分量取自流水而非规则重算</b>：扣分经数据库侧夹取（{@code GREATEST/LEAST}），
+     * 分数 10 时硬红线 −100 的<b>实际</b>扣减只有 10。按规则重算会退 100——凭空多给 90 分。
+     * 故取原流水的 {@code score_after - score_before}（实际变化）的相反数。
+     *
+     * <p><b>只追加</b>：原流水<b>不改不删</b>（那是"发生过什么"的记录），补偿是<b>新的一行</b>，
+     * 类型为 {@link CreditEventType#MODERATION_REVERSAL}。
+     *
+     * <p><b>幂等</b>：补偿自身也走同一套 {@code INSERT IGNORE} 去重（键为
+     * {@code reversalIdempotencyKey}），重复调用不会把分数越推越高。
+     *
+     * @param originalIdempotencyKey 原扣分事件的幂等键（{@code moderation:<chatId>:<messageId>}）
+     * @param reversalIdempotencyKey 补偿自身的幂等键（须与原键不同，否则互相顶掉）
+     * @param reason                 说明（进日志；不含正文）
+     * @return {@code true} = 本次真的退了分；{@code false} = 未退（无原事件 / 原事件未改分 / 已退过 / 键缺失）
+     */
+    @Transactional
+    public boolean reverseOf(String originalIdempotencyKey, String reversalIdempotencyKey, String reason) {
+        if (originalIdempotencyKey == null || reversalIdempotencyKey == null) {
+            return false;
+        }
+        Optional<CreditEventRecord> found = eventRecordRepository.findByIdempotencyKey(originalIdempotencyKey);
+        if (found.isEmpty()) {
+            log.info("无可补偿的信用流水（原事件不存在）：reason={}", reason);
+            return false;
+        }
+        CreditEventRecord original = found.get();
+
+        int actualDelta = original.getScoreAfter() - original.getScoreBefore();
+        if (actualDelta == 0) {
+            // 原事件未改变分数（例如已是 0 分时的扣分）——无分可退
+            log.info("原信用事件未改变分值，无需补偿：reason={}", reason);
+            return false;
+        }
+        int refund = -actualDelta;
+
+        Instant now = Instant.now();
+        String subjectType = original.getSubjectType().name();
+        repository.insertIfAbsent(subjectType, original.getSubjectId(), INITIAL_SCORE, now);
+        int scoreBefore = repository.findBySubjectTypeAndSubjectId(original.getSubjectType(), original.getSubjectId())
+                .map(CreditScore::getScore)
+                .orElse(INITIAL_SCORE);
+
+        int inserted = eventRecordRepository.insertIfAbsent(
+                subjectType,
+                original.getSubjectId(),
+                CreditEventType.MODERATION_REVERSAL.name(),
+                original.getSeverity() == null ? null : original.getSeverity().name(),
+                original.isHardLine(),
+                scoreBefore,
+                refund,
+                clamp(scoreBefore + refund),
+                "moderation-reversal",
+                reversalIdempotencyKey,
+                now,
+                now);
+        if (inserted == 0) {
+            log.info("重复的补偿请求已忽略（同幂等键）：reason={}", reason);
+            return false;
+        }
+
+        repository.applyDelta(subjectType, original.getSubjectId(), refund, MIN_SCORE, MAX_SCORE, now);
+        int newScore = repository.findBySubjectTypeAndSubjectId(original.getSubjectType(), original.getSubjectId())
+                .map(CreditScore::getScore)
+                .orElse(INITIAL_SCORE);
+        // 与 apply 同款回填：写入时是先算的预测值，夹取后应记实际结果。
+        if (newScore != clamp(scoreBefore + refund)) {
+            eventRecordRepository.updateScoreAfter(reversalIdempotencyKey, newScore);
+        }
+
+        log.info("信用分已反向补偿：subjectType={} subjectHash={} refund={} score={} reason={}",
+                original.getSubjectType(), idHasher.hash(original.getSubjectId()), refund, newScore, reason);
+        return true;
     }
 
     /** 与 {@code CreditScoreRepository#applyDelta} 的 SQL 夹取口径保持一致（下界防负）。 */
