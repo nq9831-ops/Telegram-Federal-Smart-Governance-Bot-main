@@ -18,7 +18,7 @@ import java.util.Optional;
  */
 public class ConfirmCallbackHandler implements CallbackHandler {
 
-    static final String EXPIRED = "该确认已失效（超时或已被使用），请重新发起。";
+    static final String EXPIRED = InteractionMessages.CONFIRM_EXPIRED;
 
     private final ConfirmationStore store;
     private final CallbackCommandBridge bridge;
@@ -53,7 +53,7 @@ public class ConfirmCallbackHandler implements CallbackHandler {
         // 卡片置为终态：**尽力而为**——唯一的返回槽要留给命令结果（那是不可丢的产出）。
         // 不更新的话，命令执行完之后卡片上的两个按钮还挂着，用户仍能点到。
         bridge.sendSupplement(terminalCard(pending.chatId(), query,
-                "✅ 已确认，正在执行 /" + pending.command() + "…"));
+                InteractionMessages.confirmRunning(pending.command())));
         return bridge.execute(query, pending.chatId(), pending.command(), pending.args(), true);
     }
 

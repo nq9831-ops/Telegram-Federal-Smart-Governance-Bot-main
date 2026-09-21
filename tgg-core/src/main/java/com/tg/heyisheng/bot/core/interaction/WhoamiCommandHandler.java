@@ -47,7 +47,7 @@ public class WhoamiCommandHandler implements CommandHandler {
         if (userId == null || chatId == null) {
             // 命令链上两者都应非空（AuthenticationMiddleware 要求 userId != null）；兜底不猜。
             return SendMessage.builder().chatId(String.valueOf(chatId))
-                    .text("无法识别你的身份，请稍后再试。").build();
+                    .text(InteractionMessages.WHOAMI_UNIDENTIFIED).build();
         }
         return SendMessage.builder()
                 .chatId(String.valueOf(chatId))

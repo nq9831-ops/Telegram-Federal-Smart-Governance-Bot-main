@@ -22,7 +22,7 @@ import java.util.Optional;
 public class ConfirmCancelCallbackHandler implements CallbackHandler {
 
     /** 卡片上的终态文案——与按钮上的「❌ 取消」呼应，一眼可辨。 */
-    static final String CANCELLED_CARD = "❌ 已取消。";
+    static final String CANCELLED_CARD = InteractionMessages.CANCELLED_CARD;
 
     private final ConfirmationStore store;
     private final CallbackCommandBridge bridge;

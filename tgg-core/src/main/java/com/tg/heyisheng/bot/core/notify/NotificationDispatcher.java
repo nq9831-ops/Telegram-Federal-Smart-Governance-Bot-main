@@ -68,7 +68,7 @@ public class NotificationDispatcher {
         }
 
         String text = decision.mergedCount() > 0
-                ? notification.text() + "\n（另有 " + decision.mergedCount() + " 条同类通知已合并）"
+                ? notification.text() + NotifyMessages.mergedNotice(decision.mergedCount())
                 : notification.text();
         sender.send(notification.recipientId(), text);
         return true;

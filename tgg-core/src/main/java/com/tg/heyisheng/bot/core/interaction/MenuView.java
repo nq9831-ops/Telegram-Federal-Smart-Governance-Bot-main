@@ -57,7 +57,7 @@ public final class MenuView {
      * 隐私判据收敛在 {@link IdentityPresenter} 一处；两处各判一次迟早漂移。
      */
     static String homeText(String identityLine) {
-        String head = "可用功能（只列出你在此群能用的）：\n选一个分类查看，点按钮直接执行。";
+        String head = InteractionMessages.MENU_HOME_HINT;
         if (identityLine == null || identityLine.isBlank()) {
             return head;
         }

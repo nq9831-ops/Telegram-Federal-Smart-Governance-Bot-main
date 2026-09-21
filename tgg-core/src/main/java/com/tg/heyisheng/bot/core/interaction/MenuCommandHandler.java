@@ -44,7 +44,7 @@ import java.util.Map;
         matchIfMissing = true)
 public class MenuCommandHandler implements CommandHandler {
 
-    static final String NO_PERMISSION = "你在此群没有可用的功能。";
+    static final String NO_PERMISSION = InteractionMessages.MENU_NO_PERMISSION;
 
     /** 回调 data 的 action 前缀，需与 {@link MenuCallbackHandler#action()} 一致。 */
     static final String CALLBACK_ACTION = "menu";

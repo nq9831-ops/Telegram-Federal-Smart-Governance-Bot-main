@@ -25,8 +25,7 @@ public class IdentityPresenter {
     public static final String GROUP_VISIBLE_KEY = "tgg.interaction.whoami-group-visible";
 
     /** 群内隐藏时的引导文案（指向私聊）。 */
-    static final String GROUP_HIDDEN_HINT =
-            "身份信息不在群内展示，以免对全群可见。\n请私聊我发送 /whoami 查看。";
+    static final String GROUP_HIDDEN_HINT = InteractionMessages.IDENTITY_GROUP_HIDDEN;
 
     private final RuntimeConfigService runtimeConfig;
 
@@ -60,13 +59,10 @@ public class IdentityPresenter {
     /** 纯函数形态（便于单测，不依赖容器）。 */
     static String whoamiReply(long chatId, long userId, boolean groupVisible) {
         if (isPrivate(chatId, userId)) {
-            return "你的 Telegram 用户 ID：\n" + userId
-                    + "\n\n配置复核人、群管理员等白名单时需要它。";
+            return InteractionMessages.identityPrivate(userId);
         }
         if (groupVisible) {
-            return "你的 Telegram 用户 ID：\n" + userId
-                    + "\n本群 ID：\n" + chatId
-                    + "\n\n配置本群授权时用冒号把两个数字连起来（先群 ID、后用户 ID）。";
+            return InteractionMessages.identityGroup(chatId, userId);
         }
         return GROUP_HIDDEN_HINT;
     }
@@ -74,7 +70,7 @@ public class IdentityPresenter {
     /** 纯函数形态（便于单测，不依赖容器）。 */
     static String menuIdentityLine(long chatId, long userId, boolean groupVisible) {
         if (isPrivate(chatId, userId) || groupVisible) {
-            return "你的 Telegram 用户 ID：" + userId;
+            return InteractionMessages.identityLine(userId);
         }
         return "";
     }

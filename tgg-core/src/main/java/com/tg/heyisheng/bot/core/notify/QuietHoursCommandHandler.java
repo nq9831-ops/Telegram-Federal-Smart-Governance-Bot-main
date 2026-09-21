@@ -27,12 +27,6 @@ import java.util.Locale;
         publicCommand = true, category = MenuCategory.SELF_SERVICE)
 public class QuietHoursCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：\n"
-            + "/quiet_hours 22:00-08:00 —— 设置免打扰时段（支持跨午夜）\n"
-            + "/quiet_hours off —— 取消免打扰\n"
-            + "/quiet_hours —— 查看当前设置\n"
-            + "注：封禁、解封等紧急通知不受免打扰影响，始终送达。";
-
     private final NotificationPreferenceService preferences;
 
     public QuietHoursCommandHandler(NotificationPreferenceService preferences) {
@@ -43,29 +37,30 @@ public class QuietHoursCommandHandler implements CommandHandler {
     public BotApiMethod<?> handle(UpdateContext ctx) {
         Long userId = ctx.userId();
         if (userId == null) {
-            return reply(ctx, USAGE);
+            return reply(ctx, NotifyMessages.QUIET_HOURS_USAGE);
         }
         String args = ctx.commandArgs().orElse(null);
 
         if (args == null || args.isBlank()) {
             QuietHours current = preferences.quietHoursOf(userId);
             return reply(ctx, current == null
-                    ? "你当前没有设置免打扰时段（所有通知都会送达）。"
-                    : "你当前的免打扰时段：" + format(current) + "（紧急通知不受影响）。");
+                    ? NotifyMessages.QUIET_HOURS_NONE_SET
+                    : NotifyMessages.quietHoursCurrent(format(current)));
         }
 
         if ("off".equals(args.trim().toLowerCase(Locale.ROOT))) {
             boolean cleared = preferences.clearQuietHours(userId);
-            return reply(ctx, cleared ? "已取消免打扰时段。" : "你本来就没有设置免打扰时段。");
+            return reply(ctx, cleared
+                    ? NotifyMessages.QUIET_HOURS_CLEARED
+                    : NotifyMessages.QUIET_HOURS_NOTHING_TO_CLEAR);
         }
 
         QuietHours parsed = parse(args.trim());
         if (parsed == null) {
-            return reply(ctx, "时段格式不对。\n" + USAGE);
+            return reply(ctx, NotifyMessages.QUIET_HOURS_BAD_FORMAT + NotifyMessages.QUIET_HOURS_USAGE);
         }
         preferences.setQuietHours(userId, parsed);
-        return reply(ctx, "已设置免打扰时段：" + format(parsed)
-                + "。\n该时段内的普通/重要通知会延后到时段结束后发送；紧急通知（封禁、解封等）不受影响。");
+        return reply(ctx, NotifyMessages.quietHoursSet(format(parsed)));
     }
 
     /** 解析 {@code HH:mm-HH:mm}；格式非法返回 {@code null}（命令层给可读提示，不抛异常）。 */
