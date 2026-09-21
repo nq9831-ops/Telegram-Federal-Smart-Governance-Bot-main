@@ -35,6 +35,14 @@ public interface ModerationReviewRepository extends JpaRepository<ModerationRevi
     /** 按状态计数（统计用）。 */
     long countByStatus(ReviewStatus status);
 
+    /**
+     * 某群在给定状态下的条数（{@code /status} 用）。
+     *
+     * <p>刻意用<b>本群</b>维度而非全局 {@link #countByStatus}：{@code /status} 是群内命令，
+     * 回复对整个群可见；把平台级的全局待办数播到群里，等于向所有成员泄露平台负载与他人案件量。
+     */
+    long countByChatIdAndStatus(Long chatId, ReviewStatus status);
+
     /** 硬红线且处于某状态的条数（统计用：待办中有多少是「已自动封禁、等人复核」的）。 */
     long countByHardLineTrueAndStatus(ReviewStatus status);
 
