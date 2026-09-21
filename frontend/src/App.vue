@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSession } from './stores/session'
 import { validateGate } from './gate'
+import { fetchLoginConfig } from './api/client'
 import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
 import ConfigCenter from './views/ConfigCenter.vue'
@@ -36,6 +37,42 @@ async function signOut(): Promise<void> {
   await session.signOut()
   form.username = ''
   form.password = ''
+}
+
+// ── Telegram 登录（Login Widget）──────────────────────────────────────────────
+// bot username 来自后端配置（不硬编码）；未配置时按钮不出现，账号密码登录始终可用。
+const tgContainer = ref<HTMLElement | null>(null)
+
+onMounted(async () => {
+  try {
+    const cfg = await fetchLoginConfig()
+    if (cfg.telegramBotUsername !== '') {
+      mountTelegramWidget(cfg.telegramBotUsername)
+    }
+  } catch {
+    // 未启用 / 不可达时静默——账号密码登录仍可用
+  }
+})
+
+function mountTelegramWidget(botUsername: string): void {
+  // widget 通过全局回调把用户数据交回；这里只负责转发给会话（服务端会验签）
+  ;(window as unknown as { onTelegramAuth: (user: Record<string, string>) => void }).onTelegramAuth =
+    async (user) => {
+      try {
+        await session.signInWithTelegram(user)
+        ElMessage.success('已通过 Telegram 登录')
+      } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : 'Telegram 登录失败')
+      }
+    }
+  const script = document.createElement('script')
+  script.src = 'https://telegram.org/js/telegram-widget.js?22'
+  script.async = true
+  script.setAttribute('data-telegram-login', botUsername)
+  script.setAttribute('data-size', 'large')
+  script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+  script.setAttribute('data-request-access', 'write')
+  tgContainer.value?.appendChild(script)
 }
 </script>
 
@@ -72,6 +109,9 @@ async function signOut(): Promise<void> {
         </el-form-item>
         <el-button type="primary" class="gate-submit" :loading="submitting" @click="submit">登录</el-button>
       </el-form>
+
+      <!-- Telegram 登录按钮（由 widget script 注入；未配置 bot username 时为空） -->
+      <div ref="tgContainer" class="tg-login"></div>
 
       <p class="gate-note">
         令牌只保存在本浏览器（localStorage），不会上传到别处。请在受信任的设备上使用。

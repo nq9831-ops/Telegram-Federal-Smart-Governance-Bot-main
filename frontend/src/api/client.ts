@@ -300,3 +300,29 @@ export const PERMISSION_LABEL: Record<string, string> = {
   SYSTEM_RESTART: '系统重启',
   AUDIT_READ: '审计查看',
 }
+
+// ───────────────────────────── Telegram 登录（模块十一 · TG 用户登录）─────────────────────────────
+
+/** `GET /admin/auth/login-config` —— 登录页配置（bot username）。公开端点，无需会话。 */
+export async function fetchLoginConfig(): Promise<{ telegramBotUsername: string }> {
+  const { data } = await http.get<{ telegramBotUsername: string }>('/admin/auth/login-config')
+  return data
+}
+
+/**
+ * `POST /admin/auth/telegram` —— Telegram Login Widget 回调。
+ *
+ * widget 回调里的字段**一律不可信**——服务端会用 bot token 重算 HMAC 验签；
+ * 这里只负责把原始字段交上去、并在成功时保存会话令牌。
+ */
+export async function telegramLogin(data: Record<string, string>): Promise<SessionInfo> {
+  const response = await http.post<SessionInfo>('/admin/auth/telegram', data, {
+    validateStatus: (s) => s === 200 || s === 401 || s === 503,
+  })
+  if (response.status !== 200) {
+    throw new Error((response.data as { error?: string })?.error ?? 'Telegram 登录失败')
+  }
+  token = response.data.token
+  localStorage.setItem(TOKEN_KEY, token)
+  return response.data
+}

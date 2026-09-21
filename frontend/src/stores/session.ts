@@ -1,6 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { hasCredentials, login as apiLogin, logout as apiLogout } from '../api/client'
+import {
+  hasCredentials,
+  login as apiLogin,
+  logout as apiLogout,
+  telegramLogin as apiTelegramLogin,
+} from '../api/client'
 
 /**
  * 会话状态：后端 `AdminSessionFilter` 要求的**会话令牌**（`Authorization: Bearer <令牌>`）。
@@ -39,6 +44,15 @@ export const useSession = defineStore('session', () => {
     authenticated.value = true
   }
 
+  /** Telegram 登录：验签在服务端完成，这里只保存会话与身份。 */
+  async function signInWithTelegram(user: Record<string, string>): Promise<void> {
+    const info = await apiTelegramLogin(user)
+    subjectType.value = info.subjectType
+    subjectId.value = info.subjectId
+    role.value = info.role
+    authenticated.value = true
+  }
+
   async function signOut(): Promise<void> {
     await apiLogout()
     subjectType.value = ''
@@ -47,5 +61,5 @@ export const useSession = defineStore('session', () => {
     authenticated.value = false
   }
 
-  return { authenticated, subjectType, subjectId, role, operatorLabel, signIn, signOut }
+  return { authenticated, subjectType, subjectId, role, operatorLabel, signIn, signInWithTelegram, signOut }
 })
