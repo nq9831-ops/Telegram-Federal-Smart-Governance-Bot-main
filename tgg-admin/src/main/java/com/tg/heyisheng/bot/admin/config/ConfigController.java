@@ -153,7 +153,7 @@ public class ConfigController {
     /** 审计明细用的值展示：密钥类键打码，未设置为占位符。 */
     private static String masked(String key, String value) {
         if (value == null) {
-            return "<未设置>";
+            return "（未设置）";
         }
         boolean secret = ConfigCatalog.find(key).map(ConfigKey::secret).orElse(false);
         return secret ? "***" : value;
