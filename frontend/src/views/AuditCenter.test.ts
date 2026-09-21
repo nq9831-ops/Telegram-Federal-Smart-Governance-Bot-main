@@ -52,8 +52,8 @@ describe('AuditCenter · 审计（只读）', () => {
     fetchMock.mockResolvedValue([
       {
         id: 1, actorType: 'ADMIN_ACCOUNT', actorId: 5, action: 'admin.config.write',
-        target: 'tgg.admin.session-ttl-hours', caseId: null, outcome: 'OK',
-        detail: 'value=24', occurredAt: '2026-09-21T00:00:00Z',
+        target: -100900999, caseId: null, outcome: 'OK',
+        detail: 'tgg.admin.session-ttl-hours=24', occurredAt: '2026-09-21T00:00:00Z',
       },
     ])
     const wrapper = mountView()

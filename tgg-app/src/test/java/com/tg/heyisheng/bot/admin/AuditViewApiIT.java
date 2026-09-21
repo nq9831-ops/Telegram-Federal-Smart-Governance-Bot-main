@@ -131,4 +131,19 @@ class AuditViewApiIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.permissions").value(org.hamcrest.Matchers.hasItem("AUDIT_READ")));
     }
+
+    /**
+     * 未授权的操作员：`permissions` 必须是**空数组**，而不是省略字段或回落成「全部」。
+     *
+     * <p>这条守的是「宁可少分区，不可多分区」——前端据它决定是否显示审计入口。
+     */
+    @Test
+    void ungrantedOperatorLoginCarriesEmptyPermissions() throws Exception {
+        mockMvc.perform(post("/admin/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + OPERATOR + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.permissions").isArray())
+                .andExpect(jsonPath("$.permissions").isEmpty());
+    }
 }

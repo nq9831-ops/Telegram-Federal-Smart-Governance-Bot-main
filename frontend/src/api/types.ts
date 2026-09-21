@@ -170,6 +170,7 @@ export interface MyListing {
  * 审计行 —— 后端 `AuditViewController.toView`。
  *
  * ⚠️ `actorType` 与 `actorId` 是**一对**，不能只按 id 判主体（后台账号 id 与 TG userId 数值空间重叠）。
+ * `target` 在后端是 **`Long`**（`AuditEntry.target`，语义为「chatId / 被判主体 id」）——**不是字符串**。
  * `detail` 由后端写入，**不含消息正文**（隐私红线）。
  */
 export interface AuditEntry {
@@ -177,7 +178,7 @@ export interface AuditEntry {
   actorType: 'TG_USER' | 'ADMIN_ACCOUNT' | null
   actorId: number | null
   action: string
-  target: string | null
+  target: number | null
   caseId: number | null
   outcome: string | null
   detail: string | null
