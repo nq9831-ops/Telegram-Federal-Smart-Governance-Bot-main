@@ -27,8 +27,8 @@ import java.util.List;
 @Component
 public class WordsCommandHandler implements CommandHandler {
 
-    static final String EMPTY = "本群暂无违禁词。";
-    static final String PREFIX = "本群违禁词：";
+    static final String EMPTY = WordFilterMessages.WORDS_EMPTY;
+    static final String PREFIX = WordFilterMessages.WORDS_PREFIX;
 
     /** Telegram 单条消息硬上限（超长整条发送失败）。 */
     static final int TELEGRAM_TEXT_LIMIT = 4096;
@@ -57,7 +57,8 @@ public class WordsCommandHandler implements CommandHandler {
         for (String word : words) {
             String piece = (shown == 0 ? "" : "、") + word;
             if (sb.length() + piece.length() > TELEGRAM_TEXT_LIMIT - TRUNCATION_RESERVE) {
-                sb.append("、…（另有 ").append(words.size() - shown).append(" 个词未显示）");
+                sb.append(WordFilterMessages.WORDS_TRUNCATED_PREFIX).append(words.size() - shown)
+                        .append(WordFilterMessages.WORDS_TRUNCATED_SUFFIX);
                 return sb.toString();
             }
             sb.append(piece);

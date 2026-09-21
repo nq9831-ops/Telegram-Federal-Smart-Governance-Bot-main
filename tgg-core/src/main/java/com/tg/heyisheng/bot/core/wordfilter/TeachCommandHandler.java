@@ -35,8 +35,8 @@ import java.util.Optional;
         requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
 public class TeachCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/teach 规则id 正则 描述\n例：/teach SCAM_AIRDROP \"免费空投\\\\d+\" 假空投骗局";
-    static final String NOT_A_GROUP = "请在要生效的群内执行本命令。";
+    static final String USAGE = WordFilterMessages.TEACH_USAGE;
+    static final String NOT_A_GROUP = WordFilterMessages.TEACH_NOT_A_GROUP;
 
     private final TaughtRuleService service;
     /** 教学门槛（§10.3）；默认放行——未接线时行为与升级前逐字一致。 */
@@ -76,20 +76,17 @@ public class TeachCommandHandler implements CommandHandler {
         // 门槛先于落库：拒绝时**不得**留下已生效的规则——否则管理员看到失败提示、规则却在群里跑。
         Optional<String> rejection = eligibility.rejectionFor(chatId, ctx.userId());
         if (rejection.isPresent()) {
-            return reply(ctx, "规则未生效：" + rejection.get());
+            return reply(ctx, WordFilterMessages.TEACH_REJECTED_PREFIX + rejection.get());
         }
 
         try {
             TaughtRule saved = service.teach(chatId, ruleId, name, regex, RiskLevel.MEDIUM, false, ctx.userId());
             // 回显预览即「确认」步骤：让管理员看到真正落库的正则（含转义后的形态）
-            return reply(ctx, "规则已生效（本群立即起效）：\n"
-                    + "编号：" + saved.getRuleId() + "\n"
-                    + "正则：" + saved.getRegex() + "\n"
-                    + "描述：" + saved.getName() + "\n"
-                    + "命中后：判为 MEDIUM，进入人工复核（不会自动封禁）。");
+            return reply(ctx, WordFilterMessages.teachAccepted(
+                    saved.getRuleId(), saved.getRegex(), saved.getName()));
         } catch (TggException ex) {
             // 校验失败是管理员的输入问题，如实回显原因（不回显正文、不吞异常）
-            return reply(ctx, "规则未生效：" + ex.getMessage());
+            return reply(ctx, WordFilterMessages.TEACH_REJECTED_PREFIX + ex.getMessage());
         }
     }
 

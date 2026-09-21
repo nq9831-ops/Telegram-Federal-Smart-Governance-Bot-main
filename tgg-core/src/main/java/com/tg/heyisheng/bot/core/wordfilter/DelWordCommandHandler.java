@@ -22,9 +22,9 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @Component
 public class DelWordCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/delword 违禁词\n例：/delword 加微信";
-    static final String REMOVED = "已删除违禁词。";
-    static final String NOT_FOUND = "本群没有该词。";
+    static final String USAGE = WordFilterMessages.DELWORD_USAGE;
+    static final String REMOVED = WordFilterMessages.DELWORD_REMOVED;
+    static final String NOT_FOUND = WordFilterMessages.DELWORD_NOT_FOUND;
 
     private final BannedWordService service;
 

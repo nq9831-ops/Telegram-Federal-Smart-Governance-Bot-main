@@ -31,8 +31,8 @@ public class TaughtRulesCommandHandler implements CommandHandler {
     /** 正文自留上限：给截断提示留余量。 */
     static final int MAX_BODY_CHARS = 3500;
 
-    static final String EMPTY = "本群暂无教学规则（可发 /teach 规则id 正则 描述 添加，例：/teach SCAM_AIRDROP 免费空投 假空投骗局）。";
-    static final String PREFIX = "本群教学规则：";
+    static final String EMPTY = WordFilterMessages.RULES_EMPTY;
+    static final String PREFIX = WordFilterMessages.RULES_PREFIX;
 
     private final TaughtRuleService service;
 
@@ -44,7 +44,7 @@ public class TaughtRulesCommandHandler implements CommandHandler {
     public BotApiMethod<?> handle(UpdateContext ctx) {
         Long chatId = ctx.chatId();
         if (chatId == null) {
-            return reply(ctx, "无法识别本群。");
+            return reply(ctx, WordFilterMessages.RULES_NO_CHAT);
         }
         return reply(ctx, render(service.listTaught(chatId)));
     }
@@ -57,8 +57,9 @@ public class TaughtRulesCommandHandler implements CommandHandler {
         StringBuilder sb = new StringBuilder(PREFIX);
         int shown = 0;
         for (TaughtRule rule : rules) {
-            String line = "\n" + (rule.isEnabled() ? "✓ " : "✗（已停用）") + rule.getRuleId()
-                    + " · " + rule.getRiskLevel() + " · " + rule.getName();
+            String line = "\n" + (rule.isEnabled()
+                    ? WordFilterMessages.RULE_ENABLED_MARK : WordFilterMessages.RULE_DISABLED_MARK)
+                    + rule.getRuleId() + " · " + rule.getRiskLevel() + " · " + rule.getName();
             if (sb.length() + line.length() > MAX_BODY_CHARS) {
                 break;
             }
@@ -66,8 +67,7 @@ public class TaughtRulesCommandHandler implements CommandHandler {
             shown++;
         }
         if (shown < rules.size()) {
-            sb.append("\n…（已截断：共 ").append(rules.size()).append(" 条，本条只显示前 ")
-                    .append(shown).append(" 条）");
+            sb.append(WordFilterMessages.rulesTruncated(rules.size(), shown));
         }
         return sb.toString();
     }

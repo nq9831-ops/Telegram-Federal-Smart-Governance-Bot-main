@@ -21,7 +21,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
         requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
 public class UnteachCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/unteach 规则id（先 /taught_rules 查看本群规则 id）";
+    static final String USAGE = WordFilterMessages.UNTEACH_USAGE;
 
     private final TaughtRuleService service;
 
@@ -38,8 +38,8 @@ public class UnteachCommandHandler implements CommandHandler {
         }
         boolean disabled = service.disable(chatId, ruleId.trim());
         return reply(ctx, disabled
-                ? "规则 " + ruleId.trim() + " 已停用（立即生效）。"
-                : "本群没有规则 " + ruleId.trim() + "。");
+                ? WordFilterMessages.unteachDone(ruleId.trim())
+                : WordFilterMessages.unteachMissing(ruleId.trim()));
     }
 
     private static SendMessage reply(UpdateContext ctx, String text) {

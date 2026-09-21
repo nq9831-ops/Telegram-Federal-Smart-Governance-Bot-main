@@ -23,9 +23,9 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @Component
 public class AddWordCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/addword 违禁词\n例：/addword 加微信";
-    static final String ADDED = "已添加违禁词。";
-    static final String IGNORED = "该词已存在或无效。";
+    static final String USAGE = WordFilterMessages.ADDWORD_USAGE;
+    static final String ADDED = WordFilterMessages.ADDWORD_ADDED;
+    static final String IGNORED = WordFilterMessages.ADDWORD_IGNORED;
 
     private final BannedWordService service;
 
