@@ -12,6 +12,19 @@
 /** 风险等级 —— 后端 `RiskLevel`。⚠️ **只有四级**，没有 CRITICAL。 */
 export type RiskLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH'
 
+/**
+ * 登录成功响应 —— 后端 `AdminAuthController.LoginResponse`。
+ *
+ * `subjectType` 区分主体：`ADMIN_ACCOUNT`（后台账号，role 为 SUPER_ADMIN/OPERATOR）
+ * 与 `TG_USER`（Telegram 登录，role 为 null）。`subjectId` 是账号 id 或 TG userId。
+ */
+export interface SessionInfo {
+  token: string
+  subjectType: 'ADMIN_ACCOUNT' | 'TG_USER'
+  subjectId: number
+  role: 'SUPER_ADMIN' | 'OPERATOR' | null
+}
+
 /** 复核状态 —— 后端 `ReviewStatus`。 */
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 

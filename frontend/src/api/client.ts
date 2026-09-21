@@ -7,48 +7,32 @@ import type {
   DecideRequest,
   DecideSuccess,
   ReviewStatus,
+  SessionInfo,
   WritePermission,
 } from './types'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 凭据（与后端 AdminAuthFilter 的**两层**鉴权一一对应）
-//   Authorization: Bearer <token>   证明「够得着后台」（共享密钥，不指向具体的人）
-//   X-Operator-Id: <userId>         证明「有权审批」（须落在 TGG_MODERATION_REVIEWERS 内）
+// 凭据（与后端 AdminSessionFilter 的会话鉴权一一对应）
+//   Authorization: Bearer <会话令牌>   由 POST /admin/auth/login 签发
 //
-// ⚠️ token 是共享密钥；放 localStorage 意味着 XSS 可窃取。故本工程刻意**不渲染任何
-//    HTML/富文本**（全仓无 v-html），也不做额外的持久化。更强的方案（如每次手输 operator）
-//    需要产品方另行决定。
+// ⚠️ 会话令牌放 localStorage 意味着 XSS 可窃取。故本工程刻意**不渲染任何 HTML/富文本**
+//    （全仓无 v-html）。会话由服务端持有、可即时吊销——登出/停用立即失效（相对 JWT 的价值所在）。
 // ─────────────────────────────────────────────────────────────────────────────
 const TOKEN_KEY = 'tgg.admin.token'
-const OPERATOR_KEY = 'tgg.admin.operator'
 
 let token = localStorage.getItem(TOKEN_KEY) ?? ''
-let operatorId = localStorage.getItem(OPERATOR_KEY) ?? ''
 
 export function getToken(): string {
   return token
 }
 
-export function getOperatorId(): string {
-  return operatorId
-}
-
 export function hasCredentials(): boolean {
-  return token !== '' && operatorId !== ''
-}
-
-export function setCredentials(next: { token: string; operatorId: string }): void {
-  token = next.token.trim()
-  operatorId = next.operatorId.trim()
-  localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(OPERATOR_KEY, operatorId)
+  return token !== ''
 }
 
 export function clearCredentials(): void {
   token = ''
-  operatorId = ''
   localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(OPERATOR_KEY)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,17 +45,13 @@ http.interceptors.request.use((config) => {
   if (token !== '') {
     config.headers.Authorization = `Bearer ${token}`
   }
-  if (operatorId !== '') {
-    config.headers['X-Operator-Id'] = operatorId
-  }
   return config
 })
 
 http.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    // 401 = token 缺失或不符。清掉本地凭据，让界面回到「填写凭据」状态，
-    // 而不是让用户对着一个永远失败的列表反复刷新。
+    // 401 = 会话缺失/失效。清掉本地令牌，让界面回到「登录」状态。
     if (error.response?.status === 401) {
       clearCredentials()
     }
@@ -79,27 +59,53 @@ http.interceptors.response.use(
   },
 )
 
+// ───────────────────────────── 认证（模块十一 · 账号体系）─────────────────────────────
+
+/**
+ * `POST /admin/auth/login` —— 账号 + 密码登录，成功即持有会话令牌。
+ *
+ * 后端对失败用 **401 + {error}**；这里显式接管该状态，把业务错误抛出（且不写凭据）。
+ */
+export async function login(username: string, password: string): Promise<SessionInfo> {
+  const response = await http.post<SessionInfo>('/admin/auth/login', { username, password }, {
+    validateStatus: (status) => status === 200 || status === 401,
+  })
+  if (response.status !== 200) {
+    throw new Error((response.data as { error?: string })?.error ?? '登录名或密码错误')
+  }
+  token = response.data.token
+  localStorage.setItem(TOKEN_KEY, token)
+  return response.data
+}
+
+/** `POST /admin/auth/logout` —— 吊销当前会话（服务端即时失效）。 */
+export async function logout(): Promise<void> {
+  try {
+    await http.post('/admin/auth/logout')
+  } catch {
+    // 登出失败不应阻塞前端清理：本地令牌无论如何都清掉
+  } finally {
+    clearCredentials()
+  }
+}
+
 /** 审批类 403 的具体成因（不在复核人白名单内 / 不能审自己的案件）。 */
-export const FORBIDDEN_APPROVAL = '无权限（403）：当前操作人不在复核人白名单内，或该案件属于你本人。'
+export const FORBIDDEN_APPROVAL = '无权限（403）：当前主体不是超管，且不在复核人白名单内，或该案件属于你本人。'
 
 /** 配置中心 403 的具体成因（不在配置写权限名单内）。 */
-export const FORBIDDEN_CONFIG = '无权限（403）：当前操作人不在配置写权限名单内。'
+export const FORBIDDEN_CONFIG = '无权限（403）：当前主体不是超管，且不在配置写权限名单内。'
 
 /**
  * 把 axios 错误转成能直接给运营者看的一句话。
- *
- * `forbidden` 覆盖 403 的具体成因——不同功能区含义不同：审批是「不在复核人白名单 / 不能审自己的
- * 案件」，配置中心是「不在配置写权限名单」。写死一句会让其中一边指向错误的原因，
- * 而「错误文案指向错误的原因」正是本项目列为静默失效的一类。不传时回落到中性文案。
  */
 export function describeError(error: unknown, forbidden?: string): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status
     if (status === 401) {
-      return '鉴权失败（401）：API 令牌缺失或错误，请重新填写。'
+      return '登录已失效（401）：请重新登录。'
     }
     if (status === 403) {
-      return forbidden ?? '无权限（403）：当前操作人不在授权名单内。'
+      return forbidden ?? '无权限（403）：当前主体不在授权名单内。'
     }
     if (status === undefined) {
       return '无法连接到后端：请确认服务已启动、且反向代理/开发代理配置正确。'
@@ -113,7 +119,7 @@ export function describeError(error: unknown, forbidden?: string): string {
 // 端点（与 ApprovalController 的四个映射一一对应）
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** `GET /admin/approvals` —— 待办列表（默认按 硬红线 → 等级 → 先入先审 排序，**排序在后端**）。 */
+/** `GET /admin/approvals` —— 待办列表。 */
 export async function fetchApprovals(params: {
   status?: ReviewStatus
   page?: number
@@ -132,8 +138,7 @@ export async function fetchStats(): Promise<ApprovalStats> {
 /**
  * `POST /admin/approvals/{id}/decide` —— 裁决。
  *
- * 后端对失败用的是 **400/403 + `{error}`**（不是 200 + 结果码），所以要显式接管这些状态，
- * 否则 axios 会抛一个没有业务语义的异常。
+ * 后端对失败用的是 **400/403 + `{error}`**（不是 200 + 结果码），故显式接管这些状态。
  */
 export async function decide(id: number, body: DecideRequest): Promise<DecideSuccess> {
   const response = await http.post<DecideSuccess | DecideFailure>(`/admin/approvals/${id}/decide`, body, {
@@ -154,18 +159,12 @@ export async function fetchConfig(): Promise<ConfigItem[]> {
   return data
 }
 
-/** `GET /admin/config/permissions` —— 写权限名单来源（只读信息，供界面标注「现在谁有权写」）。 */
+/** `GET /admin/config/permissions` —— 写权限名单来源（只读信息）。 */
 export async function fetchPermissions(): Promise<WritePermission> {
   const { data } = await http.get<WritePermission>('/admin/config/permissions')
   return data
 }
 
-/**
- * 写一条配置覆盖。
- *
- * 后端对失败用 400/403/404/409 + `{error}`（不是 200 + 结果码），故显式接管这些状态，
- * 把业务错误消息原样抛出让 UI 显示（否则 axios 会抛一个没有业务语义的异常）。
- */
 async function writeConfig(
   send: () => Promise<{ status: number; data: unknown }>,
 ): Promise<void> {
@@ -199,8 +198,7 @@ export async function clearConfig(key: string): Promise<void> {
 /**
  * `POST /admin/system/restart` —— 触发优雅重启（需配置写权限 + 后端 `restart-enabled=true`）。
  *
- * ⚠️ 后端只负责优雅退出——能否再起来取决于部署侧有无外部监管进程（Docker / systemd / k8s）。
- * UI 必须二次确认，并把这一后果说清。
+ * ⚠️ 后端只负责优雅退出——能否再起来取决于部署侧有无外部监管进程。
  */
 export async function restartSystem(): Promise<void> {
   const response = await http.post('/admin/system/restart', null, {

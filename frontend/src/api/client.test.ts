@@ -5,7 +5,7 @@ import axios, { AxiosError } from 'axios'
  * `client.ts` 的纯逻辑测试。
  *
  * 为什么这几条值得测：它们全是**静默失效**型的错误——
- * 少补一个鉴权头、401 后不清理凭据、错误文案指向错误的原因，
+ * 少补一个鉴权头、401 后不清理令牌、错误文案指向错误的原因，
  * 都不会抛异常、不会崩，只会让运营者「以为后端坏了」或「反复对着永远失败的列表刷新」。
  *
  * ⚠️ `client.ts` 在**模块顶层**就读写 `localStorage`（`let token = localStorage.getItem(...)`），
@@ -13,7 +13,7 @@ import axios, { AxiosError } from 'axios'
  * **先 stub 全局、再动态 import**（静态 import 会被提升到 stub 之前，直接 ReferenceError）。
  */
 
-/** 最小 localStorage 替身：足够跑通读/写/删，且可断言落盘值。 */
+/** 最小 localStorage 替身。 */
 function makeStorage(): Storage {
   const map = new Map<string, string>()
   return {
@@ -42,15 +42,7 @@ function headerValue(headers: unknown, name: string): unknown {
   return typeof h?.get === 'function' ? h.get(name) : h?.[name]
 }
 
-/**
- * 造一个「适配器」，对给定状态码**像内置适配器那样 reject**。
- *
- * ⚠️ 不能直接 resolve 一个 401/500 响应来驱动响应拦截器：`validateStatus` 的校验（`settle`）
- * 是**内置适配器（xhr/http）自己**调用的，axios 核心的 `dispatchRequest` 只做
- * `adapter(config).then(...)`——自定义适配器 resolve 一个非 2xx 响应，核心**不会**代为 reject，
- * 于是响应拦截器的 error 分支根本不会被走到（本用例第一版就是这么假绿的）。
- * 依据：`node_modules/axios/dist/node/axios.cjs` 的 `dispatchRequest`（约 6157 行）与 `settle`。
- */
+/** 造一个「像内置适配器那样 reject」的适配器（驱动响应拦截器的 error 分支）。 */
 function adapterRejecting(status: number) {
   return async (config: unknown) => {
     const response = { data: {}, status, statusText: '', headers: {}, config }
@@ -74,58 +66,38 @@ afterEach(() => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('凭据存取', () => {
-  it('未存过凭据时：空 token / 空 operator，hasCredentials 为 false', async () => {
+describe('凭据存取（会话令牌）', () => {
+  it('未登录：空 token，hasCredentials 为 false', async () => {
     const c = await loadClient()
     expect(c.getToken()).toBe('')
-    expect(c.getOperatorId()).toBe('')
     expect(c.hasCredentials()).toBe(false)
   })
 
-  it('setCredentials 写入时 trim，并落进 localStorage', async () => {
-    const c = await loadClient()
-    c.setCredentials({ token: '  tok-123  ', operatorId: ' 42 ' })
+  it('localStorage 里有令牌时，模块加载即恢复登录态（刷新不掉线）', async () => {
+    storage.setItem('tgg.admin.token', 'persisted')
 
-    expect(c.getToken()).toBe('tok-123')
-    expect(c.getOperatorId()).toBe('42')
+    const c = await loadClient()
+    expect(c.getToken()).toBe('persisted')
     expect(c.hasCredentials()).toBe(true)
-    expect(storage.getItem('tgg.admin.token')).toBe('tok-123')
-    expect(storage.getItem('tgg.admin.operator')).toBe('42')
-  })
-
-  it('只填一半（缺 operator）不算已登录——两层鉴权缺一不可', async () => {
-    const c = await loadClient()
-    c.setCredentials({ token: 'tok-123', operatorId: '' })
-    expect(c.hasCredentials()).toBe(false)
   })
 
   it('clearCredentials 同时清内存与 localStorage', async () => {
+    storage.setItem('tgg.admin.token', 'persisted')
     const c = await loadClient()
-    c.setCredentials({ token: 'tok-123', operatorId: '42' })
+
     c.clearCredentials()
 
     expect(c.hasCredentials()).toBe(false)
     expect(c.getToken()).toBe('')
     expect(storage.getItem('tgg.admin.token')).toBe(null)
-    expect(storage.getItem('tgg.admin.operator')).toBe(null)
-  })
-
-  it('localStorage 里已有值时，模块加载即恢复登录态（刷新不掉线）', async () => {
-    storage.setItem('tgg.admin.token', 'persisted')
-    storage.setItem('tgg.admin.operator', '7')
-
-    const c = await loadClient()
-    expect(c.getToken()).toBe('persisted')
-    expect(c.getOperatorId()).toBe('7')
-    expect(c.hasCredentials()).toBe(true)
   })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('请求拦截器：补两层鉴权头', () => {
-  it('有凭据时补 Authorization 与 X-Operator-Id', async () => {
+describe('请求拦截器：补会话令牌', () => {
+  it('有令牌时补 Authorization: Bearer，且**不再**补已废弃的 X-Operator-Id', async () => {
+    storage.setItem('tgg.admin.token', 'tok-123')
     const c = await loadClient()
-    c.setCredentials({ token: 'tok-123', operatorId: '42' })
 
     let seen: { headers: unknown } | null = null
     c.http.defaults.adapter = async (config) => {
@@ -135,10 +107,10 @@ describe('请求拦截器：补两层鉴权头', () => {
     await c.http.get('/admin/approvals')
 
     expect(headerValue(seen!.headers, 'Authorization')).toBe('Bearer tok-123')
-    expect(headerValue(seen!.headers, 'X-Operator-Id')).toBe('42')
+    expect(headerValue(seen!.headers, 'X-Operator-Id')).toBeUndefined()
   })
 
-  it('无凭据时不补头（且不补空值）', async () => {
+  it('无令牌时不补头（且不补空值）', async () => {
     const c = await loadClient()
 
     let seen: { headers: unknown } | null = null
@@ -149,15 +121,14 @@ describe('请求拦截器：补两层鉴权头', () => {
     await c.http.get('/admin/approvals')
 
     expect(headerValue(seen!.headers, 'Authorization')).toBeUndefined()
-    expect(headerValue(seen!.headers, 'X-Operator-Id')).toBeUndefined()
   })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('响应拦截器：401 清凭据', () => {
-  it('401 时清掉本地凭据（让界面回到「填写凭据」，而不是对着失败列表刷）', async () => {
+describe('响应拦截器：401 清令牌', () => {
+  it('401 时清掉本地令牌（让界面回到登录页）', async () => {
+    storage.setItem('tgg.admin.token', 'tok-123')
     const c = await loadClient()
-    c.setCredentials({ token: 'tok-123', operatorId: '42' })
     c.http.defaults.adapter = adapterRejecting(401)
 
     await expect(c.http.get('/admin/approvals')).rejects.toBeTruthy()
@@ -165,9 +136,9 @@ describe('响应拦截器：401 清凭据', () => {
     expect(storage.getItem('tgg.admin.token')).toBe(null)
   })
 
-  it('非 401（如 500）不清凭据——那是后端故障，不是鉴权问题', async () => {
+  it('非 401（如 500）不清令牌——那是后端故障，不是鉴权问题', async () => {
+    storage.setItem('tgg.admin.token', 'tok-123')
     const c = await loadClient()
-    c.setCredentials({ token: 'tok-123', operatorId: '42' })
     c.http.defaults.adapter = adapterRejecting(500)
 
     await expect(c.http.get('/admin/approvals')).rejects.toBeTruthy()
@@ -177,45 +148,80 @@ describe('响应拦截器：401 清凭据', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('login', () => {
+  it('成功：写入令牌并回传主体', async () => {
+    const c = await loadClient()
+    c.http.defaults.adapter = async (config) => ({
+      data: { token: 'tok', subjectType: 'ADMIN_ACCOUNT', subjectId: 7, role: 'SUPER_ADMIN' },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    })
+
+    const info = await c.login('root', 'pw')
+
+    expect(info.token).toBe('tok')
+    expect(info.role).toBe('SUPER_ADMIN')
+    expect(c.getToken()).toBe('tok')
+    expect(c.hasCredentials()).toBe(true)
+    expect(storage.getItem('tgg.admin.token')).toBe('tok')
+  })
+
+  it('401：抛业务错误且**不**写令牌', async () => {
+    const c = await loadClient()
+    c.http.defaults.adapter = async (config) => ({
+      data: { error: '登录名或密码错误' }, status: 401, statusText: '', headers: {}, config,
+    })
+
+    await expect(c.login('root', 'bad')).rejects.toThrow('登录名或密码错误')
+    expect(c.hasCredentials()).toBe(false)
+    expect(storage.getItem('tgg.admin.token')).toBe(null)
+  })
+})
+
+describe('logout', () => {
+  it('无论后端成败都清掉本地令牌', async () => {
+    storage.setItem('tgg.admin.token', 'tok-123')
+    const c = await loadClient()
+    c.http.defaults.adapter = adapterRejecting(500)
+
+    await c.logout()
+
+    expect(c.hasCredentials()).toBe(false)
+    expect(storage.getItem('tgg.admin.token')).toBe(null)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('describeError：把错误翻成运营者能懂的一句话', () => {
   // 文案逐字取自 client.ts——改文案必须先改测试，反之亦然。
-  it('401 → 鉴权失败文案', async () => {
-    const c = await loadClient()
-    const err = new AxiosError('boom', 'ERR_BAD_REQUEST', undefined, undefined, {
-      status: 401,
+  function axiosError(status: number): AxiosError {
+    return new AxiosError('boom', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status,
       statusText: '',
       headers: {},
       config: {} as never,
       data: {},
     })
-    expect(c.describeError(err)).toBe('鉴权失败（401）：API 令牌缺失或错误，请重新填写。')
+  }
+
+  it('401 → 登录失效文案', async () => {
+    const c = await loadClient()
+    expect(c.describeError(axiosError(401))).toBe('登录已失效（401）：请重新登录。')
   })
 
   it('403 → 默认中性文案（不绑死某个功能区）', async () => {
     const c = await loadClient()
-    const err = new AxiosError('boom', 'ERR_BAD_REQUEST', undefined, undefined, {
-      status: 403,
-      statusText: '',
-      headers: {},
-      config: {} as never,
-      data: {},
-    })
-    expect(c.describeError(err)).toBe('无权限（403）：当前操作人不在授权名单内。')
+    expect(c.describeError(axiosError(403))).toBe('无权限（403）：当前主体不在授权名单内。')
   })
 
   it('403 → 传入 forbidden 时用该功能区的具体成因（审批 / 配置中心各不同）', async () => {
     const c = await loadClient()
-    const err = new AxiosError('boom', 'ERR_BAD_REQUEST', undefined, undefined, {
-      status: 403,
-      statusText: '',
-      headers: {},
-      config: {} as never,
-      data: {},
-    })
-    expect(c.describeError(err, c.FORBIDDEN_APPROVAL))
-      .toBe('无权限（403）：当前操作人不在复核人白名单内，或该案件属于你本人。')
-    expect(c.describeError(err, c.FORBIDDEN_CONFIG))
-      .toBe('无权限（403）：当前操作人不在配置写权限名单内。')
+    expect(c.describeError(axiosError(403), c.FORBIDDEN_APPROVAL))
+      .toBe('无权限（403）：当前主体不是超管，且不在复核人白名单内，或该案件属于你本人。')
+    expect(c.describeError(axiosError(403), c.FORBIDDEN_CONFIG))
+      .toBe('无权限（403）：当前主体不是超管，且不在配置写权限名单内。')
   })
 
   it('无响应（连不上后端）→ 连接文案', async () => {
@@ -226,14 +232,7 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
 
   it('其他状态码 → 带 HTTP 码的兜底文案', async () => {
     const c = await loadClient()
-    const err = new AxiosError('boom', 'ERR_BAD_RESPONSE', undefined, undefined, {
-      status: 500,
-      statusText: '',
-      headers: {},
-      config: {} as never,
-      data: {},
-    })
-    expect(c.describeError(err)).toBe('请求失败（HTTP 500）。')
+    expect(c.describeError(axiosError(500))).toBe('请求失败（HTTP 500）。')
   })
 
   it('普通 Error → 透传 message', async () => {
@@ -248,5 +247,5 @@ describe('describeError：把错误翻成运营者能懂的一句话', () => {
   })
 })
 
-// 让 `axios` 与 `AxiosError` 的 import 都被使用（避免 TS 未使用告警）。
+// 让 `axios` 的 import 被使用（避免 TS 未使用告警）。
 void axios
