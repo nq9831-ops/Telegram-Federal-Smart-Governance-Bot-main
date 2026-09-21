@@ -19,7 +19,7 @@ public final class DispatchMessages {
     // ────────────── 连通性测试 ──────────────
 
     /** {@code /echo} 的固定回复。 */
-    public static final String ECHO_REPLY = "pong";
+    public static final String ECHO_REPLY = "在的，连通没问题。";
 
     /**
      * 「需在群会话内执行」的统一提示。
@@ -28,7 +28,7 @@ public final class DispatchMessages {
      * {@code /group_tag} 都要用它，两处各写一份就是「改一处必然漏另一处」——
      * 守门测试的「不得重复散落」判据也会拦下。
      */
-    public static final String GROUP_ONLY = "请在要生效的群内执行本命令。";
+    public static final String GROUP_ONLY = "这条命令得在群里发才管用。";
 
     /**
      * 「申诉已提交（编号 #」前缀——联邦申诉（模块八）与收录申诉（模块五）共用。
@@ -49,10 +49,10 @@ public final class DispatchMessages {
     }
 
     /** {@code /enable} 的回执。 */
-    public static final String ENABLE_REPLY = "已开启本群的自动化能力。";
+    public static final String ENABLE_REPLY = "本群的自动化能力开好了。";
 
     /** {@code /disable} 的回执。 */
-    public static final String DISABLE_REPLY = "已关闭本群的自动化能力。";
+    public static final String DISABLE_REPLY = "本群的自动化能力关掉了。";
 
     // ────────────── 确认卡 ──────────────
 
@@ -69,7 +69,7 @@ public final class DispatchMessages {
      * 一律断言会让用户学会无视这句话（见 {@code CommandDispatcher#confirmationCard} 的取舍）。
      */
     public static String confirmPrompt(String preview) {
-        return "即将执行：" + preview + "\n请核对命令与参数；确认后将立即执行。";
+        return "马上要执行：" + preview + "\n先核对一下命令和参数；确认后我立刻执行。";
     }
 
     // ────────────── /menu 业务域分类名 ──────────────

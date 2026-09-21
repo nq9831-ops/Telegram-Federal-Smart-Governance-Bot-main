@@ -88,7 +88,7 @@ class WebhookDispatchIT {
                 .andExpect(status().isOk())
                 // 关键断言语义：只查状态码会掩盖「链路断了但库仍回 200」。
                 // 必须验证 handler 的回复真的出现在响应体里。
-                .andExpect(content().string(containsString("pong")));
+                .andExpect(content().string(containsString("在的，连通没问题。")));
     }
 
     @Test

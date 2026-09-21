@@ -142,7 +142,7 @@ class GroupTopicTagServiceTest {
     void commandRejectsPrivateChat() {
         UpdateContext privateChat = new UpdateContext(1, 42L, 42L, 5, "group_tag", "list");
 
-        assertThat(text(new GroupTagCommandHandler(service).handle(privateChat))).contains("群内");
+        assertThat(text(new GroupTagCommandHandler(service).handle(privateChat))).contains("群里");
     }
 
     @Test

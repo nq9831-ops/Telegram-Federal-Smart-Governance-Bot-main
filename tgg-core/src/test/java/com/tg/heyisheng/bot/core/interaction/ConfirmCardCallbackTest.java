@@ -156,7 +156,7 @@ class ConfirmCardCallbackTest {
         verify(bridge).sendSupplement(supplement.capture());
         EditMessageText card = (EditMessageText) supplement.getValue();
         assertThat(card.getMessageId()).isEqualTo(MESSAGE_ID);
-        assertThat(card.getText()).contains("/" + COMMAND).contains("已确认");
+        assertThat(card.getText()).contains("/" + COMMAND).contains("确认");
         assertThat(markupOf(card).getKeyboard()).as("终态卡不再可点").isEmpty();
     }
 

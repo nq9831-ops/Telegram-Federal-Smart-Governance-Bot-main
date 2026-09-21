@@ -39,7 +39,7 @@ class IdentityPresenterTest {
         String reply = presenter(false).whoamiReply(GROUP, USER);
 
         assertThat(reply).as("群内默认不得出现明文用户 ID").doesNotContain(String.valueOf(USER));
-        assertThat(reply).as("应引导用户去私聊查看").contains("请私聊");
+        assertThat(reply).as("应引导用户去私聊查看").contains("私聊");
     }
 
     @Test

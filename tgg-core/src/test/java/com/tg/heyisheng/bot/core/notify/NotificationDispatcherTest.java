@@ -90,7 +90,7 @@ class NotificationDispatcherTest {
         assertThat(sent.get(3))
                 .as("超限条数应合并为摘要附在下一次发送上，而不是静默丢失")
                 .contains("下一小时第一条")
-                .contains("另有 2 条");
+                .contains("另外 2 条");
     }
 
     @Test
