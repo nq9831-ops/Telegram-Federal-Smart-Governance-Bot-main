@@ -25,11 +25,11 @@ public class NoViolationTeachGate implements TeachGate {
     @Override
     public Optional<String> rejectionFor(long chatId, Long userId) {
         if (userId == null) {
-            return Optional.of("无法识别你的身份。");
+            return Optional.of(WordFilterMessages.TEACH_GATE_NO_IDENTITY);
         }
         int strikes = strikeService.countOf(chatId, userId);
         return strikes > 0
-                ? Optional.of("本群教学要求无违规记录（你已有 " + strikes + " 次敏感话题违规）。")
+                ? Optional.of(WordFilterMessages.teachGateHasViolations(strikes))
                 : Optional.empty();
     }
 }

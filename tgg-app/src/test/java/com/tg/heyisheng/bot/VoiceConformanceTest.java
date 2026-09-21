@@ -33,9 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 只有这里能同时看到各模块（与 {@code UserFacingUsageTextTest}、{@code ConfigCatalogCompletenessTest}
  * 同一取舍）。目录不存在时**显式失败**——守卫若在错误的工作目录下静默通过，就等于不存在。
  *
- * <p><b>范围是有意收窄的</b>：第二步按收口只搬「交互 + 通知 + 自助」三层，
- * 故判据 2 只覆盖 {@link #MIGRATED_PACKAGES}；惩戒类（moderation/wordfilter）与业务域
- * 留到第三步随语气一起搬，届时把这些包加进来即可（判据本身不用改）。
+ * <p><b>范围</b>：第三步完成后全部已搬迁域都登记在 {@link #MIGRATED_PACKAGES}
+ * （交互 / 通知 / 自助 / 准入 / 泄露 / 审核 / 词表 / 审批 / 联邦 / 收录）。
+ * 新增文案域时在此登记即可，判据本身不用改。
  *
  * <p><b>判据 2 的覆盖范围与边界（如实记录）</b>：匹配**用户可见调用点**行
  * （{@code .text(} / {@code answer(} / {@code reply(} / {@code sendMessage(} / {@code SendMessage(} /
@@ -52,7 +52,9 @@ class VoiceConformanceTest {
 
     /** 「已搬迁的包」——落点判据只在这些包内强制。新增搬迁域时在此登记。 */
     private static final List<String> MIGRATED_PACKAGES = List.of(
-            "core/interaction", "core/notify", "core/dispatch");
+            "core/interaction", "core/notify", "core/dispatch",
+            "core/admission", "core/breach", "core/moderation", "core/wordfilter",
+            "admin/approval", "federation", "listing/command");
 
     /** 文案层类名后缀。 */
     private static final String MESSAGES_SUFFIX = "Messages.java";

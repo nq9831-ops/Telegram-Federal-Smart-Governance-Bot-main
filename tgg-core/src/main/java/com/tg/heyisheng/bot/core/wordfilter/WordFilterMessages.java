@@ -105,4 +105,14 @@ public final class WordFilterMessages {
     public static String rulesTruncated(int total, int shown) {
         return com.tg.heyisheng.bot.core.dispatch.DispatchMessages.truncatedNotice(total, shown);
     }
+
+    // ────────────── 教学门槛（§10.3 · NoViolationTeachGate）──────────────
+
+    /** 教学门槛：取不到身份时的拒绝。 */
+    public static final String TEACH_GATE_NO_IDENTITY = "无法识别你的身份。";
+
+    /** 教学门槛：本群有违规记录时的拒绝（含累计次数）。 */
+    public static String teachGateHasViolations(int strikes) {
+        return "本群教学要求无违规记录（你已有 " + strikes + " 次敏感话题违规）。";
+    }
 }

@@ -40,16 +40,16 @@ import java.util.Optional;
 public class CaseAppealCommandHandler implements CommandHandler {
 
     /** 用法文案**不含 {@code <...>}**：模板符号会被整串照抄，命令因而一直回用法。 */
-    static final String USAGE = "用法：/case_appeal 案件编号 理由\n"
-            + "例：/case_appeal 42 那条是正常讨论，不是广告";
+    static final String USAGE = ModerationMessages.CASE_APPEAL_USAGE;
 
     /** 理由长度上限（与 {@code moderation_case_appeals.reason} 的列宽一致）。 */
     static final int MAX_REASON_CHARS = 500;
 
-    static final String NOT_A_GROUP_MEMBER_IDENTITY = "无法识别你的身份，请稍后再试。";
-    static final String CASE_NOT_FOUND_PREFIX = "未找到案件 #";
-    static final String NOT_THE_PARTY = "只有该案件的当事人本人可以申诉。";
-    static final String REASON_TOO_LONG_PREFIX = "理由太长了（上限 " + MAX_REASON_CHARS + " 字）。";
+    // 文案落点在 {@link ModerationMessages}；这些同名常量保留给测试与既有引用（见 VOICE.md 第八节）。
+    static final String NOT_A_GROUP_MEMBER_IDENTITY = ModerationMessages.CASE_APPEAL_NO_IDENTITY;
+    static final String CASE_NOT_FOUND_PREFIX = ModerationMessages.CASE_APPEAL_NOT_FOUND_PREFIX;
+    static final String NOT_THE_PARTY = ModerationMessages.CASE_APPEAL_NOT_THE_PARTY;
+    static final String REASON_TOO_LONG_PREFIX = ModerationMessages.caseAppealReasonTooLong(MAX_REASON_CHARS);
 
     private final ModerationReviewRepository reviews;
     private final CaseAppealRepository appeals;
@@ -93,14 +93,12 @@ public class CaseAppealCommandHandler implements CommandHandler {
 
         Optional<CaseAppeal> existing = appeals.findByReviewIdAndUserId(parsed.caseId(), userId);
         if (existing.isPresent()) {
-            return reply(ctx, "你已经就案件 #" + parsed.caseId()
-                    + " 提交过申诉（编号 #" + existing.get().getId() + "），请等待处理。");
+            return reply(ctx, ModerationMessages.caseAppealDuplicate(parsed.caseId(), existing.get().getId()));
         }
 
         CaseAppeal saved = appeals.save(
                 new CaseAppeal(parsed.caseId(), userId, parsed.reason(), clock.instant()));
-        return reply(ctx, "申诉已提交（编号 #" + saved.getId() + "，对应案件 #"
-                + parsed.caseId() + "）。平台复核后会通知你结果。");
+        return reply(ctx, ModerationMessages.caseAppealSubmitted(saved.getId(), parsed.caseId()));
     }
 
     private static SendMessage reply(UpdateContext ctx, String text) {

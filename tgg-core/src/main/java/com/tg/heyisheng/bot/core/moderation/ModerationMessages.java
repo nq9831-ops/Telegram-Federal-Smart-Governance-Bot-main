@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.core.moderation;
 
+import com.tg.heyisheng.bot.core.dispatch.DispatchMessages;
+
 /**
  * 审核域（模块九：复核队列 / 话题标签 / 敏感话题分级 / 红线 SLA / 处置告知）的**用户可见文案**
  * ——{@code *Messages} 家族在 moderation 包的落点。
@@ -136,6 +138,38 @@ public final class ModerationMessages {
                 + " · " + level
                 + (hardLine ? " · 硬红线(已封禁)" : "")
                 + "\n";
+    }
+
+    // ────────────── /case_appeal ──────────────
+
+    /** {@code /case_appeal} 用法（**不含模板符号**：模板会被整串照抄，命令因而一直回用法）。 */
+    public static final String CASE_APPEAL_USAGE = "用法：/case_appeal 案件编号 理由\n"
+            + "例：/case_appeal 42 那条是正常讨论，不是广告";
+
+    /** {@code /case_appeal} 取不到身份时的兜底。 */
+    public static final String CASE_APPEAL_NO_IDENTITY = "无法识别你的身份，请稍后再试。";
+
+    /** 案件不存在前缀（后接编号）。 */
+    public static final String CASE_APPEAL_NOT_FOUND_PREFIX = "未找到案件 #";
+
+    /** 非当事人：案件号公开，但申诉权只属于当事人。 */
+    public static final String CASE_APPEAL_NOT_THE_PARTY = "只有该案件的当事人本人可以申诉。";
+
+    /** 理由过长（后接上限字符数）。 */
+    public static String caseAppealReasonTooLong(int maxChars) {
+        return "理由太长了（上限 " + maxChars + " 字）。";
+    }
+
+    /** 重复提交（幂等）回执。{@code appealId} 用装箱类型——原实现是字符串拼接，对 null 容忍。 */
+    public static String caseAppealDuplicate(long caseId, Object appealId) {
+        return "你已经就案件 #" + caseId
+                + " 提交过申诉（编号 #" + appealId + "），请等待处理。";
+    }
+
+    /** 申诉提交成功回执。前缀跨域共享（见 {@code DispatchMessages.APPEAL_SUBMITTED_PREFIX}）。 */
+    public static String caseAppealSubmitted(Object appealId, long caseId) {
+        return DispatchMessages.APPEAL_SUBMITTED_PREFIX + appealId + "，对应案件 #"
+                + caseId + "）。平台复核后会通知你结果。";
     }
 
     // ────────────── 处置告知（删除 / 冻结 / 敏感话题 / 红线 SLA）──────────────
