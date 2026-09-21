@@ -24,6 +24,13 @@
       <artifactId>tgg-core</artifactId>
     </dependency>
 
+    <!-- 数据范围（Wave 4）：后台要为 TG 用户提供「我提交的收录」只读视图，需读 listing 的仓库。
+         tgg-listing 只依赖 core / credit，不构成循环。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-listing</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

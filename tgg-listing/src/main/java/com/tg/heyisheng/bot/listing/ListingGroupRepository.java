@@ -41,4 +41,12 @@ public interface ListingGroupRepository extends JpaRepository<ListingGroup, Long
      * <p>按主键升序保证扫描顺序稳定、可分段续跑。
      */
     List<ListingGroup> findByStatusOrderByIdAsc(String status);
+
+    /**
+     * 某<b>作者</b>提交的收录（倒序）——<b>数据范围 OWN 的查询入口</b>。
+     *
+     * <p>过滤写在<b>查询条件</b>里（而非「查全部再在控制器里过滤」）：后者一旦漏过滤，
+     * 就会把别人的行原样发出去——而这正是本项目列为「必须靠查询条件守」的不变量。
+     */
+    List<ListingGroup> findBySubmitterUserIdOrderByIdDesc(Long submitterUserId);
 }
