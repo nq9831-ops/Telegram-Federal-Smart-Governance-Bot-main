@@ -38,6 +38,20 @@ export function clearCredentials(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+/**
+ * 「会话失效（401）」回调接缝。
+ *
+ * 拦截器在 401 时会清掉本地令牌；但「界面回到登录页」还需把响应式的会话状态也置为未登录，
+ * 而该状态在 `stores/session.ts`。client **不能**反向 import store（`session` 已 import `client`，
+ * 会形成模块环），故由 `session` 在初始化时把回调注册进来——依赖方向保持单向。
+ */
+type UnauthorizedHandler = () => void
+let onUnauthorized: UnauthorizedHandler | null = null
+
+export function setOnUnauthorized(handler: UnauthorizedHandler | null): void {
+  onUnauthorized = handler
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HTTP 客户端
 // baseURL 留空：开发走 vite 代理的 /admin，生产走反向代理的 /admin（路径一致，见 vite.config.ts）
@@ -54,9 +68,10 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    // 401 = 会话缺失/失效。清掉本地令牌，让界面回到「登录」状态。
+    // 401 = 会话缺失/失效。清掉本地令牌，并通知会话 store 把界面切回登录页。
     if (error.response?.status === 401) {
       clearCredentials()
+      onUnauthorized?.()
     }
     return Promise.reject(error)
   },

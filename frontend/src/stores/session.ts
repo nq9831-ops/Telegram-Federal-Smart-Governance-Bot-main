@@ -4,6 +4,7 @@ import {
   hasCredentials,
   login as apiLogin,
   logout as apiLogout,
+  setOnUnauthorized,
   telegramLogin as apiTelegramLogin,
 } from '../api/client'
 
@@ -22,6 +23,16 @@ export const useSession = defineStore('session', () => {
   const subjectId = ref<number | null>(null)
   const role = ref<'SUPER_ADMIN' | 'OPERATOR' | null>(null)
   const permissions = ref<string[]>([])
+
+  // 会话失效（401）时立刻回到登录页：client 不能反向 import 本 store（会成环），
+  // 故在此把回调交给它。拦截器清掉令牌后调用，界面据 authenticated 切回登录卡。
+  setOnUnauthorized(() => {
+    subjectType.value = ''
+    subjectId.value = null
+    role.value = null
+    permissions.value = []
+    authenticated.value = false
+  })
 
   /**
    * 是否显示「审计」入口——**显示分区，不是安全边界**：真正放行/拒绝在服务端
