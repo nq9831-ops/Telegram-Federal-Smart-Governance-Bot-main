@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -48,15 +49,28 @@ public class CreditService {
     private final CreditScoreRepository repository;
     private final CreditEventRecordRepository eventRecordRepository;
     private final IdHasher idHasher;
+    private final Clock clock;
 
+    /** 生产构造器：时钟取系统 UTC（与其他组件一致：Clock 可注入，便于用可推进时钟测时间相关逻辑）。 */
+    @org.springframework.beans.factory.annotation.Autowired
     public CreditService(CreditRuleEngine ruleEngine,
                          CreditScoreRepository repository,
                          CreditEventRecordRepository eventRecordRepository,
                          IdHasher idHasher) {
+        this(ruleEngine, repository, eventRecordRepository, idHasher, Clock.systemUTC());
+    }
+
+    /** 可注入时钟的构造器（测试用固定/可推进时钟）。 */
+    public CreditService(CreditRuleEngine ruleEngine,
+                         CreditScoreRepository repository,
+                         CreditEventRecordRepository eventRecordRepository,
+                         IdHasher idHasher,
+                         Clock clock) {
         this.ruleEngine = ruleEngine;
         this.repository = repository;
         this.eventRecordRepository = eventRecordRepository;
         this.idHasher = idHasher;
+        this.clock = clock;
     }
 
     /**
@@ -80,7 +94,7 @@ public class CreditService {
         }
 
         int delta = ruleEngine.deltaFor(event);
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         String subjectType = event.subjectType().name();
 
         // 首次记账时建行（幂等）；随后原子应用增量。
@@ -164,7 +178,7 @@ public class CreditService {
             return false;
         }
         boolean created = repository.insertIfAbsent(subjectType.name(), subjectId, initialScore,
-                Instant.now()) > 0;
+                clock.instant()) > 0;
         if (created) {
             log.info("初始化信用账本：subjectType={} subjectHash={} initialScore={}",
                     subjectType, idHasher.hash(subjectId), initialScore);
@@ -222,7 +236,7 @@ public class CreditService {
         }
         int refund = -actualDelta;
 
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         String subjectType = original.getSubjectType().name();
         repository.insertIfAbsent(subjectType, original.getSubjectId(), INITIAL_SCORE, now);
         int scoreBefore = repository.findBySubjectTypeAndSubjectId(original.getSubjectType(), original.getSubjectId())

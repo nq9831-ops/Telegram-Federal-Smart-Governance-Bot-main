@@ -99,16 +99,24 @@ class GroupConfigServiceTest {
 
     @Test
     void setEnabledInvalidatesCacheSoSwitchTakesEffectImmediately() {
-        GroupConfig config = new GroupConfig(CHAT, "测试群"); // 默认 enabled=true
-        when(repository.findById(CHAT)).thenReturn(Optional.of(config));
+        GroupConfig enabled = new GroupConfig(CHAT, "测试群"); // 默认 enabled=true
+        when(repository.findById(CHAT)).thenReturn(Optional.of(enabled));
         GroupConfigService service = new GroupConfigService(repository, fixedClock());
 
         service.findOrDefault(CHAT);            // 预热缓存（enabled=true）
-        service.setEnabled(CHAT, false);        // 关闭 + 失效缓存
+
+        // 原子 upsert 落库后，该行应呈关闭态
+        GroupConfig disabled = new GroupConfig(CHAT, "测试群");
+        disabled.setEnabled(false);
+        when(repository.findById(CHAT)).thenReturn(Optional.of(disabled));
+
+        service.setEnabled(CHAT, false);        // 原子 upsert + 失效缓存
 
         assertThat(service.findOrDefault(CHAT).enabled())
                 .as("关闭后必须立刻生效，不能等 TTL")
                 .isFalse();
+        verify(repository).upsertEnabled(org.mockito.ArgumentMatchers.eq(CHAT),
+                org.mockito.ArgumentMatchers.eq(false), org.mockito.ArgumentMatchers.any());
     }
 
     /** 可控时钟：让「缓存过期后的 last-known 回退」可被直接验证（固定时钟无法推进时间）。 */

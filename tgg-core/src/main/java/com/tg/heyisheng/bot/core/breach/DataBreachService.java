@@ -54,19 +54,15 @@ public class DataBreachService {
     /**
      * 标记已通报。
      *
+     * <p><b>原子性</b>：判定「reported_at 是否为空」下推到 SQL 的 {@code WHERE ... IS NULL}，
+     * 以受影响行数作<b>唯一闸门</b>。此前的读-改-写（findById → 内存判定 → save）在两个复核人
+     * 并发标记时会让两者都判定「我是首个」并互相覆盖首报时间——那是合规证据。
+     *
      * @return {@code false} = 事件不存在或已通报（幂等；首次通报时间不会被覆盖——那是证据）
      */
     @Transactional
     public boolean markReported(long id, Long operator) {
-        return repository.findById(id)
-                .map(incident -> {
-                    boolean changed = incident.markReported(operator, clock.instant());
-                    if (changed) {
-                        repository.save(incident);
-                    }
-                    return changed;
-                })
-                .orElse(false);
+        return repository.markReportedIfUnreported(id, clock.instant(), operator) > 0;
     }
 
     /** 尚未通报的事件。 */

@@ -104,14 +104,19 @@ public class GroupConfigService {
         return config;
     }
 
-    /** 开关某群的自动化能力。 */
+    /**
+     * 开关某群的自动化能力。
+     *
+     * <p><b>原子性</b>：走 {@link GroupConfigRepository#upsertEnabled} 单条原生语句。
+     * 此前的「findById 判空 → save」在<b>首次</b>为同一个群并发写入时会撞主键约束
+     * （{@code /enable} 与 {@code /disable} 同时到达、或重复点击）。
+     */
     @Transactional
     public GroupConfigView setEnabled(Long chatId, boolean enabled) {
-        GroupConfig config = repository.findById(chatId)
-                .orElseGet(() -> repository.save(new GroupConfig(chatId, null)));
-        config.setEnabled(enabled);
-        GroupConfigView view = new GroupConfigView(config.getChatId(), config.getTitle(), config.isEnabled());
+        repository.upsertEnabled(chatId, enabled, clock.instant());
         cache.remove(chatId); // 开关翻转必须立刻生效，不能等 TTL
-        return view;
+        GroupConfig config = repository.findById(chatId)
+                .orElseThrow(() -> new IllegalStateException("upsert 后应能读到群组配置：" + chatId));
+        return new GroupConfigView(config.getChatId(), config.getTitle(), config.isEnabled());
     }
 }

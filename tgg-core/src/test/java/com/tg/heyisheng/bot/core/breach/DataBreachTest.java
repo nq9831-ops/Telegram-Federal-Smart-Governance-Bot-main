@@ -75,17 +75,20 @@ class DataBreachTest {
                 .isInstanceOf(TggException.class);
     }
 
+    /**
+     * 服务层契约：把仓储的「受影响行数」如实映射为布尔。
+     *
+     * <p>真正的原子性（并发只有一个赢家、首报时间不被覆盖）由仓储的 {@code WHERE ... IS NULL}
+     * 保证——顺序调用测不出竞态，故用<b>真库并发</b>验证于 {@code DataBreachAtomicIT}。
+     */
     @Test
-    void markReportedIsIdempotentAndKeepsFirstTimestamp() {
-        DataBreachIncident existing = incident(5L, NOW.plus(Duration.ofHours(72)));
-        when(repository.findById(5L)).thenReturn(Optional.of(existing));
+    void markReportedMapsAffectedRowsToBoolean() {
+        when(repository.markReportedIfUnreported(eq(5L), any(), eq(REVIEWER))).thenReturn(1);
+        assertThat(service().markReported(5L, REVIEWER)).as("写入 1 行 = 本次标记成功").isTrue();
 
-        assertThat(service().markReported(5L, REVIEWER)).isTrue();
-        assertThat(existing.getReportedAt()).isNotNull();
-        assertThat(existing.getReportedBy()).isEqualTo(REVIEWER);
+        when(repository.markReportedIfUnreported(eq(5L), any(), eq(999L))).thenReturn(0);
         assertThat(service().markReported(5L, 999L))
-                .as("重复标记不得覆盖首次通报（那是合规证据）").isFalse();
-        assertThat(existing.getReportedBy()).isEqualTo(REVIEWER);
+                .as("0 行 = 已通报或不存在 → 不得报告成功").isFalse();
     }
 
     @Test
