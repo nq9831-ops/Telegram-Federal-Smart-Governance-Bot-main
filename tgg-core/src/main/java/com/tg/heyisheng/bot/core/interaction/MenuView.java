@@ -47,7 +47,24 @@ public final class MenuView {
      * <p>写清「为什么只看到这些」：面板按**当前用户在本群的真实权限**过滤过，不是命令缺失。
      */
     static String homeText() {
-        return "可用功能（只列出你在此群能用的）：\n选一个分类查看，点按钮直接执行。";
+        return homeText("");
+    }
+
+    /**
+     * 主页文案（可在顶部带一行**身份行**）。
+     *
+     * <p>身份行由 {@link IdentityPresenter} 决定有无与内容——群内默认不显示（避免对全群可见/被转发），
+     * 私聊或开关打开时才有一行用户 ID。传空串即退化为无身份行的主页。
+     *
+     * <p><b>为什么由调用方传入而非本类自算</b>：本类是纯渲染（无 Spring 依赖），
+     * 隐私判据收敛在 {@link IdentityPresenter} 一处；两处各判一次迟早漂移。
+     */
+    static String homeText(String identityLine) {
+        String head = "可用功能（只列出你在此群能用的）：\n选一个分类查看，点按钮直接执行。";
+        if (identityLine == null || identityLine.isBlank()) {
+            return head;
+        }
+        return identityLine + "\n\n" + head;
     }
 
     /** 分类页文案：说清这是哪一类、以及「需填参数的命令会提示用法」这一过渡行为。 */

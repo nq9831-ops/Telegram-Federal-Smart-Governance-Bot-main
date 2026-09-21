@@ -38,12 +38,14 @@ public class MenuCallbackHandler implements CallbackHandler {
     private final CallbackCommandBridge bridge;
     private final MenuCatalog catalog;
     private final GroupConfigService groupConfigs;
+    private final IdentityPresenter identity;
 
     public MenuCallbackHandler(CallbackCommandBridge bridge, MenuCatalog catalog,
-                               GroupConfigService groupConfigs) {
+                               GroupConfigService groupConfigs, IdentityPresenter identity) {
         this.bridge = bridge;
         this.catalog = catalog;
         this.groupConfigs = groupConfigs;
+        this.identity = identity;
     }
 
     @Override
@@ -96,7 +98,8 @@ public class MenuCallbackHandler implements CallbackHandler {
         if (grouped.isEmpty()) {
             return card(query, chatId, MenuCommandHandler.NO_PERMISSION, null);
         }
-        return card(query, chatId, MenuView.homeText(), MenuView.homeKeyboard(chatId, grouped));
+        String identityLine = identity.menuIdentityLine(chatId, userId);
+        return card(query, chatId, MenuView.homeText(identityLine), MenuView.homeKeyboard(chatId, grouped));
     }
 
     /**

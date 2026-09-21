@@ -107,6 +107,13 @@ tgg:
     # 运行必须通过 TGG_WEBHOOK_SECRET 注入；此处不提供默认值（缺失即启动失败，刻意 fail-fast）
     secret: ${TGG_WEBHOOK_SECRET:}
     bot-token: ${TGG_BOT_TOKEN:}
+  interaction:
+    # 交互卡片（/menu 面板、危险操作确认卡）；默认开启（matchIfMissing）。
+    enabled: ${TGG_INTERACTION_ENABLED:true}
+    # 群里是否明文展示用户 ID（/whoami 的群内回复 + /menu 面板身份行）。
+    # 默认 false（隐私优先）：群内只引导「请私聊查看」，明文 ID 仅在私聊给出。
+    # 置 true 后群内也明文展示——面板卡片可被转发，请自行权衡。
+    whoami-group-visible: ${TGG_INTERACTION_WHOAMI_GROUP_VISIBLE:false}
   command-menu:
     # 启动期把 @BotCommand 声明的命令清单注册到 Telegram——即客户端里输入 "/" 时弹出的提示菜单。
     # 默认**开启**：不注册的话命令在客户端里毫无提示（公网实测 getMyCommands 返回 0 条，29 个命令只能靠背）。

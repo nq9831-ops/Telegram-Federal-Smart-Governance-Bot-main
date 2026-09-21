@@ -51,10 +51,13 @@ public class MenuCommandHandler implements CommandHandler {
 
     private final MenuCatalog catalog;
     private final GroupConfigService groupConfigs;
+    private final IdentityPresenter identity;
 
-    public MenuCommandHandler(MenuCatalog catalog, GroupConfigService groupConfigs) {
+    public MenuCommandHandler(MenuCatalog catalog, GroupConfigService groupConfigs,
+                              IdentityPresenter identity) {
         this.catalog = catalog;
         this.groupConfigs = groupConfigs;
+        this.identity = identity;
     }
 
     @Override
@@ -67,9 +70,10 @@ public class MenuCommandHandler implements CommandHandler {
         if (grouped.isEmpty()) {
             return reply(chatId, NO_PERMISSION);
         }
+        String identityLine = userId == null ? "" : identity.menuIdentityLine(chatId, userId);
         return SendMessage.builder()
                 .chatId(String.valueOf(chatId))
-                .text(MenuView.homeText())
+                .text(MenuView.homeText(identityLine))
                 .replyMarkup(MenuView.homeKeyboard(chatId, grouped))
                 .build();
     }

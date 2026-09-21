@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.core.interaction;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
@@ -90,13 +91,20 @@ class MenuCommandHandlerTest {
         return provider;
     }
 
+    /** 群内默认隐藏用户 ID 的 presenter（本类不关心开关，取默认 false）。 */
+    private static IdentityPresenter identity(boolean groupVisible) {
+        RuntimeConfigService runtime = mock(RuntimeConfigService.class);
+        when(runtime.getBoolean(IdentityPresenter.GROUP_VISIBLE_KEY, false)).thenReturn(groupVisible);
+        return new IdentityPresenter(runtime);
+    }
+
     private MenuCommandHandler handler(String role, boolean groupEnabled) {
         CommandRegistry registry = new CommandRegistry(List.of(
                 new WordsHandler(), new EnableHandler(), new EchoHandler(), new MenuHandler()));
         when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", groupEnabled));
         MenuCatalog catalog = new MenuCatalog(providerOf(registry),
                 new PermissionChecker(Role.valueOf(role)), List.of());
-        return new MenuCommandHandler(catalog, groupConfigs);
+        return new MenuCommandHandler(catalog, groupConfigs, identity(false));
     }
 
     private static SendMessage messageOf(BotApiMethod<?> method) {
@@ -144,7 +152,7 @@ class MenuCommandHandlerTest {
         when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
         MenuCatalog catalog = new MenuCatalog(providerOf(registry),
                 new PermissionChecker(Role.MEMBER), List.of());
-        MenuCommandHandler handler = new MenuCommandHandler(catalog, groupConfigs);
+        MenuCommandHandler handler = new MenuCommandHandler(catalog, groupConfigs, identity(false));
 
         BotApiMethod<?> reply = handler.handle(new UpdateContext(1, 99L, CHAT, "menu"));
 
@@ -167,5 +175,24 @@ class MenuCommandHandlerTest {
 
         assertThat(dataOf(reply)).allSatisfy(d ->
                 assertThat(d.length()).as("callback_data 上限 64 字节").isLessThanOrEqualTo(64));
+    }
+
+    /** 私聊：面板顶部带一行身份（用户 ID）；群内默认不带（避免对全群可见 / 被转发）。 */
+    @Test
+    void showsIdentityLineOnlyInPrivateChat() {
+        long dm = 42L;
+        long member = 987654321L;
+        when(groupConfigs.findOrDefault(dm)).thenReturn(new GroupConfigView(dm, "私聊", true));
+        when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
+        MenuCatalog catalog = new MenuCatalog(providerOf(
+                new CommandRegistry(List.of(new QuietHoursHandler(), new MenuHandler()))),
+                new PermissionChecker(Role.MEMBER), List.of());
+        MenuCommandHandler handler = new MenuCommandHandler(catalog, groupConfigs, identity(false));
+
+        String inPrivate = messageOf(handler.handle(new UpdateContext(1, dm, dm, "menu"))).getText();
+        assertThat(inPrivate).contains("你的 Telegram 用户 ID：" + dm);
+
+        String inGroup = messageOf(handler.handle(new UpdateContext(1, member, CHAT, "menu"))).getText();
+        assertThat(inGroup).as("群内默认不出现明文用户 ID").doesNotContain(String.valueOf(member));
     }
 }

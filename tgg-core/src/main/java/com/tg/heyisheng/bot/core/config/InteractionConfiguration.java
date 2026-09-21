@@ -2,6 +2,7 @@ package com.tg.heyisheng.bot.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.core.callback.CallbackHandler;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.dispatch.CommandDispatcher;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
 import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
@@ -10,6 +11,7 @@ import com.tg.heyisheng.bot.core.interaction.CallbackCommandBridge;
 import com.tg.heyisheng.bot.core.interaction.ConfirmCallbackHandler;
 import com.tg.heyisheng.bot.core.interaction.ConfirmCancelCallbackHandler;
 import com.tg.heyisheng.bot.core.interaction.ConfirmationStore;
+import com.tg.heyisheng.bot.core.interaction.IdentityPresenter;
 import com.tg.heyisheng.bot.core.interaction.MenuCallbackHandler;
 import com.tg.heyisheng.bot.core.interaction.MenuCatalog;
 import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
@@ -99,6 +101,16 @@ public class InteractionConfiguration {
     }
 
     /**
+     * 身份展示的隐私策略（{@code /whoami} 命令与 {@code /menu} 面板身份行共用这一份实现）。
+     *
+     * <p>热读 {@code tgg.interaction.whoami-group-visible}：群内是否明文展示用户 ID（默认 false）。
+     */
+    @Bean
+    public IdentityPresenter identityPresenter(RuntimeConfigService runtimeConfigService) {
+        return new IdentityPresenter(runtimeConfigService);
+    }
+
+    /**
      * core 自己的可见性接缝：复核队列 / 合规证据（平台白名单类）。
      *
      * <p>上层模块（listing / federation）各自注册自己的接缝 bean，装配层无需知道它们的存在
@@ -118,8 +130,10 @@ public class InteractionConfiguration {
     @Bean
     public CallbackHandler menuCallbackHandler(CallbackCommandBridge callbackCommandBridge,
                                                MenuCatalog menuCatalog,
-                                               GroupConfigService groupConfigService) {
-        return new MenuCallbackHandler(callbackCommandBridge, menuCatalog, groupConfigService);
+                                               GroupConfigService groupConfigService,
+                                               IdentityPresenter identityPresenter) {
+        return new MenuCallbackHandler(callbackCommandBridge, menuCatalog, groupConfigService,
+                identityPresenter);
     }
 
     /**

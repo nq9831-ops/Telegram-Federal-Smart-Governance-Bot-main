@@ -107,6 +107,10 @@ public final class ConfigCatalog {
             new ConfigKey("tgg.admin.overdue-escalate-hours", ConfigCategory.RUNTIME, ConfigValueType.HOURS,
                     true, false, false, "72", 1, 8760, null,
                     "审批待办超过该小时数 → 升级提醒。热生效（无需重启）。"),
+            new ConfigKey("tgg.interaction.whoami-group-visible", ConfigCategory.RUNTIME, ConfigValueType.BOOLEAN,
+                    true, false, false, "false", null, null, null,
+                    "是否在群里明文展示用户 ID（/whoami 的群内回复与 /menu 面板身份行）。默认 false："
+                            + "对全群可见处只得引导去私聊，明文 ID 仅在私聊给出。热生效（无需重启）。"),
             // 未改造 → 诚实标注「重启生效」：
             new ConfigKey("tgg.admin.restart-enabled", ConfigCategory.RUNTIME, ConfigValueType.BOOLEAN,
                     true, false, false, "false", null, null, null,

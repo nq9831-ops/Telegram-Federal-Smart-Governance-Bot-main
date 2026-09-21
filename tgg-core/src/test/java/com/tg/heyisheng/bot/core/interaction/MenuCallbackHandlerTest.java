@@ -1,6 +1,7 @@
 package com.tg.heyisheng.bot.core.interaction;
 
 import com.tg.heyisheng.bot.common.model.UpdateContext;
+import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.CommandRegistry;
@@ -73,12 +74,19 @@ class MenuCallbackHandlerTest {
         return provider;
     }
 
+    /** 群内默认隐藏用户 ID 的 presenter（本类不关心开关，取默认 false）。 */
+    private static IdentityPresenter identity() {
+        RuntimeConfigService runtime = mock(RuntimeConfigService.class);
+        when(runtime.getBoolean(IdentityPresenter.GROUP_VISIBLE_KEY, false)).thenReturn(false);
+        return new IdentityPresenter(runtime);
+    }
+
     private MenuCallbackHandler handler() {
         when(groupConfigs.findOrDefault(CHAT)).thenReturn(new GroupConfigView(CHAT, "群", true));
         MenuCatalog catalog = new MenuCatalog(providerOf(
                 new CommandRegistry(List.of(new WordsHandler(), new MenuHandler()))),
                 new PermissionChecker(Role.ADMIN), List.of());
-        return new MenuCallbackHandler(bridge, catalog, groupConfigs);
+        return new MenuCallbackHandler(bridge, catalog, groupConfigs, identity());
     }
 
     private static CallbackQuery click(String data) {
@@ -163,7 +171,7 @@ class MenuCallbackHandlerTest {
         MenuCatalog catalog = new MenuCatalog(providerOf(
                 new CommandRegistry(List.of(new WordsHandler(), new MenuHandler()))),
                 new PermissionChecker(Role.MEMBER), List.of());
-        MenuCallbackHandler member = new MenuCallbackHandler(bridge, catalog, groupConfigs);
+        MenuCallbackHandler member = new MenuCallbackHandler(bridge, catalog, groupConfigs, identity());
 
         Optional<BotApiMethod<?>> result = member.handle(click("menu:" + CHAT + ":nav:home"));
 
@@ -182,7 +190,7 @@ class MenuCallbackHandlerTest {
             CallbackCommandBridge untouched = mock(CallbackCommandBridge.class);
 
             Optional<BotApiMethod<?>> result =
-                    new MenuCallbackHandler(untouched, null, groupConfigs).handle(click(bad));
+                    new MenuCallbackHandler(untouched, null, groupConfigs, identity()).handle(click(bad));
 
             assertThat(result).as("非法 data 必须回提示（否则按钮一直转圈）：%s", bad).isPresent();
             assertThat(result.get()).isInstanceOf(AnswerCallbackQuery.class);
@@ -200,7 +208,7 @@ class MenuCallbackHandlerTest {
     void nullDataIsRejectedQuietly() {
         CallbackCommandBridge untouched = mock(CallbackCommandBridge.class);
         Optional<BotApiMethod<?>> result =
-                new MenuCallbackHandler(untouched, null, groupConfigs).handle(click(null));
+                new MenuCallbackHandler(untouched, null, groupConfigs, identity()).handle(click(null));
 
         assertThat(result).isPresent();
         verifyNoInteractions(untouched);
