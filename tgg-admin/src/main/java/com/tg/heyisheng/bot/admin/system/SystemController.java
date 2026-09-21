@@ -6,7 +6,6 @@ import com.tg.heyisheng.bot.admin.identity.AdminSessionFilter;
 import com.tg.heyisheng.bot.core.audit.ActorType;
 import com.tg.heyisheng.bot.core.audit.AuditEntry;
 import com.tg.heyisheng.bot.core.audit.AuditService;
-import com.tg.heyisheng.bot.core.config.dynamic.ConfigAdminGuard;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Conditional;
@@ -42,14 +41,11 @@ public class SystemController {
     /** 是否允许经 Web 重启的门控键。 */
     static final String RESTART_ENABLED_KEY = "tgg.admin.restart-enabled";
 
-    private final ConfigAdminGuard guard;
     private final RuntimeConfigService config;
     private final AuditService audit;
     private final RestartAction restartAction;
 
-    public SystemController(ConfigAdminGuard guard, RuntimeConfigService config,
-                            AuditService audit, RestartAction restartAction) {
-        this.guard = guard;
+    public SystemController(RuntimeConfigService config, AuditService audit, RestartAction restartAction) {
         this.config = config;
         this.audit = audit;
         this.restartAction = restartAction;
@@ -61,9 +57,11 @@ public class SystemController {
         boolean superAdmin = request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE) == AdminRole.SUPER_ADMIN;
         ActorType actorType = (ActorType) request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE);
         Long actorId = (Long) request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE);
-        if (!superAdmin && !guard.isConfigAdmin(actorType, actorId)) {
-            return ResponseEntity.status(403)
-                    .body(Map.of("error", "无配置写权限：当前主体不是超管，且不在配置写权限名单内"));
+        if (!superAdmin) {
+            // 重启是本系统唯一的不可逆对外动作：非超管不得直接执行，须走双人复核
+            // （POST /admin/dangerous-actions 发起 → 超管批准）。超管不受此限（单超管下否则会死锁）。
+            return ResponseEntity.status(403).body(Map.of("error",
+                    "重启需双人复核：非超管请先经 POST /admin/dangerous-actions 发起，由超管批准"));
         }
         if (!config.getBoolean(RESTART_ENABLED_KEY, false)) {
             return ResponseEntity.status(409).body(Map.of("error",

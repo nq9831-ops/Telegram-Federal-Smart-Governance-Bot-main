@@ -118,6 +118,15 @@ public class AdminConfiguration {
                 properties.getLoginMaxPerMinute(), Duration.ofMinutes(1), Clock.systemUTC());
     }
 
+    /** 危险动作双人复核服务（发起 / 批准 / 拒绝；批准后触发重启）。 */
+    @Bean
+    public com.tg.heyisheng.bot.admin.dangerous.DangerousActionService dangerousActionService(
+            com.tg.heyisheng.bot.admin.dangerous.DangerousActionRequestRepository requests,
+            AuditService audit, RestartAction restartAction, RuntimeConfigService config) {
+        return new com.tg.heyisheng.bot.admin.dangerous.DangerousActionService(
+                requests, audit, restartAction, config, Clock.systemUTC());
+    }
+
     /** 账号管理服务（仅超管可经端点调用，见 {@code AccountAdminController}）。 */
     @Bean
     public com.tg.heyisheng.bot.admin.identity.AccountAdminService accountAdminService(
