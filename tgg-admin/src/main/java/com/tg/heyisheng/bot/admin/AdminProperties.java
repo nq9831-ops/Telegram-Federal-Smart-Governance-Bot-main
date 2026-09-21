@@ -32,6 +32,12 @@ public class AdminProperties {
     /** 超管密码哈希（{@code PasswordHasher} 的 {@code pbkdf2$...} 串）。空 = 不引导创建超管。 */
     private String superPasswordHash = "";
 
+    /** Telegram 登录 Widget 的 bot username（前端 {@code data-telegram-login} 用；不含 @）。空则不展示。 */
+    private String tgLoginBotUsername = "";
+
+    /** TG 登录签名的时效（小时）。 */
+    private int tgLoginMaxAgeHours = 1;
+
     /** 会话有效期（小时）。 */
     private int sessionTtlHours = 12;
 
@@ -83,6 +89,22 @@ public class AdminProperties {
 
     public int getSessionTtlHours() {
         return sessionTtlHours;
+    }
+
+    public String getTgLoginBotUsername() {
+        return tgLoginBotUsername;
+    }
+
+    public void setTgLoginBotUsername(String tgLoginBotUsername) {
+        this.tgLoginBotUsername = tgLoginBotUsername;
+    }
+
+    public int getTgLoginMaxAgeHours() {
+        return tgLoginMaxAgeHours;
+    }
+
+    public void setTgLoginMaxAgeHours(int tgLoginMaxAgeHours) {
+        this.tgLoginMaxAgeHours = tgLoginMaxAgeHours;
     }
 
     public void setSessionTtlHours(int sessionTtlHours) {

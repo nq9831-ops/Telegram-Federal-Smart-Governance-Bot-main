@@ -83,6 +83,10 @@ tgg:
     # 连续登录失败达该次数即锁定账号 / 锁定时长（分钟）。
     login-max-failed-attempts: ${TGG_ADMIN_LOGIN_MAX_FAILED:5}
     login-lock-minutes: ${TGG_ADMIN_LOGIN_LOCK_MINUTES:15}
+    # Telegram 登录（Login Widget）：bot-username 供前端 data-telegram-login；验签用 tgg.webhook.bot-token。
+    tg-login:
+      bot-username: ${TGG_ADMIN_TG_LOGIN_BOT_USERNAME:}
+      max-age-hours: ${TGG_ADMIN_TG_LOGIN_MAX_AGE_HOURS:1}
   teach:
     # 模块九 §10.3 教学门槛 · 入群时长（默认 30 天）。数据来自 chat_member 事件采集（V15）。
     # ⚠️ 该门槛依赖「bot 是群管理员 + webhook 的 allowed_updates 含 chat_member」——

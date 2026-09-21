@@ -38,10 +38,36 @@ public class AdminAuthController {
 
     private final AdminAuthService auth;
     private final AdminProperties properties;
+    private final TelegramLoginVerifier telegramVerifier;
 
-    public AdminAuthController(AdminAuthService auth, AdminProperties properties) {
+    public AdminAuthController(AdminAuthService auth, AdminProperties properties,
+                               org.springframework.beans.factory.ObjectProvider<TelegramLoginVerifier> verifier) {
         this.auth = auth;
         this.properties = properties;
+        this.telegramVerifier = verifier.getIfAvailable();
+    }
+
+    /**
+     * Telegram Login Widget 回调登录。
+     *
+     * <p>前端传来的字段一律不可信——服务端用 bot token 重算 HMAC 验签，通过才签发会话。
+     * 未配置 bot token 时本端点返回 503（功能未启用，而非验签失败）。
+     */
+    @PostMapping(path = "/telegram", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> telegram(@RequestBody java.util.Map<String, String> data) {
+        if (telegramVerifier == null || !telegramVerifier.isConfigured()) {
+            return ResponseEntity.status(503)
+                    .body(Map.of("error", "未配置 bot token，Telegram 登录不可用"));
+        }
+        java.util.Optional<TelegramLoginVerifier.TelegramUser> user =
+                telegramVerifier.verify(data, java.time.Instant.now());
+        if (user.isEmpty()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Telegram 登录校验失败"));
+        }
+        AdminAuthService.LoginResult r = auth.loginAsTelegramUser(
+                user.get().userId(), Duration.ofHours(properties.getSessionTtlHours()));
+        return ResponseEntity.ok(new LoginResponse(r.token(), r.subject().subjectType().name(),
+                r.subject().subjectId(), null));
     }
 
     /** 账号 + 密码登录。 */
@@ -65,10 +91,16 @@ public class AdminAuthController {
         return ResponseEntity.ok(Map.of("result", "OK"));
     }
 
+    /** 公开：登录页需要的非敏感配置（Telegram bot username）。无需会话。 */
+    @GetMapping("/login-config")
+    public ResponseEntity<Map<String, String>> loginConfig() {
+        String username = properties.getTgLoginBotUsername();
+        return ResponseEntity.ok(Map.of("telegramBotUsername", username == null ? "" : username));
+    }
+
     /** 当前登录主体（前端据以渲染身份行；filter 已验会话）。 */
     @GetMapping("/me")
-    public ResponseEntity<MeResponse> me(HttpServletRequest request) {
-        Object role = request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE);
+    public ResponseEntity<MeResponse> me(HttpServletRequest request) {        Object role = request.getAttribute(AdminSessionFilter.ROLE_ATTRIBUTE);
         return ResponseEntity.ok(new MeResponse(
                 String.valueOf(request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE)),
                 (Long) request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE),

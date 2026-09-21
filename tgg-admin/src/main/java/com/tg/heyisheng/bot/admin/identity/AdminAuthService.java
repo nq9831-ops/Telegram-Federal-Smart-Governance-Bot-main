@@ -93,6 +93,17 @@ public class AdminAuthService {
     }
 
     /**
+     * TG 用户登录：验签由 {@link TelegramLoginVerifier} 完成，此处只签发会话（<b>不建本地账号</b>）。
+     */
+    @Transactional
+    public LoginResult loginAsTelegramUser(Long tgUserId, Duration ttl) {
+        Instant now = clock.instant();
+        String token = newToken();
+        sessions.save(new AdminSession(hashToken(token), ActorType.TG_USER, tgUserId, now, now.plus(ttl)));
+        return new LoginResult(token, new Authenticated(ActorType.TG_USER, tgUserId, null));
+    }
+
+    /**
      * 校验会话令牌，返回主体。
      *
      * <p>每次校验都即时读会话与账号状态——故「停用账号」「强制下线」立刻生效（无需等过期）。

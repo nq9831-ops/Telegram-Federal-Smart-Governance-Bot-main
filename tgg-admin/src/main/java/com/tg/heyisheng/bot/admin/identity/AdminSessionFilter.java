@@ -40,9 +40,9 @@ public class AdminSessionFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
 
-    /** 无需会话的路径（登录入口）。 */
+    /** 无需会话的路径（登录入口 + 登录页配置）。 */
     private static final Set<String> PUBLIC_PATHS =
-            Set.of("/admin/auth/login", "/admin/auth/telegram");
+            Set.of("/admin/auth/login", "/admin/auth/telegram", "/admin/auth/login-config");
 
     private final AdminAuthService auth;
 

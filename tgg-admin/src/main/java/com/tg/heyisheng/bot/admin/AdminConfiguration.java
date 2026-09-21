@@ -97,6 +97,19 @@ public class AdminConfiguration {
         return new AdminBootstrap(accounts, properties, Clock.systemUTC());
     }
 
+    /**
+     * Telegram 登录验签器——bot token 取自 {@code tgg.webhook.bot-token}（与 webhook 同一 token）。
+     *
+     * <p>未配置时仍创建（降级为不可用），使 {@code /admin/auth/telegram} 返回 503 而非让上下文起不来。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.admin.identity.TelegramLoginVerifier telegramLoginVerifier(
+            org.springframework.core.env.Environment environment, AdminProperties properties) {
+        String botToken = environment.getProperty("tgg.webhook.bot-token", "");
+        return new com.tg.heyisheng.bot.admin.identity.TelegramLoginVerifier(
+                botToken, Duration.ofHours(properties.getTgLoginMaxAgeHours()));
+    }
+
     /** 账号管理服务（仅超管可经端点调用，见 {@code AccountAdminController}）。 */
     @Bean
     public com.tg.heyisheng.bot.admin.identity.AccountAdminService accountAdminService(
