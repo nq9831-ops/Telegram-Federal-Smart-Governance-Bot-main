@@ -41,11 +41,12 @@ public class PendingAppealsCommandHandler implements CommandHandler {
         }
         List<FederationAppeal> pending = appealService.pending();
         if (pending.isEmpty()) {
-            return AppealCommandHandler.reply(ctx, "当前没有待审申诉。");
+            return AppealCommandHandler.reply(ctx, FederationMessages.PENDING_EMPTY);
         }
         String body = pending.stream()
-                .map(a -> "#" + a.getId() + " [" + a.getAppealType() + "]")
+                .map(a -> FederationMessages.pendingItem(a.getId(), a.getAppealType()))
                 .collect(Collectors.joining("\n"));
-        return AppealCommandHandler.reply(ctx, "待审申诉（共 " + pending.size() + " 条）：\n" + body);
+        return AppealCommandHandler.reply(ctx, FederationMessages.PENDING_HEAD_PREFIX
+                + pending.size() + FederationMessages.PENDING_HEAD_SUFFIX + body);
     }
 }

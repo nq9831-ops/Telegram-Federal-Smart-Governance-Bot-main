@@ -76,10 +76,8 @@ public class ApprovalOverdueJob {
 
         for (ApprovalQueryService.Item item : overdue) {
             boolean escalated = item.ageHours() >= escalateHours;
-            String message = (escalated ? "⚠️ 审批升级" : "审批提醒")
-                    + "：待办 #" + item.id()
-                    + "（等级 " + item.riskLevel() + "，已积压 " + item.ageHours() + " 小时）"
-                    + " 仍未处理，请登录治理后台处理。";
+            String message = AdminMessages.overdueNotice(
+                    item.id(), item.riskLevel(), item.ageHours(), escalated);
             for (Long reviewerId : reviewers) {
                 notifications.notify(new Notification(NotificationLevel.URGENT, reviewerId, message));
             }

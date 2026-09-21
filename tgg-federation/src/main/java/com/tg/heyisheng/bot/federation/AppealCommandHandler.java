@@ -31,11 +31,11 @@ public class AppealCommandHandler implements CommandHandler {
     public BotApiMethod<?> handle(UpdateContext ctx) {
         String text = ctx.commandArgs().orElse(null);
         if (text == null) {
-            return reply(ctx, "用法：/appeal 申诉内容\n例：/appeal 我的账号被误封了");
+            return reply(ctx, FederationMessages.APPEAL_USAGE);
         }
         FederationAppeal appeal = appealService.submit(
                 ctx.userId(), FederationAppealService.TYPE_FEDBAN_UNBAN, text);
-        return reply(ctx, "申诉已提交（编号 #" + appeal.getId() + "），将由联邦管理员审核。");
+        return reply(ctx, FederationMessages.appealSubmitted(appeal.getId()));
     }
 
     static SendMessage reply(UpdateContext ctx, String text) {

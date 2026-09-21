@@ -43,7 +43,7 @@ public class RejectAppealCommandHandler implements CommandHandler {
             }
         }
         if (id == null) {
-            return AppealCommandHandler.reply(ctx, "用法：/reject 申诉编号\n例：/reject 1");
+            return AppealCommandHandler.reply(ctx, FederationMessages.REJECT_USAGE);
         }
         Optional<FederationAppeal> decided;
         try {
@@ -53,7 +53,7 @@ public class RejectAppealCommandHandler implements CommandHandler {
             return AppealCommandHandler.reply(ctx, ex.getMessage());
         }
         return AppealCommandHandler.reply(ctx, decided.isPresent()
-                ? "申诉 #" + id + " 已驳回。"
-                : "未找到申诉 #" + id + "。");
+                ? FederationMessages.rejected(id)
+                : FederationMessages.notFound(id));
     }
 }

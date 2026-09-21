@@ -40,7 +40,7 @@ public class ApproveAppealCommandHandler implements CommandHandler {
         }
         Long id = parseId(ctx);
         if (id == null) {
-            return AppealCommandHandler.reply(ctx, "用法：/approve 申诉编号\n例：/approve 1");
+            return AppealCommandHandler.reply(ctx, FederationMessages.APPROVE_USAGE);
         }
         Optional<FederationAppeal> decided;
         try {
@@ -50,8 +50,8 @@ public class ApproveAppealCommandHandler implements CommandHandler {
             return AppealCommandHandler.reply(ctx, ex.getMessage());
         }
         return AppealCommandHandler.reply(ctx, decided.isPresent()
-                ? "申诉 #" + id + " 已通过。"
-                : "未找到申诉 #" + id + "。");
+                ? FederationMessages.approved(id)
+                : FederationMessages.notFound(id));
     }
 
     private static Long parseId(UpdateContext ctx) {
