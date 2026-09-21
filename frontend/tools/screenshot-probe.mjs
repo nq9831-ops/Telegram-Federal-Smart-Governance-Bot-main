@@ -12,7 +12,7 @@
  * pnpm add -D playwright-core        # 或装在任意目录，本脚本不依赖项目依赖树
  *
  * # 2) 构建并起静态服务
- * pnpm build && pnpm preview --port 4173 &
+ * pnpm build && pnpm preview &   # 端口/--strictPort 见 package.json（4173 被占则直接失败，避免截到别的应用）
  *
  * # 3) 跑探针（CHROME_PATH 省略时用 playwright 记录的浏览器路径）
  * node tools/screenshot-probe.mjs
