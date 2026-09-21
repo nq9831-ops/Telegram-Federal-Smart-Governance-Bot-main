@@ -124,14 +124,41 @@ public class MerchantService {
 
     /** 开始复核：{@code SUBMITTED}/{@code NEED_MORE} → {@code UNDER_REVIEW}。 */
     @Transactional
-    public Optional<Merchant> beginReview(long merchantId) {
-        return transition(merchantId, merchant -> merchant.beginReview(clock.instant()));
+    public Optional<Merchant> beginReview(long merchantId, Long operator) {
+        return transition(merchantId, merchant -> {
+            requireNotSelfReview(merchant, operator);
+            merchant.beginReview(clock.instant());
+        });
     }
 
     /** 写入复核结论：{@code UNDER_REVIEW} → {@code APPROVED}/{@code REJECTED}/{@code NEED_MORE}。 */
     @Transactional
-    public Optional<Merchant> decide(long merchantId, Merchant.Status decision) {
-        return transition(merchantId, merchant -> merchant.decide(decision, clock.instant()));
+    public Optional<Merchant> decide(long merchantId, Merchant.Status decision, Long operator) {
+        return transition(merchantId, merchant -> {
+            requireNotSelfReview(merchant, operator);
+            merchant.decide(decision, clock.instant());
+        });
+    }
+
+    /**
+     * 「不可自审」：商家主本人不得复核、也不得裁定自己的申请。
+     *
+     * <p><b>为什么两处迁移都要拦</b>：{@code beginReview} 与 {@code decide} 是两次状态迁移。
+     * 只拦后者的话，一次被拒的自审仍会把商家推进到 {@code UNDER_REVIEW}
+     * ——一次本不该发生的状态变更，而且从数据上看不出来。
+     *
+     * <p>规则放在<b>服务层</b>而不是命令层预检：命令层只是入口之一（模块十一的 Web 后台
+     * 同样会读写商家），写在服务里才是「谁调都绕不过」。与
+     * {@code ModerationReviewDecisionService}、{@code FederationAppealService} 同一约束。
+     *
+     * <p>{@code operator} 为 {@code null} 时（无操作人上下文的内部调用）不拦截——那种场景
+     * 不存在「自己」；命令入口的 operator 恒非空（门控已验明身份）。
+     */
+    private static void requireNotSelfReview(Merchant merchant, Long operator) {
+        if (operator != null && operator.equals(merchant.getOwnerUserId())) {
+            throw new TggException("不能复核自己的商家申请：商家 #" + merchant.getId()
+                    + " 的申请人就是你。请让其他复核人处理。");
+        }
     }
 
     /** 资质通过后进入缴费阶段：{@code APPROVED} → {@code DEPOSIT_PENDING}（由保证金流程驱动）。 */

@@ -31,7 +31,8 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantApplyCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/merchant_apply <商家名称>";
+    /** 用法文案刻意<b>不含 {@code <...>}</b>：实测会被连尖括号一起照抄，命令因而一直回用法。 */
+    static final String USAGE = "用法：/merchant_apply 商家名称\n例：/merchant_apply 测试小铺";
     static final String NO_IDENTITY = "无法识别你的用户身份，请稍后再试。";
     static final String NAME_TOO_LONG = "商家名称过长（上限 255 字符）。";
 

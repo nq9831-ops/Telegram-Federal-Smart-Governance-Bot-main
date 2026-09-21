@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
@@ -39,9 +40,15 @@ public class ApproveAppealCommandHandler implements CommandHandler {
         }
         Long id = parseId(ctx);
         if (id == null) {
-            return AppealCommandHandler.reply(ctx, "用法：/approve <申诉编号>");
+            return AppealCommandHandler.reply(ctx, "用法：/approve 申诉编号\n例：/approve 1");
         }
-        Optional<FederationAppeal> decided = appealService.decide(id, true);
+        Optional<FederationAppeal> decided;
+        try {
+            decided = appealService.decide(id, true, ctx.userId());
+        } catch (TggException ex) {
+            // 业务拒绝（如「不能裁定自己的申诉」）：如实回显，不让它变成静默失败
+            return AppealCommandHandler.reply(ctx, ex.getMessage());
+        }
         return AppealCommandHandler.reply(ctx, decided.isPresent()
                 ? "申诉 #" + id + " 已通过。"
                 : "未找到申诉 #" + id + "。");

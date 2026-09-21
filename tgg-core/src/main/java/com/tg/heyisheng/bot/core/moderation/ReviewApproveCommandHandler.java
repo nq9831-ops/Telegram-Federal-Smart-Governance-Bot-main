@@ -18,7 +18,10 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
         confirm = Confirm.ALWAYS, category = MenuCategory.REVIEW)
 public class ReviewApproveCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/review_approve <编号> [备注]\n备注是裁决理由，请勿粘贴消息正文（备注会落库）。";
+    /** 用法文案刻意不含 {@code <...>}/{@code [...]}——模板符号会被连符号一起照抄。 */
+    static final String USAGE = "用法：/review_approve 编号\n"
+            + "例：/review_approve 7（编号后也可再跟一句备注，如 /review_approve 7 确认违规）\n"
+            + "备注是裁决理由，请勿粘贴消息正文（备注会落库）。";
 
     private final ModerationReviewDecisionService decisions;
     private final ModerationReviewGuard guard;

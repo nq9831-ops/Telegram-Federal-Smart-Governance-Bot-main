@@ -24,7 +24,7 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantStatusCommandHandler implements CommandHandler {
 
-    static final String NO_APPLICATION = "你还没有提交过商家入驻申请（/merchant_apply <商家名称>）。";
+    static final String NO_APPLICATION = "你还没有提交过商家入驻申请。\n用法：/merchant_apply 商家名称（例：/merchant_apply 测试小铺）";
 
     private final MerchantService service;
 

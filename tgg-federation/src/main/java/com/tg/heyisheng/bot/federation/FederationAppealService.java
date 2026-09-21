@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.common.exception.TggException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,14 +46,37 @@ public class FederationAppealService {
         return repository.findByStatusOrderByCreatedAtAsc(FederationAppeal.Status.PENDING.name());
     }
 
-    /** 裁定：通过（解封）或驳回。 */
+    /**
+     * 裁定：通过（解封）或驳回。
+     *
+     * @param operator 裁定人；<b>恰是申诉人本人时拒绝</b>（「不可自裁」，与复核队列同一条约束）
+     * @throws com.tg.heyisheng.bot.common.exception.TggException 操作人正是该申诉的提交人
+     */
     @Transactional
-    public Optional<FederationAppeal> decide(Long appealId, boolean approve) {
+    public Optional<FederationAppeal> decide(Long appealId, boolean approve, Long operator) {
         Optional<FederationAppeal> found = repository.findById(appealId);
         found.ifPresent(appeal -> {
+            requireNotSelfDecision(appeal, operator);
             appeal.decide(approve ? FederationAppeal.Status.APPROVED : FederationAppeal.Status.REJECTED);
             repository.save(appeal);
         });
         return found;
+    }
+
+    /**
+     * 「不可自裁」：申诉人本人不得裁定自己的申诉。
+     *
+     * <p>规则写在<b>服务层</b>而不是 {@code /approve} 与 {@code /reject} 各自的预检——
+     * 那是两条入口，写在服务里才是「谁调都绕不过」。与 {@code ModerationReviewDecisionService}、
+     * {@code MerchantService} 同一约束（同一类缺陷在三个模块里出现过，故三处都对齐）。
+     *
+     * <p>{@code operator} 为 {@code null}（无操作人上下文的内部调用）时不拦——那种场景
+     * 不存在「自己」；命令入口的 operator 恒非空（{@code FederationAdminGuard} 已验明身份）。
+     */
+    private static void requireNotSelfDecision(FederationAppeal appeal, Long operator) {
+        if (operator != null && operator.equals(appeal.getUserId())) {
+            throw new TggException("不能裁定自己的申诉：申诉 #" + appeal.getId()
+                    + " 的提交人就是你。请让其他联邦管理员处理。");
+        }
     }
 }

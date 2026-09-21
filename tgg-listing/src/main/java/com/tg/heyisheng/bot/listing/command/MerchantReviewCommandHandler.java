@@ -1,5 +1,6 @@
 package com.tg.heyisheng.bot.listing.command;
 
+import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
@@ -37,7 +38,14 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantReviewCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/merchant_review <商家编号> approve|reject|need-more";
+    /**
+     * 用法文案刻意<b>不含 {@code <...>} 与 {@code |}</b>：实测有运营者把模板原样发出去
+     * （把 {@code approve|reject|need-more} 整串当成参数），命令因此一直回用法，看起来像坏了。
+     * 给「可照抄的示例」而不是「参数模板」——文案本身要经得起照抄。
+     */
+    static final String USAGE = "用法：/merchant_review 商家编号 结论\n"
+            + "例：/merchant_review 1 approve\n"
+            + "结论可为 approve（通过）/ reject（驳回）/ need-more（要求补充材料）。";
 
     private final MerchantService service;
     private final MerchantReviewGuard guard;
@@ -68,10 +76,16 @@ public class MerchantReviewCommandHandler implements CommandHandler {
                 && current != Merchant.Status.NEED_MORE) {
             return reply(ctx, "该申请当前状态为 " + current + "，不可复核。");
         }
-        if (current != Merchant.Status.UNDER_REVIEW) {
-            service.beginReview(parsed.merchantId());
+        try {
+            if (current != Merchant.Status.UNDER_REVIEW) {
+                service.beginReview(parsed.merchantId(), ctx.userId());
+            }
+            service.decide(parsed.merchantId(), parsed.decision(), ctx.userId());
+        } catch (TggException ex) {
+            // 业务拒绝（如「不能复核自己的商家申请」）：如实回显原因。
+            // 不让它穿透到分发层——那会变成静默失败，而「结论没写进去却不告诉复核人」更危险。
+            return reply(ctx, ex.getMessage());
         }
-        service.decide(parsed.merchantId(), parsed.decision());
         return reply(ctx, "商家 #" + parsed.merchantId() + " 复核结论已写入：" + parsed.decision() + "。");
     }
 

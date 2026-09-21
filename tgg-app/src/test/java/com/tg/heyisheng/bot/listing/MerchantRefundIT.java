@@ -138,8 +138,8 @@ class MerchantRefundIT {
     private long approvedMerchant() {
         Merchant merchant = merchants.submit(OWNER_USER, "测试小铺", null, null, null);
         long id = merchant.getId();
-        merchants.beginReview(id);
-        merchants.decide(id, Merchant.Status.APPROVED);
+        merchants.beginReview(id, REVIEWER_USER);
+        merchants.decide(id, Merchant.Status.APPROVED, REVIEWER_USER);
         return id;
     }
 

@@ -43,7 +43,13 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantDepositCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/merchant_deposit <商家编号> <金额>";
+    /**
+     * 用法文案刻意<b>不含 {@code <...>}</b>：实测有运营者把模板原样发出去（连尖括号一起），
+     * 命令因而一直回用法、看起来像坏了。给「可照抄的示例」而不是「参数模板」。
+     */
+    static final String USAGE = "用法：/merchant_deposit 商家编号 金额\n"
+            + "例：/merchant_deposit 1 10000\n"
+            + "（需先经 /merchant_review 复核通过）";
 
     private final MerchantService merchants;
     private final MerchantDepositService depositService;

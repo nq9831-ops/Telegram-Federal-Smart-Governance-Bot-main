@@ -36,6 +36,8 @@ class MerchantServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-17T03:00:00Z");
     private static final long OWNER = 42L;
     private static final long MERCHANT_ID = 7L;
+    /** 复核人：**刻意与 {@link #OWNER} 不同**——「不可自审」要求操作人不是申请人本人。 */
+    private static final long REVIEWER = 999L;
 
     private final MerchantRepository repository = mock(MerchantRepository.class);
     private final CreditService creditService = mock(CreditService.class);
@@ -109,9 +111,37 @@ class MerchantServiceTest {
     void decideWithoutBeginReviewIsRejected() {
         repositoryReturns(submitted());
 
-        assertThatThrownBy(() -> serviceWith(null).decide(MERCHANT_ID, Merchant.Status.APPROVED))
+        assertThatThrownBy(() -> serviceWith(null).decide(MERCHANT_ID, Merchant.Status.APPROVED, REVIEWER))
                 .as("未进入 UNDER_REVIEW 就落结论 = 未复核即通过，必须拒绝")
                 .isInstanceOf(TggException.class);
+    }
+
+    /**
+     * 「不可自审」：商家主本人不得复核、也不得裁定自己的申请。
+     *
+     * <p><b>两条迁移都要拦</b>——只拦 {@code decide} 的话，一次被拒的自审仍会把商家推进到
+     * {@code UNDER_REVIEW}：一次本不该发生的状态变更，而且从数据上看不出来。
+     */
+    @Test
+    void ownerCannotReviewOwnApplicationAtEitherTransition() {
+        Merchant merchant = submitted();
+        repositoryReturns(merchant);
+
+        assertThatThrownBy(() -> serviceWith(null).beginReview(MERCHANT_ID, OWNER))
+                .as("申请人本人不得开始复核自己的申请")
+                .isInstanceOf(TggException.class)
+                .hasMessageContaining("不能复核自己的商家申请");
+        assertThat(merchant.getStatus())
+                .as("被拒的自审不得改动状态").isEqualTo(Merchant.Status.SUBMITTED.name());
+
+        // 即便已处于 UNDER_REVIEW（由他人推入或历史数据），本人仍不得落结论
+        merchant.beginReview(NOW);
+        assertThatThrownBy(() -> serviceWith(null).decide(MERCHANT_ID, Merchant.Status.APPROVED, OWNER))
+                .as("申请人本人不得裁定自己的申请")
+                .isInstanceOf(TggException.class)
+                .hasMessageContaining("不能复核自己的商家申请");
+        assertThat(merchant.getStatus())
+                .as("被拒的自审不得改动状态").isEqualTo(Merchant.Status.UNDER_REVIEW.name());
     }
 
     @Test
@@ -121,7 +151,7 @@ class MerchantServiceTest {
         rejected.decide(Merchant.Status.REJECTED, NOW);
         repositoryReturns(rejected);
 
-        assertThatThrownBy(() -> serviceWith(null).beginReview(MERCHANT_ID))
+        assertThatThrownBy(() -> serviceWith(null).beginReview(MERCHANT_ID, REVIEWER))
                 .as("REJECTED 是终态：重新入驻须新建条目，不能原地复活")
                 .isInstanceOf(TggException.class);
     }
@@ -133,7 +163,7 @@ class MerchantServiceTest {
         needMore.decide(Merchant.Status.NEED_MORE, NOW);
         repositoryReturns(needMore);
 
-        assertThat(serviceWith(null).beginReview(MERCHANT_ID)).isPresent();
+        assertThat(serviceWith(null).beginReview(MERCHANT_ID, REVIEWER)).isPresent();
         assertThat(needMore.getStatus()).isEqualTo(Merchant.Status.UNDER_REVIEW.name());
     }
 
@@ -208,8 +238,8 @@ class MerchantServiceTest {
         when(repository.findById(99L)).thenReturn(Optional.empty());
 
         assertThat(serviceWith(null).find(99L)).isEmpty();
-        assertThat(serviceWith(null).beginReview(99L)).isEmpty();
-        assertThat(serviceWith(null).decide(99L, Merchant.Status.APPROVED)).isEmpty();
+        assertThat(serviceWith(null).beginReview(99L, REVIEWER)).isEmpty();
+        assertThat(serviceWith(null).decide(99L, Merchant.Status.APPROVED, REVIEWER)).isEmpty();
         assertThat(serviceWith(null).markDepositPending(99L)).isEmpty();
         assertThat(serviceWith(null).markActive(99L)).isEmpty();
         assertThat(serviceWith(null).evaluateTier(99L, BigDecimal.TEN, 0L)).isEmpty();
