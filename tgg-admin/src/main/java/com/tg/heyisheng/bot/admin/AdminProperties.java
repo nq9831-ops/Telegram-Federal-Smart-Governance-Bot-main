@@ -38,6 +38,15 @@ public class AdminProperties {
     /** TG 登录签名的时效（小时）。 */
     private int tgLoginMaxAgeHours = 1;
 
+    /**
+     * TG 登录白名单（Telegram userId，逗号分隔）。<b>空 = 无人可经 Telegram 登录</b>（fail-closed）。
+     *
+     * <p>{@code tg-login-bot-username} 只决定「是否展示 TG 登录按钮」，本项才决定「谁真的能登进来」——
+     * 验签只证明「数据来自 Telegram」，不证明「此人被授权」，故两者必须分开。
+     * 未列入者即使验签通过也不签发会话（否则任何 Telegram 用户都能拿到后台会话）。
+     */
+    private String tgLoginAllowlist = "";
+
     /** 会话有效期（小时）。 */
     private int sessionTtlHours = 12;
 
@@ -49,6 +58,15 @@ public class AdminProperties {
 
     /** 每来源 IP 每分钟允许的登录尝试次数（防跨账号爆破）。 */
     private int loginMaxPerMinute = 20;
+
+    /**
+     * 是否信任反向代理注入的 {@code X-Forwarded-For} 作为登录限流键的来源 IP。
+     *
+     * <p><b>默认 false</b>：XFF 的首段完全由客户端控制（轮换它即可绕过按 IP 限流），故默认取
+     * {@code getRemoteAddr()}。仅当应用<b>只接受可信反向代理</b>的连接（直连不可达）时才置 true——
+     * 此时取 XFF 的<b>最后一跳</b>（由直连的反代追加，客户端无法移除）。
+     */
+    private boolean trustForwardedFor = false;
 
     public String getApiToken() {
         return apiToken;
@@ -110,6 +128,14 @@ public class AdminProperties {
         this.tgLoginMaxAgeHours = tgLoginMaxAgeHours;
     }
 
+    public String getTgLoginAllowlist() {
+        return tgLoginAllowlist;
+    }
+
+    public void setTgLoginAllowlist(String tgLoginAllowlist) {
+        this.tgLoginAllowlist = tgLoginAllowlist;
+    }
+
     public void setSessionTtlHours(int sessionTtlHours) {
         this.sessionTtlHours = sessionTtlHours;
     }
@@ -132,6 +158,14 @@ public class AdminProperties {
 
     public void setLoginMaxPerMinute(int loginMaxPerMinute) {
         this.loginMaxPerMinute = loginMaxPerMinute;
+    }
+
+    public boolean isTrustForwardedFor() {
+        return trustForwardedFor;
+    }
+
+    public void setTrustForwardedFor(boolean trustForwardedFor) {
+        this.trustForwardedFor = trustForwardedFor;
     }
 
     public void setLoginLockMinutes(int loginLockMinutes) {

@@ -86,10 +86,18 @@ tgg:
     login-lock-minutes: ${TGG_ADMIN_LOGIN_LOCK_MINUTES:15}
     # 每来源 IP 每分钟允许的登录尝试次数（防跨账号爆破）。
     login-max-per-minute: ${TGG_ADMIN_LOGIN_MAX_PER_MINUTE:20}
+    # 是否信任反向代理注入的 X-Forwarded-For 作为登录限流键。
+    # ⚠️ 默认 false = 取 TCP 对端地址（getRemoteAddr），因 XFF 首段客户端可伪造（轮换即绕过限流）。
+    #    仅当应用**只接受可信反代**的连接（直连不可达）时才置 true；此时取 XFF 最后一跳。
+    trust-forwarded-for: ${TGG_ADMIN_TRUST_FORWARDED_FOR:false}
     # Telegram 登录（Login Widget）：bot-username 供前端 data-telegram-login；验签用 tgg.webhook.bot-token。
     tg-login:
       bot-username: ${TGG_ADMIN_TG_LOGIN_BOT_USERNAME:}
       max-age-hours: ${TGG_ADMIN_TG_LOGIN_MAX_AGE_HOURS:1}
+      # 允许经 Telegram 登录后台的 userId 白名单（逗号分隔）。
+      # ⚠️ 空 = **无人**可经 TG 登录（fail-closed）。验签只证明「数据来自 Telegram」，
+      #    不证明「此人被授权」——不配此项则 TG 登录入口对任何人都不放行。
+      allowlist: ${TGG_ADMIN_TG_LOGIN_ALLOWLIST:}
   teach:
     # 模块九 §10.3 教学门槛 · 入群时长（默认 30 天）。数据来自 chat_member 事件采集（V15）。
     # ⚠️ 该门槛依赖「bot 是群管理员 + webhook 的 allowed_updates 含 chat_member」——

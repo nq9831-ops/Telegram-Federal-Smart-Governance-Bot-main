@@ -34,7 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(properties = {
         "tgg.admin.api-token=test-admin-token",
-        "tgg.webhook.bot-token=it-my-bot-token"
+        "tgg.webhook.bot-token=it-my-bot-token",
+        // TG 登录现需白名单：本 IT 以 USER_A/USER_B 身份登录，两者都须在名单内
+        "tgg.admin.tg-login-allowlist=100001,100002"
 })
 @AutoConfigureMockMvc
 class MyContentApiIT {

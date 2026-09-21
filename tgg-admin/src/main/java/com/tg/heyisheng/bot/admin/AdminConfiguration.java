@@ -8,6 +8,7 @@ import com.tg.heyisheng.bot.admin.identity.AdminAuthService;
 import com.tg.heyisheng.bot.admin.identity.AdminBootstrap;
 import com.tg.heyisheng.bot.admin.identity.AdminSessionFilter;
 import com.tg.heyisheng.bot.admin.identity.AdminSessionRepository;
+import com.tg.heyisheng.bot.admin.identity.TgLoginAllowlist;
 import com.tg.heyisheng.bot.admin.system.RestartAction;
 import com.tg.heyisheng.bot.core.audit.AuditService;
 import com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService;
@@ -108,6 +109,26 @@ public class AdminConfiguration {
         String botToken = environment.getProperty("tgg.webhook.bot-token", "");
         return new com.tg.heyisheng.bot.admin.identity.TelegramLoginVerifier(
                 botToken, Duration.ofHours(properties.getTgLoginMaxAgeHours()));
+    }
+
+    /**
+     * TG 登录白名单闸门——签发会话前校验「此 Telegram 用户是否被授权进后台」。
+     *
+     * <p><b>为什么单列一个 bean</b>：验签器只证明「数据来自 Telegram」，不证明「此人被授权」；
+     * 两者是不同判据，混在一起会让「验签通过」被误读成「登录成功」。
+     *
+     * <p>若配置了 {@code tg-login-bot-username}（前端会展示 TG 登录按钮）却未配白名单，
+     * 则按钮点得动、登录必被拒——启动期 WARN 指出这一矛盾，免得运维等到用户报障才发现。
+     */
+    @Bean
+    public TgLoginAllowlist tgLoginAllowlist(AdminProperties properties) {
+        TgLoginAllowlist allowlist = new TgLoginAllowlist(properties.getTgLoginAllowlist());
+        if (!properties.getTgLoginBotUsername().isBlank() && allowlist.isEmpty()) {
+            log.warn("TG 登录按钮已配置（tgg.admin.tg-login-bot-username 非空）但白名单 "
+                    + "tgg.admin.tg-login-allowlist 为空——无人可经 Telegram 登录后台（fail-closed）。"
+                    + "要启用请输入允许登录的 Telegram userId（逗号分隔）或移除 bot username。");
+        }
+        return allowlist;
     }
 
     /** 登录限流器（按来源 IP 的滑动窗口）。 */

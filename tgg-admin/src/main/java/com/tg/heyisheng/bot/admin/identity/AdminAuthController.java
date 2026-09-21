@@ -2,10 +2,13 @@ package com.tg.heyisheng.bot.admin.identity;
 
 import com.tg.heyisheng.bot.admin.AdminApiTokenCondition;
 import com.tg.heyisheng.bot.admin.AdminProperties;
+import com.tg.heyisheng.bot.common.util.IdHasher;
 import com.tg.heyisheng.bot.core.audit.ActorType;
 import com.tg.heyisheng.bot.core.platform.PlatformGrantSource;
 import com.tg.heyisheng.bot.core.platform.PlatformPermission;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,21 +44,29 @@ import java.util.Optional;
 @RequestMapping(path = "/admin/auth", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AdminAuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminAuthController.class);
+
     private final AdminAuthService auth;
     private final AdminProperties properties;
     private final TelegramLoginVerifier telegramVerifier;
     private final AdminLoginRateLimiter rateLimiter;
     private final PlatformGrantSource grants;
+    private final TgLoginAllowlist tgLoginAllowlist;
+    private final IdHasher idHasher;
 
     public AdminAuthController(AdminAuthService auth, AdminProperties properties,
                                org.springframework.beans.factory.ObjectProvider<TelegramLoginVerifier> verifier,
                                org.springframework.beans.factory.ObjectProvider<AdminLoginRateLimiter> rateLimiter,
-                               PlatformGrantSource grants) {
+                               PlatformGrantSource grants,
+                               org.springframework.beans.factory.ObjectProvider<TgLoginAllowlist> tgLoginAllowlist,
+                               IdHasher idHasher) {
         this.auth = auth;
         this.properties = properties;
         this.telegramVerifier = verifier.getIfAvailable();
         this.rateLimiter = rateLimiter.getIfAvailable();
         this.grants = grants;
+        this.tgLoginAllowlist = tgLoginAllowlist.getIfAvailable();
+        this.idHasher = idHasher;
     }
 
     /**
@@ -74,6 +85,13 @@ public class AdminAuthController {
                 telegramVerifier.verify(data, java.time.Instant.now());
         if (user.isEmpty()) {
             return ResponseEntity.status(401).body(Map.of("error", "Telegram 登录校验失败"));
+        }
+        // 验签只证明「数据来自 Telegram」，不证明「此人被授权进后台」——任何 TG 用户都能对该 bot
+        // 完成 Login Widget，故必须再过白名单闸门（fail-closed：白名单为空即无人可登）。
+        if (tgLoginAllowlist == null || !tgLoginAllowlist.allows(user.get().userId())) {
+            log.warn("TG 登录被拒：该 Telegram 用户不在白名单内（userIdHash={}）",
+                    idHasher.hash(user.get().userId()));
+            return ResponseEntity.status(403).body(Map.of("error", "该 Telegram 账号未被授权访问后台"));
         }
         AdminAuthService.LoginResult r = auth.loginAsTelegramUser(
                 user.get().userId(), Duration.ofHours(properties.getSessionTtlHours()));
@@ -130,11 +148,25 @@ public class AdminAuthController {
     public record LoginRequest(String username, String password, String totpCode) {
     }
 
-    /** 取来源 IP（优先反代传递的 X-Forwarded-For 首段）。 */
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+    /**
+     * 取来源 IP，用作登录限流的键。
+     *
+     * <p><b>为什么不默认采信 {@code X-Forwarded-For}</b>：其首段完全由客户端控制——轮换该头即可
+     * 绕过「按来源 IP 的登录限流」，使防跨账号爆破<b>静默失效</b>。默认取 {@code getRemoteAddr()}
+     * （TCP 对端地址，不可伪造）。仅当部署保证「应用只接受可信反向代理的连接」（直连不可达）时，
+     * 才置 {@code tgg.admin.trust-forwarded-for=true}；此时取 XFF 的<b>最后一跳</b>——
+     * 那是直连的反代追加的，客户端无法移除或覆盖。
+     */
+    String clientIp(HttpServletRequest request) {
+        if (properties.isTrustForwardedFor()) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                String[] hops = forwarded.split(",");
+                String lastHop = hops[hops.length - 1].trim();
+                if (!lastHop.isEmpty()) {
+                    return lastHop;
+                }
+            }
         }
         return request.getRemoteAddr();
     }

@@ -25,12 +25,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Telegram 登录端到端（模块十一 · TG 用户登录）。
  *
- * <p>证明：<b>服务端验签通过后签发的会话，真能用于访问后台</b>（不建本地账号）；
- * 且<b>篡改数据、MiniApp 签名的数据一律被拒</b>——后者是本类最重要的反向断言。
+ * <p>证明：<b>服务端验签通过、且该 TG 用户在白名单内</b>时签发的会话，真能用于访问后台（不建本地账号）；
+ * 且<b>篡改数据、MiniApp 签名的数据、以及白名单外的用户一律被拒</b>——后三者是本类最重要的反向断言。
  */
 @SpringBootTest(properties = {
         "tgg.admin.api-token=test-admin-token",
-        "tgg.webhook.bot-token=it-tg-bot-token"
+        "tgg.webhook.bot-token=it-tg-bot-token",
+        // 白名单只放行 424242——验签通过但不在名单里的 TG 用户必须被拒（否则后台对全网开放）
+        "tgg.admin.tg-login-allowlist=424242"
 })
 @AutoConfigureMockMvc
 class AdminTelegramAuthApiIT {
@@ -132,5 +134,16 @@ class AdminTelegramAuthApiIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(mini)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /** 验签通过但不在白名单内的 TG 用户必须被拒（403）——否则后台对全网 Telegram 用户开放。 */
+    @Test
+    void telegramUserOutsideAllowlistIsForbidden() throws Exception {
+        Map<String, String> data = widgetSigned(999999L);   // 合法签名，但 999999 不在白名单
+
+        mockMvc.perform(post("/admin/auth/telegram")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(data)))
+                .andExpect(status().isForbidden());
     }
 }
