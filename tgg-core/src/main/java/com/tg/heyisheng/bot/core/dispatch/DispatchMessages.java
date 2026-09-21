@@ -9,7 +9,7 @@ package com.tg.heyisheng.bot.core.dispatch;
  * <p><b>措辞冻结</b>：字符串**逐字节**取自搬迁前的原实现，搬迁不改一个字节——
  * 证据是现有逐字断言测试保持绿。
  *
- * <p>规范见 {@code docs/VOICE.md}。
+ * <p>规范见仓库根的 {@code VOICE.md}（进版本库，与 {@code ARCHITECTURE.md} 同族）。
  */
 public final class DispatchMessages {
 

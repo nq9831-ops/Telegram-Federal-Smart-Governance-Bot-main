@@ -66,7 +66,7 @@ public final class MenuView {
 
     /** 分类页文案：说清这是哪一类、以及「需填参数的命令会提示用法」这一过渡行为。 */
     static String categoryText(MenuCategory category) {
-        return "「" + category.title() + "」—— 点按钮直接执行；需填参数的命令会提示用法。";
+        return InteractionMessages.menuCategoryText(category.title());
     }
 
     /** 分类导航按钮的 {@code data}。 */

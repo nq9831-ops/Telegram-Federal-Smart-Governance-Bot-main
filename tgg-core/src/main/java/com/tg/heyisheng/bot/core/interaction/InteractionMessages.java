@@ -14,7 +14,7 @@ package com.tg.heyisheng.bot.core.interaction;
  * <p><b>措辞冻结</b>：所有字符串**逐字节**取自搬迁前的原实现（含全角标点、换行与 emoji），
  * 搬迁不改一个字节——证据是现有逐字断言测试保持绿。
  *
- * <p>规范见 {@code docs/VOICE.md}。
+ * <p>规范见仓库根的 {@code VOICE.md}（进版本库，与 {@code ARCHITECTURE.md} 同族）。
  */
 public final class InteractionMessages {
 
@@ -58,6 +58,11 @@ public final class InteractionMessages {
 
     /** 面板主页说明。 */
     public static final String MENU_HOME_HINT = "可用功能（只列出你在此群能用的）：\n选一个分类查看，点按钮直接执行。";
+
+    /** 分类页说明（分类名由调用方给出）。 */
+    public static String menuCategoryText(String title) {
+        return "「" + title + "」—— 点按钮直接执行；需填参数的命令会提示用法。";
+    }
 
     // ────────────── 身份（/whoami 与面板身份行）──────────────
 

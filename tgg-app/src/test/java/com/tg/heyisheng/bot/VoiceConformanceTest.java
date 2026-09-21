@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 语气规范（{@code docs/VOICE.md}）**可机器判定**部分的守门测试。三条判据：
+ * 语气规范（仓库根 {@code VOICE.md}）**可机器判定**部分的守门测试。三条判据：
  *
  * <ol>
  *   <li><b>文案层自身干净</b>：{@code *Messages} 类里的字面量不得含模板符号（{@code < > |}）
@@ -37,10 +37,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 故判据 2 只覆盖 {@link #MIGRATED_PACKAGES}；惩戒类（moderation/wordfilter）与业务域
  * 留到第三步随语气一起搬，届时把这些包加进来即可（判据本身不用改）。
  *
- * <p><b>判据 2 的已知边界（如实记录）</b>：它只匹配**调用点**行（{@code .text(} / {@code answer(} /
- * {@code reply(} / {@code sendMessage(} / {@code SendMessage(}），因此**组合句**（如视图中
- * {@code "「" + title + "」—— …"}）与 {@code return} 直接返回的字面量不在覆盖内——
- * 那类句子由视图/格式化持有（见 {@code docs/VOICE.md} 的组织规则），靠评审而非扫描保证。
+ * <p><b>判据 2 的覆盖范围与边界（如实记录）</b>：匹配**用户可见调用点**行
+ * （{@code .text(} / {@code answer(} / {@code reply(} / {@code sendMessage(} / {@code SendMessage(} /
+ * {@code return}），并排除注释行与含 {@code log.} 的行——两者都不是用户文案
+ * （{@code NotificationSender.logging()} 正是以 {@code return … -> log.info("…中文…")} 的形式返回 lambda，
+ * 不加这条排除会立刻误报）。仍未覆盖的是**不含上述记号**却承载文案的行（如字段初始化的字符串拼接）；
+ * 那类靠评审，见 {@code VOICE.md} 第七节的「靠评审遵守」清单。
  */
 class VoiceConformanceTest {
 
@@ -61,7 +63,7 @@ class VoiceConformanceTest {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\d\\}|XXX|TODO|FIXME");
     /** 用户可见的调用点；同行出现中文字面量即视为「内联的用户可见文案」。 */
     private static final Pattern USER_VISIBLE_CALL = Pattern.compile(
-            "\\.text\\(|answer\\(|reply\\(|sendMessage\\(|SendMessage\\(");
+            "\\.text\\(|answer\\(|reply\\(|sendMessage\\(|SendMessage\\(|return\\s");
     /** 判据 3 的字面量长度门槛（太短的串撞车属正常，不视为重复散落）。 */
     private static final int DEDUP_MIN_LENGTH = 5;
 
@@ -124,7 +126,7 @@ class VoiceConformanceTest {
             int lineNo = 0;
             for (String line : Files.readAllLines(file)) {
                 lineNo++;
-                if (isComment(line) || !USER_VISIBLE_CALL.matcher(line).find()) {
+                if (isComment(line) || mentionsLog(line) || !USER_VISIBLE_CALL.matcher(line).find()) {
                     continue;
                 }
                 Matcher m = LITERAL.matcher(line);
@@ -183,5 +185,14 @@ class VoiceConformanceTest {
     private static boolean isComment(String line) {
         String trimmed = line.trim();
         return trimmed.startsWith("*") || trimmed.startsWith("//") || trimmed.startsWith("/*");
+    }
+
+    /**
+     * 日志行不是用户文案——{@code NotificationSender.logging()} 用
+     * {@code return (id, text) -> log.info("通知（未配置投递通道…）")} 这种形式返回 lambda，
+     * 行内确实有中文字面量，但用户看不到它。不加这条排除，放宽到 {@code return} 会立刻误报。
+     */
+    private static boolean mentionsLog(String line) {
+        return line.contains("log.");
     }
 }
