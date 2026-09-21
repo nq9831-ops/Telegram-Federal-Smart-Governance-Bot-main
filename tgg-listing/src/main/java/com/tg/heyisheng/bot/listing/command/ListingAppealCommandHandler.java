@@ -47,7 +47,7 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAppealCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/listing_appeal <收录编号> <理由>";
+    static final String USAGE = "用法：/listing_appeal 收录编号 理由\n例：/listing_appeal 1 群只是改成邀请制了";
     static final String NOT_SUSPENDED = "该群当前未被下架，无需申诉。";
     static final String NOT_SUBMITTER = "只有该群的提交者本人可以申诉。";
 

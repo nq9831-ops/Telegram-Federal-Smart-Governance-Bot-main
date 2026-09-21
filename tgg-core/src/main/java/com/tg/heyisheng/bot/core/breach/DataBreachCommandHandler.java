@@ -29,8 +29,8 @@ import java.util.Locale;
 public class DataBreachCommandHandler implements CommandHandler {
 
     static final String USAGE = "用法：\n"
-            + "/data_breach <影响范围> <影响人数> —— 登记一起泄露事件（72 小时计时开始）\n"
-            + "/data_breach report <编号> —— 记录已履行通报\n"
+            + "/data_breach 影响范围 影响人数 —— 登记一起泄露事件（72 小时计时开始），例：/data_breach 用户名与手机号 1200\n"
+            + "/data_breach report 编号 —— 记录已履行通报，例：/data_breach report 1\n"
             + "/data_breach —— 列出尚未通报的事件\n"
             + "注：通报是运营者的法定义务，本命令只做计时与留痕。";
 
@@ -105,7 +105,7 @@ public class DataBreachCommandHandler implements CommandHandler {
                     .append(" · 影响约 ").append(incident.getAffectedCount()).append(" 人\n")
                     .append("   范围：").append(incident.getScope()).append('\n');
         }
-        sb.append("履行通报后：/data_breach report <编号>");
+        sb.append("履行通报后：/data_breach report 编号（例：/data_breach report 1）");
         return sb.toString();
     }
 

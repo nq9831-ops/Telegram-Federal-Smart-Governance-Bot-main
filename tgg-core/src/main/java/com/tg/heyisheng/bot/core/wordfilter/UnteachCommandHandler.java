@@ -21,7 +21,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
         requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
 public class UnteachCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/unteach <规则id>";
+    static final String USAGE = "用法：/unteach 规则id（先 /taught_rules 查看本群规则 id）";
 
     private final TaughtRuleService service;
 

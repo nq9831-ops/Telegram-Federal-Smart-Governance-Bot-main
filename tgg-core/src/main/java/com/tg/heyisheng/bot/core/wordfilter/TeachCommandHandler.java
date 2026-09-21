@@ -35,7 +35,7 @@ import java.util.Optional;
         requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
 public class TeachCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/teach <规则id> <正则> <描述>\n例：/teach SCAM_AIRDROP \"免费空投\\\\d+\" 假空投骗局";
+    static final String USAGE = "用法：/teach 规则id 正则 描述\n例：/teach SCAM_AIRDROP \"免费空投\\\\d+\" 假空投骗局";
     static final String NOT_A_GROUP = "请在要生效的群内执行本命令。";
 
     private final TaughtRuleService service;

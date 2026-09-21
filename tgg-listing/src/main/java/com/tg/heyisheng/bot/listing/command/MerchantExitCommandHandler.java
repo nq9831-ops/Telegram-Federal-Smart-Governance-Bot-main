@@ -34,7 +34,7 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantExitCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/merchant_exit <商家编号>";
+    static final String USAGE = "用法：/merchant_exit 商家编号\n例：/merchant_exit 1";
     static final String NOT_OWNER = "只有商家本人可以申请退出。";
 
     private final MerchantService merchants;

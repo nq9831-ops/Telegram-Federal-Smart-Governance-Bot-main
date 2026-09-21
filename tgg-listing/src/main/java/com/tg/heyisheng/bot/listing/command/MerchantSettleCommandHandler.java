@@ -49,7 +49,7 @@ import java.util.Optional;
 public class MerchantSettleCommandHandler implements CommandHandler {
 
     static final String USAGE =
-            "用法：/merchant_settle <商家编号> <NONE|UNRESOLVED|WITH_COMPENSATION> [扣款额] [理由]";
+            "用法：/merchant_settle 商家编号 结论\n例：/merchant_settle 1 NONE（结论可为 NONE / UNRESOLVED / WITH_COMPENSATION）";
 
     private final MerchantDepositService depositService;
     private final MerchantReviewGuard guard;

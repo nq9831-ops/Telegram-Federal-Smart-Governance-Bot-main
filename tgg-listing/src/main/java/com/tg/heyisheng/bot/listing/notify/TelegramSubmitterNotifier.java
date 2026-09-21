@@ -113,12 +113,12 @@ public class TelegramSubmitterNotifier implements SubmitterNotifier {
     /**
      * 通知正文：告知下架事实 + <b>给出申诉指引</b>（设计文档 §6.4 明确要求）。
      *
-     * <p>含条目编号是刻意的：申诉命令需要它（{@code /listing_appeal <编号> <理由>}），
+     * <p>含条目编号是刻意的：申诉命令需要它（{@code /listing_appeal 编号 理由}），
      * 没有编号的告知等于把用户引到一个用不了的入口。
      */
     static String composeText(ListingGroup entry) {
         return "你提交收录的群（编号 #" + entry.getId() + "）经定期验证已失效，已从收录库下架。\n"
                 + "若你认为这是误判（例如群只是改成了邀请制），可在 7 天异议期内发送：\n"
-                + "/listing_appeal " + entry.getId() + " <你的理由>";
+                + "/listing_appeal " + entry.getId() + " 你的申诉理由";
     }
 }

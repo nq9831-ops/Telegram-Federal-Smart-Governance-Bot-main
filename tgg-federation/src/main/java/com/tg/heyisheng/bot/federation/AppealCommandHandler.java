@@ -29,7 +29,7 @@ public class AppealCommandHandler implements CommandHandler {
     public BotApiMethod<?> handle(UpdateContext ctx) {
         String text = ctx.commandArgs().orElse(null);
         if (text == null) {
-            return reply(ctx, "用法：/appeal <申诉内容>");
+            return reply(ctx, "用法：/appeal 申诉内容\n例：/appeal 我的账号被误封了");
         }
         FederationAppeal appeal = appealService.submit(
                 ctx.userId(), FederationAppealService.TYPE_FEDBAN_UNBAN, text);

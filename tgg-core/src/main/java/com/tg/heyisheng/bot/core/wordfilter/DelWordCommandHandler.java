@@ -22,7 +22,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @Component
 public class DelWordCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/delword <违禁词>";
+    static final String USAGE = "用法：/delword 违禁词\n例：/delword 加微信";
     static final String REMOVED = "已删除违禁词。";
     static final String NOT_FOUND = "本群没有该词。";
 

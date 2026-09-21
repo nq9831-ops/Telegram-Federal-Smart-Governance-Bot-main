@@ -31,7 +31,7 @@ public class TaughtRulesCommandHandler implements CommandHandler {
     /** 正文自留上限：给截断提示留余量。 */
     static final int MAX_BODY_CHARS = 3500;
 
-    static final String EMPTY = "本群暂无教学规则（可发 /teach <规则id> <正则> <描述> 添加）。";
+    static final String EMPTY = "本群暂无教学规则（可发 /teach 规则id 正则 描述 添加，例：/teach SCAM_AIRDROP 免费空投 假空投骗局）。";
     static final String PREFIX = "本群教学规则：";
 
     private final TaughtRuleService service;

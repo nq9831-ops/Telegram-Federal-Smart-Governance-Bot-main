@@ -35,7 +35,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAddCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/listing_add <邀请链接>";
+    static final String USAGE = "用法：/listing_add 邀请链接\n例：/listing_add https://t.me/+AbCdEfGh";
     static final String NOT_A_GROUP = "请在要收录的群内执行本命令。";
     static final String INVALID_LINK = "邀请链接无效：应以 https://t.me/ 开头。";
     static final String ADDED = "已提交收录，将定期验证链接有效性。";

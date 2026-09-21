@@ -30,7 +30,7 @@ import java.util.Locale;
         requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.GROUP)
 public class GroupTagCommandHandler implements CommandHandler {
 
-    static final String USAGE = "用法：/group_tag add|remove|list [标签]\n"
+    static final String USAGE = "用法：/group_tag add 标签（remove 删除 / list 列出）\n"
             + "例：/group_tag add gambling —— 声明本群为赌博话题群，敏感话题分级对赌博豁免（红线不豁免）。";
     static final String NOT_A_GROUP = "请在要生效的群内执行本命令。";
 
