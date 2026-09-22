@@ -279,4 +279,84 @@ class MenuCatalogTest {
         assertThat(catalog.groupBoundCommands(MEMBER)).isEmpty();
         assertThat(catalog.groupBoundCommands(null)).isEmpty();
     }
+
+    /** 策展（反向接缝）：对指定查看者收走命令——只影响他的展示，不影响其他人。 */
+    @Test
+    void curatorHidesCommandOnlyFromItsTargetViewers() {
+        MenuCurator curator = new MenuCurator() {
+            @Override
+            public Set<String> commands() {
+                return Set.of("quiet_hours");
+            }
+
+            @Override
+            public boolean hides(long chatId, Long userId) {
+                return userId != null && userId == ADMIN;
+            }
+        };
+        MenuCatalog catalog = new MenuCatalog(providerOf(new CommandRegistry(List.of(
+                new QuietHoursHandler(), new MenuHandler()))),
+                new PermissionChecker(roleSource()), List.of(), List.of(curator));
+
+        assertThat(catalog.visibleCommands(CHAT, ADMIN, true))
+                .as("策展目标：命令从他的面上收走")
+                .doesNotContain("quiet_hours");
+        assertThat(catalog.visibleCommands(CHAT, MEMBER, true))
+                .as("其他人视角不变")
+                .contains("quiet_hours");
+    }
+
+    /** 策展 fail-open：身份不明不收（收起是策展不是安全门——误藏比多显示更坏）。 */
+    @Test
+    void curatorKeepsCommandVisibleForUnidentifiedViewer() {
+        MenuCurator curator = new MenuCurator() {
+            @Override
+            public Set<String> commands() {
+                return Set.of("quiet_hours");
+            }
+
+            @Override
+            public boolean hides(long chatId, Long userId) {
+                return userId != null && userId == ADMIN;
+            }
+        };
+        MenuCatalog catalog = new MenuCatalog(providerOf(new CommandRegistry(List.of(
+                new QuietHoursHandler(), new MenuHandler()))),
+                new PermissionChecker(roleSource()), List.of(), List.of(curator));
+
+        assertThat(catalog.visibleCommands(CHAT, null, true)).contains("quiet_hours");
+    }
+
+    /** 两条策展认领同一命令属配置错误，装配期即失败（同接缝口径）。 */
+    @Test
+    void duplicateCuratorRegistrationFailsAtConstruction() {
+        MenuCurator first = new MenuCurator() {
+            @Override
+            public Set<String> commands() {
+                return Set.of("quiet_hours");
+            }
+
+            @Override
+            public boolean hides(long chatId, Long userId) {
+                return false;
+            }
+        };
+        MenuCurator second = new MenuCurator() {
+            @Override
+            public Set<String> commands() {
+                return Set.of("quiet_hours");
+            }
+
+            @Override
+            public boolean hides(long chatId, Long userId) {
+                return false;
+            }
+        };
+
+        assertThatThrownBy(() -> new MenuCatalog(providerOf(new CommandRegistry(List.of(
+                new QuietHoursHandler()))), new PermissionChecker(roleSource()),
+                List.of(), List.of(first, second)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("quiet_hours");
+    }
 }

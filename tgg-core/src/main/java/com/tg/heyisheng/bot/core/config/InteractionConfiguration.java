@@ -14,6 +14,7 @@ import com.tg.heyisheng.bot.core.interaction.ConfirmationStore;
 import com.tg.heyisheng.bot.core.interaction.IdentityPresenter;
 import com.tg.heyisheng.bot.core.interaction.MenuCallbackHandler;
 import com.tg.heyisheng.bot.core.interaction.MenuCatalog;
+import com.tg.heyisheng.bot.core.interaction.MenuCurator;
 import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
 import com.tg.heyisheng.bot.core.interaction.ModerationMenuVisibility;
 import com.tg.heyisheng.bot.core.moderation.ModerationReviewGuard;
@@ -96,8 +97,12 @@ public class InteractionConfiguration {
     @Bean
     public MenuCatalog menuCatalog(ObjectProvider<CommandRegistry> commandRegistry,
                                    PermissionChecker permissionChecker,
-                                   ObjectProvider<MenuVisibility> menuVisibilities) {
-        return new MenuCatalog(commandRegistry, permissionChecker, menuVisibilities.stream().toList());
+                                   ObjectProvider<MenuVisibility> menuVisibilities,
+                                   ObjectProvider<MenuCurator> menuCurators) {
+        // 策展集合同款 ObjectProvider：一个模块都没注册时是一次明确的空流（未接线即零影响），
+        // 而不是「无候选 bean」导致的启动失败——与接缝集合的取舍一致。
+        return new MenuCatalog(commandRegistry, permissionChecker,
+                menuVisibilities.stream().toList(), menuCurators.stream().toList());
     }
 
     /**

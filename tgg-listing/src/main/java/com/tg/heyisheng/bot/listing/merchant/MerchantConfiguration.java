@@ -1,7 +1,9 @@
 package com.tg.heyisheng.bot.listing.merchant;
 
 import com.tg.heyisheng.bot.credit.CreditService;
+import com.tg.heyisheng.bot.core.interaction.MenuCurator;
 import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
+import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +72,20 @@ public class MerchantConfiguration {
     @Bean
     public MenuVisibility merchantMenuVisibility(MerchantReviewGuard merchantReviewGuard) {
         return new MerchantMenuVisibility(merchantReviewGuard);
+    }
+
+    /**
+     * 「收录商家」面的展示策展：对管事的人（复核人 / 群内管理员）收走商家入驻自助链——
+     * 他们的面里只有「管理商家」（用户 2026-09-22 拍板）。只收展示，不动执行。
+     *
+     * <p>{@link PermissionChecker} 经 {@link ObjectProvider} 取（同 {@code CreditService} 的取舍）：
+     * 装配切片上下文可能不含 core 的判定器 bean——缺失时 RBAC 半边判不了即不收（fail-open），
+     * 复核白名单半边照常。
+     */
+    @Bean
+    public MenuCurator merchantSubmissionCuration(MerchantReviewGuard merchantReviewGuard,
+                                                  ObjectProvider<PermissionChecker> permissionChecker) {
+        return new MerchantSubmissionCuration(merchantReviewGuard, permissionChecker.getIfAvailable());
     }
 
     /**

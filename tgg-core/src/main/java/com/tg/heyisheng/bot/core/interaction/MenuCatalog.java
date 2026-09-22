@@ -42,13 +42,24 @@ public class MenuCatalog {
     private final PermissionChecker permissionChecker;
     /** command → 负责它的接缝；无则为「走注册表权限」的那批。 */
     private final Map<String, MenuVisibility> seamByCommand;
+    /** command → 对它做展示策展的实现；无则「对谁都照常展示」。与接缝互不相干，各守各的承诺。 */
+    private final Map<String, MenuCurator> curatorByCommand;
 
+    /** 兼容构造：无策展（既有调用方与测试行为不变）。 */
     public MenuCatalog(ObjectProvider<CommandRegistry> registryProvider,
                        PermissionChecker permissionChecker,
                        List<MenuVisibility> seams) {
+        this(registryProvider, permissionChecker, seams, List.of());
+    }
+
+    public MenuCatalog(ObjectProvider<CommandRegistry> registryProvider,
+                       PermissionChecker permissionChecker,
+                       List<MenuVisibility> seams,
+                       List<MenuCurator> curators) {
         this.registryProvider = registryProvider;
         this.permissionChecker = permissionChecker;
         this.seamByCommand = index(seams);
+        this.curatorByCommand = indexCurators(curators);
     }
 
     /**
@@ -74,6 +85,23 @@ public class MenuCatalog {
         return Map.copyOf(map);
     }
 
+    /** 「命令 → 策展」索引；重复登记在**装配期**即失败（同 {@link #index} 的口径与理由）。 */
+    private static Map<String, MenuCurator> indexCurators(List<MenuCurator> curators) {
+        Map<String, MenuCurator> map = new HashMap<>();
+        for (MenuCurator curator : curators == null ? List.<MenuCurator>of() : curators) {
+            for (String command : curator.commands()) {
+                if (command == null || command.isBlank()) {
+                    continue;
+                }
+                MenuCurator existing = map.putIfAbsent(command, curator);
+                if (existing != null) {
+                    throw new IllegalStateException("MenuCurator 命令重复登记：" + command);
+                }
+            }
+        }
+        return Map.copyOf(map);
+    }
+
     /** 命令名 → 描述（供渲染按钮文案；取自注册表，不另存一份）。 */
     public Map<String, String> descriptions() {
         return registryProvider.getObject().mainCommands();
@@ -89,6 +117,7 @@ public class MenuCatalog {
                 .filter(name -> !PANEL_COMMAND.equals(name))
                 .filter(name -> !privateChat || !registry.groupOnly(name))
                 .filter(name -> isVisible(name, chatId, userId, registry))
+                .filter(name -> !isHiddenByCurator(name, chatId, userId))
                 .filter(name -> groupEnabled || registry.worksWhenDisabled(name))
                 .toList();
     }
@@ -184,6 +213,17 @@ public class MenuCatalog {
             return registry.publicCommand(command);
         }
         return permissionChecker.has(chatId, userId, required);
+    }
+
+    /**
+     * 展示策展：该命令是否对这个查看者收起（{@link MenuCurator}；无策展照常展示）。
+     *
+     * <p>与可见性正交、在可见性**之后**施加——先问「有没有权看见」，再问「要不要占他的面」。
+     * 只影响 /menu·/help 的呈现，不进执行门控。
+     */
+    private boolean isHiddenByCurator(String command, long chatId, Long userId) {
+        MenuCurator curator = curatorByCommand.get(command);
+        return curator != null && curator.hides(chatId, userId);
     }
 
     /** 已登记的接缝覆盖了多少条命令（供装配测试与诊断）。 */
