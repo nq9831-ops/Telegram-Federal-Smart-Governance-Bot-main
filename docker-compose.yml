@@ -29,8 +29,11 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       # DB 容器固定 UTC。
-      # ⚠️ 与应用侧**并不一致**：下面 app 服务的 `TGG_DB_URL` 带 `connectionTimeZone=Asia/Shanghai`。
-      # 两处谁对取决于实体时间字段类型（Instant 还是 LocalDateTime）——**未核实，勿当已对齐**。
+      # 与应用侧 `connectionTimeZone=Asia/Shanghai` 看似不一致，2026-09-22 核实结论：**无功能影响**——
+      # 时间列全为 DATETIME(6)、全库无 server 侧时间函数（NOW()/CURRENT_TIMESTAMP 双源零命中），
+      # 时间全由应用侧 Instant 写入、Connector/J 按 URL 的 connectionTimeZone 统一转换，读写同一口径。
+      # ⚠️ 复访条件：引入 server 侧时间函数 / TIMESTAMP 列，或旁路客户端（如 mysql CLI）直读时间列时，
+      #    需统一两侧时区（详见 KNOWN-ISSUES #17）。
       - --default-time-zone=+00:00
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MYSQL_ROOT_PASSWORD}
