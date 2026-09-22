@@ -236,6 +236,16 @@ public class CreditService {
         }
         CreditEventRecord original = found.get();
 
+        if (original.getEventType() == CreditEventType.MODERATION_REVERSAL) {
+            // 防「退分链套娃」：补偿流水自身不可再被补偿——其 before<after、actualDelta>0，
+            // 若放行，refund = -actualDelta < 0 会把「退分」翻转成**再扣一次**。显式拒绝并留痕
+            // （与 apply 拒绝 MODERATION_REVERSAL 对称）。主体标识哈希化，原因不含正文。
+            log.warn("拒绝补偿一条补偿流水（MODERATION_REVERSAL 不可再退，防退分链套娃）："
+                            + "subjectType={} subjectHash={} reason={}",
+                    original.getSubjectType(), idHasher.hash(original.getSubjectId()), reason);
+            return false;
+        }
+
         int actualDelta = original.getScoreAfter() - original.getScoreBefore();
         if (actualDelta == 0) {
             // 原事件未改变分数（例如已是 0 分时的扣分）——无分可退

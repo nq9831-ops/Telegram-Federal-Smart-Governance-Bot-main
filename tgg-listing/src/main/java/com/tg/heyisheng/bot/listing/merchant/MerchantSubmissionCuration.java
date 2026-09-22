@@ -1,10 +1,9 @@
 package com.tg.heyisheng.bot.listing.merchant;
 
-import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
-
 import com.tg.heyisheng.bot.core.interaction.MenuCurator;
 import com.tg.heyisheng.bot.core.permission.Permission;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
 
 import java.util.Set;
 
@@ -18,10 +17,11 @@ import java.util.Set;
  * （分类整块不出现）——刻意的 fail-closed（保证金结算是资金动作），不是遗漏；要管商家，
  * 成为联邦管理员（{@code TGG_FEDERATION_ADMINS}）。策展边界判据见 {@code RoleMatrixContentTest}。
  *
- * <p><b>「管事的人」的判据</b>（与该功能的管理判定同源）：
+ * <p><b>「管事的人」的判据与来源</b>：判定收敛到 {@link MerchantDomainAuthority}
+ * （与 {@link MerchantMenuVisibility} 共用同一来源类，兑现 {@code MenuCurator} javadoc 的「同源」纪律）：
  * <ul>
- *   <li>联邦管理员（{@link FederationAdminGuard#isAdmin}——2026-09-22 二次拍板：「商家只有联邦管理员
- *       才可以审核处理」，商家域的管理者即他）；</li>
+ *   <li>联邦管理员（{@link MerchantDomainAuthority#isFederationAdmin}——2026-09-22 二次拍板
+ *       「商家只有联邦管理员才可以审核处理」，商家域的最高管理档）；</li>
  *   <li>当前群的群内管理员（{@link PermissionChecker} 判 {@link Permission#MANAGE_CONFIG}，
  *       用户点名「管理员不需要提交商家收录」）。</li>
  * </ul>
@@ -34,13 +34,10 @@ public class MerchantSubmissionCuration implements MenuCurator {
     /** 「提交商家收录」的自助链——与三条 {@code /merchant_*} 自助命令 handler 一一对应。 */
     static final Set<String> COMMANDS = Set.of("merchant_apply", "merchant_status", "merchant_exit");
 
-    private final FederationAdminGuard federationGate;
-    /** 可空：装配切片上下文可能不含 core 的判定器（缺失时 RBAC 半边判不了即不收，fail-open）。 */
-    private final PermissionChecker permissionChecker;
+    private final MerchantDomainAuthority authority;
 
     public MerchantSubmissionCuration(FederationAdminGuard federationGate, PermissionChecker permissionChecker) {
-        this.federationGate = federationGate;
-        this.permissionChecker = permissionChecker;
+        this.authority = new MerchantDomainAuthority(federationGate, permissionChecker);
     }
 
     @Override
@@ -50,11 +47,6 @@ public class MerchantSubmissionCuration implements MenuCurator {
 
     @Override
     public boolean hides(long chatId, Long userId) {
-        if (userId == null) {
-            return false;
-        }
-        return federationGate.isAdmin(userId)
-                || (permissionChecker != null
-                        && permissionChecker.has(chatId, userId, Permission.MANAGE_CONFIG));
+        return authority.isMerchantDomainManager(chatId, userId);
     }
 }

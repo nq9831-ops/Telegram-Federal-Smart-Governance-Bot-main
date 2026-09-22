@@ -142,18 +142,17 @@ public class MenuCatalog {
         return List.copyOf(result);
     }
 
-    /** 与 {@link #isVisible} 同构的「任一群」判定：接缝优先，其次公开性/权限（存在量词）。 */
+    /** 与 {@link #isVisible} 同构的「任一群」判定：走同一来源 {@link #sourceOf}，只是权限检查取存在量词。 */
     private boolean visibleInSomeGroup(String command, Long userId, CommandRegistry registry) {
-        MenuVisibility seam = seamByCommand.get(command);
-        if (seam != null) {
+        VisibilitySource source = sourceOf(command, registry);
+        if (source instanceof VisibilitySource.Seam seam) {
             // 平台白名单是全局的、与群无关（各接缝实现同此口径）——chatId 传 0 仅为接口统一
-            return seam.visible(0L, userId);
+            return seam.seam().visible(0L, userId);
         }
-        Permission required = registry.requiredPermission(command);
-        if (required == Permission.NONE) {
-            return registry.publicCommand(command);
+        if (source instanceof VisibilitySource.SelfService selfService) {
+            return selfService.visible();
         }
-        return permissionChecker.hasInAnyGroup(userId, required);
+        return permissionChecker.hasInAnyGroup(userId, ((VisibilitySource.RoleGated) source).required());
     }
 
     /** 该命令是否群限定（{@code @BotCommand(groupOnly)} 声明；供 /help 群聊版打「（得在群里用）」标注）。 */
@@ -186,6 +185,47 @@ public class MenuCatalog {
     }
 
     /**
+     * 可见性判定的**单一来源**：把命令归属到三条来源之一（接缝 / 自助公开 / 权限点）。
+     *
+     * <p>{@link #isVisible}（本群）与 {@link #visibleInSomeGroup}（任一群）共用它，只在最后一步
+     * 各取所需（{@link PermissionChecker#has} vs {@link PermissionChecker#hasInAnyGroup}）——
+     * 两处各写一份分类逻辑迟早漂移（接缝被漏判、或 {@code publicCommand} 的 fail-closed 被漏掉）。
+     */
+    private VisibilitySource sourceOf(String command, CommandRegistry registry) {
+        MenuVisibility seam = seamByCommand.get(command);
+        if (seam != null) {
+            return new VisibilitySource.Seam(seam);
+        }
+        Permission required = registry.requiredPermission(command);
+        if (required == Permission.NONE) {
+            // 无权限点的命令：只有显式声明 publicCommand 的「自助命令」才进面板（fail-closed）
+            return new VisibilitySource.SelfService(registry.publicCommand(command));
+        }
+        return new VisibilitySource.RoleGated(required);
+    }
+
+    /**
+     * 命令归属的可见性来源（{@link #sourceOf} 的返回类型）。
+     *
+     * <p>三选一，与执行门控（{@code CommandDispatcher.resolvableHandler}）逐条对齐：
+     * 接缝只由接缝判、自助命令恒公开、其余走 {@link PermissionChecker}。
+     */
+    private sealed interface VisibilitySource {
+
+        /** 被某接缝认领——只由该接缝判定，不再叠加注册表权限。 */
+        record Seam(MenuVisibility seam) implements VisibilitySource {
+        }
+
+        /** 无权限点——只有显式声明 {@code publicCommand} 的自助命令可见（fail-closed）。 */
+        record SelfService(boolean visible) implements VisibilitySource {
+        }
+
+        /** 有权限点——交由 {@link PermissionChecker}（本群 / 任一群由调用方决定）。 */
+        record RoleGated(Permission required) implements VisibilitySource {
+        }
+    }
+
+    /**
      * 单条命令的可见性判定。
      *
      * <p>三条来源，与执行门控逐条对齐：
@@ -203,16 +243,14 @@ public class MenuCatalog {
      * {@code CommandMenuRegistrar.planMenus} 的启动告警与 {@code CommandMenuContentTest} 拦下。
      */
     private boolean isVisible(String command, long chatId, Long userId, CommandRegistry registry) {
-        MenuVisibility seam = seamByCommand.get(command);
-        if (seam != null) {
-            return seam.visible(chatId, userId);
+        VisibilitySource source = sourceOf(command, registry);
+        if (source instanceof VisibilitySource.Seam seam) {
+            return seam.seam().visible(chatId, userId);
         }
-        Permission required = registry.requiredPermission(command);
-        if (required == Permission.NONE) {
-            // 无权限点的命令：只有显式声明 publicCommand 的「自助命令」才进面板（fail-closed）
-            return registry.publicCommand(command);
+        if (source instanceof VisibilitySource.SelfService selfService) {
+            return selfService.visible();
         }
-        return permissionChecker.has(chatId, userId, required);
+        return permissionChecker.has(chatId, userId, ((VisibilitySource.RoleGated) source).required());
     }
 
     /**
