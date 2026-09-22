@@ -121,7 +121,7 @@ public class CreditService {
                 event.hardLine(),
                 scoreBefore,
                 delta,
-                clamp(scoreBefore + delta),
+                nextScoreAfter(scoreBefore, delta),
                 event.source(),
                 event.idempotencyKey(),
                 event.occurredAt(),
@@ -141,9 +141,12 @@ public class CreditService {
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
 
-        // 回填真实分值：写入流水时的 scoreAfter 是预测值，而 applyDelta 会在库侧按 [MIN,MAX] 夹取
-        // ——「触底」（如连续硬红线）时两者不同，流水必须记实际结果。
-        if (event.idempotencyKey() != null && newScore != clamp(scoreBefore + delta)) {
+        // 回填真实分值（第二道防线）：预测值已与写库语义逐字对齐（见 {@link #nextScoreAfter}），
+        // 正常流程预测 == 实际；此处只兜「库侧行为偏离预期」的漂移（如未来改了 applyDelta 口径）。
+        // ⚠️ 无幂等键的流水行**不可回填**：updateScoreAfter 按 WHERE idempotency_key = :key 寻址，
+        //    key 为 null 时 SQL 恒不匹配（且 insertIfAbsent 契约是 null 键恒插入、行里就是 NULL）
+        //    ⇒ 无键事件的流水正确性**完全**依赖预测精确，由 CreditServiceScoreAfterAuditTest 钉死。
+        if (event.idempotencyKey() != null && newScore != nextScoreAfter(scoreBefore, delta)) {
             eventRecordRepository.updateScoreAfter(event.idempotencyKey(), newScore);
         }
 
@@ -258,7 +261,7 @@ public class CreditService {
                 original.isHardLine(),
                 scoreBefore,
                 refund,
-                clamp(scoreBefore + refund),
+                nextScoreAfter(scoreBefore, refund),
                 "moderation-reversal",
                 reversalIdempotencyKey,
                 now,
@@ -272,8 +275,8 @@ public class CreditService {
         int newScore = repository.findBySubjectTypeAndSubjectId(original.getSubjectType(), original.getSubjectId())
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
-        // 与 apply 同款回填：写入时是先算的预测值，夹取后应记实际结果。
-        if (newScore != clamp(scoreBefore + refund)) {
+        // 与 apply 同款回填（第二道防线）：预测值与写库语义逐字对齐，正常流程不会漂移。
+        if (newScore != nextScoreAfter(scoreBefore, refund)) {
             eventRecordRepository.updateScoreAfter(reversalIdempotencyKey, newScore);
         }
 
@@ -285,5 +288,16 @@ public class CreditService {
     /** 与 {@code CreditScoreRepository#applyDelta} 的 SQL 夹取口径保持一致（下界防负）。 */
     private static int clamp(int score) {
         return Math.max(MIN_SCORE, Math.min(MAX_SCORE, score));
+    }
+
+    /**
+     * 流水 {@code score_after} 的预测值——与写库语义<b>逐字对齐</b>：{@code delta == 0} 时
+     * {@code applyDelta} 被跳过、分值原样保留（即使越界，如商家初值 500），其余才按夹取口径。
+     *
+     * <p>必须精确而非「事后回填」兜底：无幂等键的流水行不可寻址（{@code WHERE idempotency_key = NULL}
+     * 恒不匹配），回填对它永远不可达。守门：{@code CreditServiceScoreAfterAuditTest}。
+     */
+    private static int nextScoreAfter(int scoreBefore, int delta) {
+        return delta == 0 ? scoreBefore : clamp(scoreBefore + delta);
     }
 }
