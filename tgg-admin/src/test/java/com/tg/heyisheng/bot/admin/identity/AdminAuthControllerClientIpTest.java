@@ -23,10 +23,11 @@ class AdminAuthControllerClientIpTest {
     private static AdminAuthController controller(boolean trustForwardedFor) {
         AdminProperties props = new AdminProperties();
         props.setTrustForwardedFor(trustForwardedFor);
-        // 仅 clientIp 用到 properties；其余依赖传 mock（ObjectProvider.getIfAvailable() 默认返回 null）
+        // 仅 clientIp 用到 properties；其余依赖传 mock（ObjectProvider.getIfAvailable() 默认返回 null）。
+        // 末参 accountAdmin 供 TOTP 自助端点使用，本测试不触及故传 null。
         return new AdminAuthController(null, props,
                 mock(ObjectProvider.class), mock(ObjectProvider.class), null,
-                mock(ObjectProvider.class), null);
+                mock(ObjectProvider.class), null, null);
     }
 
     private static HttpServletRequest request(String xff, String remoteAddr) {

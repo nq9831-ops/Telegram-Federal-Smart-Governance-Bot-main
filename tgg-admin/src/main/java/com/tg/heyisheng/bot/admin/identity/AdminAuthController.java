@@ -12,10 +12,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
@@ -53,13 +55,16 @@ public class AdminAuthController {
     private final PlatformGrantSource grants;
     private final TgLoginAllowlist tgLoginAllowlist;
     private final IdHasher idHasher;
+    /** 两步验证的**自助**绑定/解绑走这里（密钥只回给本人，见下游 javadoc）。 */
+    private final AccountAdminService accountAdmin;
 
     public AdminAuthController(AdminAuthService auth, AdminProperties properties,
                                org.springframework.beans.factory.ObjectProvider<TelegramLoginVerifier> verifier,
                                org.springframework.beans.factory.ObjectProvider<AdminLoginRateLimiter> rateLimiter,
                                PlatformGrantSource grants,
                                org.springframework.beans.factory.ObjectProvider<TgLoginAllowlist> tgLoginAllowlist,
-                               IdHasher idHasher) {
+                               IdHasher idHasher,
+                               AccountAdminService accountAdmin) {
         this.auth = auth;
         this.properties = properties;
         this.telegramVerifier = verifier.getIfAvailable();
@@ -67,6 +72,7 @@ public class AdminAuthController {
         this.grants = grants;
         this.tgLoginAllowlist = tgLoginAllowlist.getIfAvailable();
         this.idHasher = idHasher;
+        this.accountAdmin = accountAdmin;
     }
 
     /**
@@ -131,6 +137,61 @@ public class AdminAuthController {
     public ResponseEntity<Map<String, String>> loginConfig() {
         String username = properties.getTgLoginBotUsername();
         return ResponseEntity.ok(Map.of("telegramBotUsername", username == null ? "" : username));
+    }
+
+    // ───────────────────── 两步验证（TOTP）· 自助绑定 ─────────────────────
+
+    /**
+     * `POST /admin/auth/totp` —— **本人**启用两步验证，返回 {@code otpauth://} URL（含密钥，仅此一次）。
+     *
+     * <p>密钥只回给发起者<b>本人</b>——这正是「自助绑定」的全部意义。原先超管那条
+     * 「替他人启用并取回密钥」的端点已移除：密钥被第三方看到，第二因子对那个第三方即失效。
+     */
+    @PostMapping("/totp")
+    public ResponseEntity<?> enableTotp(HttpServletRequest request) {
+        Long accountId = currentAccountId(request);
+        if (accountId == null) {
+            return ResponseEntity.status(400)
+                    .body(Map.of("error", "当前主体不是后台账号（Telegram 登录无本地账号），无法启用两步验证"));
+        }
+        try {
+            return ResponseEntity.ok(Map.of("otpauthUrl", accountAdmin.enableTotp(accountId)));
+        } catch (IllegalArgumentException ex) {
+            // 已启用：409（与「参数错」的 400 区分开，便于前端提示不同文案）
+            return ResponseEntity.status(409).body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    /**
+     * `DELETE /admin/auth/totp?code=123456` —— **本人**解绑，必须带当前有效验证码。
+     *
+     * <p>要验证码是为了「拿到一个活动会话也关不掉第二因子」——否则第二因子白设。
+     */
+    @DeleteMapping("/totp")
+    public ResponseEntity<?> disableTotp(
+            @RequestParam(name = "code", required = false) String code, HttpServletRequest request) {
+        Long accountId = currentAccountId(request);
+        if (accountId == null) {
+            return ResponseEntity.status(400)
+                    .body(Map.of("error", "当前主体不是后台账号（Telegram 登录无本地账号），无法解绑两步验证"));
+        }
+        if (code == null || code.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "解绑两步验证需要当前验证码（?code=123456）"));
+        }
+        try {
+            accountAdmin.disableTotpWithCode(accountId, code.trim());
+            return ResponseEntity.ok(Map.of("result", "OK"));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    /** 当前会话对应的**后台账号** id；主体不是后台账号（如 Telegram 用户）时返回 null。 */
+    private static Long currentAccountId(HttpServletRequest request) {
+        Object type = request.getAttribute(AdminSessionFilter.SUBJECT_TYPE_ATTRIBUTE);
+        Object id = request.getAttribute(AdminSessionFilter.SUBJECT_ID_ATTRIBUTE);
+        return type == ActorType.ADMIN_ACCOUNT && id instanceof Long value ? value : null;
     }
 
     /** 当前登录主体（前端据以渲染身份行；filter 已验会话）。 */

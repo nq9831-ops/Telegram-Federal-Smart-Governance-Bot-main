@@ -142,22 +142,17 @@ public class AccountAdminController {
         }
     }
 
-    /** 启用 TOTP：生成本账号的密钥并返回 otpauth URL（供 authenticator app 扫码）。 */
-    @PostMapping("/{id}/totp")
-    public ResponseEntity<?> enableTotp(@PathVariable Long id, HttpServletRequest request) {
-        if (!isSuperAdmin(request)) {
-            return forbidden();
-        }
-        try {
-            String url = service.enableTotp(id);
-            auditRequest(request, AUDIT_TOTP, "account " + id + " totp enabled");
-            return ResponseEntity.ok(Map.of("otpauthUrl", url));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
-        }
-    }
+    // ⚠️ 这里**刻意没有** `POST /{id}/totp`（替他人启用并取回密钥）。原实现会把含密钥的 otpauth URL
+    //    回给超管 ⇒ 超管能自己算出该账号的有效验证码 ⇒ 第二因子对超管形同虚设（而 TOTP 的意义之一
+    //    正是防住「超管重置密码后直接登录」）。启用改由本人自助：`POST /admin/auth/totp`。
+    //    下面保留 DELETE 作为**恢复通道**（本人丢设备时的唯一出路），且照旧审计。
 
-    /** 关闭 TOTP 第二因子。 */
+    /**
+     * 关闭某账号的 TOTP 第二因子——**恢复通道**。
+     *
+     * <p>残余风险（刻意接受）：超管关掉他人 2FA 后再重置其密码，即可绕过第二因子。这是「本人丢设备」
+     * 时唯一可行的恢复路径；代价记录在 KNOWN-ISSUES。若要消除，需引入备份码一类的自助恢复机制。
+     */
     @DeleteMapping("/{id}/totp")
     public ResponseEntity<?> disableTotp(@PathVariable Long id, HttpServletRequest request) {
         if (!isSuperAdmin(request)) {
