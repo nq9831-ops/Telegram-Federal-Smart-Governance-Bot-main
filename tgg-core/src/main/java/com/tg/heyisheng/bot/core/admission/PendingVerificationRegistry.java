@@ -85,6 +85,19 @@ public class PendingVerificationRegistry {
         deadlines.remove(member);
     }
 
+    /**
+     * 按 {@code chatId}/{@code userId} 移除登记——与 {@link #register}/{@link #isPending} 同口径的便捷重载。
+     *
+     * <p>用于「验证消息发送失败即撤回登记」：登记是在发送前落下的（避免用户抢在登记前点击按钮被误判过期），
+     * 发送失败时须按同口径把它撤掉，否则成员在册却无按钮可点，会被超时误踢（GUARD-1）。
+     */
+    public void remove(Long chatId, Long userId) {
+        if (chatId == null || userId == null) {
+            return;
+        }
+        deadlines.remove(new Member(chatId, userId));
+    }
+
     /** 当前待验证数量（诊断与测试用）。 */
     public int size() {
         return deadlines.size();

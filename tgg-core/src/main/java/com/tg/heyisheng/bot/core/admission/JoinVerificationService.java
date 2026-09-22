@@ -23,6 +23,9 @@ import java.util.List;
  *
  * <p><b>因此本能力要求 bot token 可用</b>：装配层在启用准入时校验 token（缺失即启动失败），
  * 否则会出现"登记了但验证消息发不出去"→ 用户白白超时被踢的误伤。
+ *
+ * <p><b>运行时兜底（GUARD-1）</b>：即便装配层校验通过，发送仍可能失败（临时网络/权限错误）。
+ * 故登记后必须检查 {@code send} 的布尔返回——失败即撤回登记，绝不留"幽灵登记"被超时误踢。
  */
 public class JoinVerificationService {
 
@@ -64,8 +67,15 @@ public class JoinVerificationService {
             if (member == null || Boolean.TRUE.equals(member.getIsBot())) {
                 continue;
             }
+            // 顺序要害：登记后若发送失败必须**立即撤回**。否则成员在册却从未收到验证按钮，
+            // VerificationTimeoutSweeper 到期即踢——正是本能力要防的误伤（GUARD-1）。
             registry.register(chatId, member.getId(), timeout);
-            sender.send(buildPrompt(chatId, member.getId()));
+            if (!sender.send(buildPrompt(chatId, member.getId()))) {
+                registry.remove(chatId, member.getId());
+                log.warn("验证消息发送失败，已撤回待验证登记（chatId={} userId={}）",
+                        chatId, member.getId());
+                continue;
+            }
             log.info("新成员待验证已登记（chatId={}, 时限={}秒）", chatId, timeout.toSeconds());
         }
     }

@@ -288,4 +288,33 @@ class JoinVerificationTest {
         assertThat(JoinVerificationService.humanDuration(Duration.ofDays(7))).isEqualTo("7 天");
         assertThat(JoinVerificationService.humanDuration(Duration.ofSeconds(45))).as("非整档保持秒").isEqualTo("45 秒");
     }
+
+    /**
+     * GUARD-1 回归：验证消息<b>发送失败</b>时不得留下"幽灵登记"。
+     *
+     * <p>旧实现先 {@code register}、再 {@code send} 且丢弃 send 的布尔返回——成员在册却从未
+     * 收到验证按钮，下一轮 sweep 到期即被误踢（正是本能力要防的误伤）。
+     * <p>RED：sender 返回 false 时若成员仍在册，下面的 sweep 会把它移出——断言即有红灯。
+     */
+    @Test
+    void failedPromptSendLeavesNoPendingRegistration() {
+        MutableClock clock = new MutableClock();
+        PendingVerificationRegistry registry = new PendingVerificationRegistry(clock);
+        // 发送通道失败（模拟未配 token 的空实现 / 临时网络或权限错误）
+        JoinVerificationService service =
+                new JoinVerificationService(registry, method -> false, HASHER, TIMEOUT);
+
+        service.onMembersJoined(joinMessage(MEMBER));
+
+        assertThat(registry.isPending(CHAT, MEMBER))
+                .as("验证消息没发出去，不得留下待验证登记（否则会被超时误踢）")
+                .isFalse();
+        assertThat(registry.size()).isZero();
+
+        // 下一轮 sweep：没有任何过期登记，谁都不该被移出
+        List<BotApiMethod<?>> sent = new ArrayList<>();
+        clock.advance(TIMEOUT.plusSeconds(1));
+        new VerificationTimeoutSweeper(registry, sent::add).sweep();
+        assertThat(sent).as("发送失败的成员不应被超时移出").isEmpty();
+    }
 }
