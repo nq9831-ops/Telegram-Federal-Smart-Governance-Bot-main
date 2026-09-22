@@ -26,6 +26,26 @@ import java.util.Optional;
  * （设计文档 §10 已把「异议期到点后的自动动作」列为后续）。故本命令只把保证金推进到 FROZEN，
  * 后续结算由管理员经服务入口完成——比在一个命令里猜一个争议结论要好。
  *
+ * <p><b>「退出不改商家状态」是有意契约，不是漏改</b>（保守路线，产品已定，不引入行为变更）：
+ * 本命令<b>只</b>经 {@code MerchantDepositService.freeze} 把保证金推到 {@code FROZEN}，
+ * <b>绝不触碰</b> {@code merchants.status}——退出后 {@link Merchant.Status} 仍是 {@code ACTIVE}。
+ * 原因有二：① {@code Merchant.Status} 目前<b>没有退出态</b>（退出态一旦引入，会牵动
+ * {@code MerchantService.OPEN_STATUSES} 的「在办」判定、信用分/等级、以及既有查询的语义，
+ * 属于行为变更，超出本轮保守范围）；② 「钱已冻结」已由保证金状态机表达，商家状态的语义
+ * 仍是「入驻是否获批」，两者职责不同——用后者承载「已申请退出」会把两种事实耦合在一起。
+ * 现状由守门测试 {@code MerchantExitCommandHandlerTest#exitFreezesDepositOnlyAndIntentionallyLeavesStatusActive}
+ * 钉住。
+ *
+ * <p><b>复访条件（未来真要引入退出态时需要什么）</b>：
+ * <ol>
+ *   <li>产品决定一次退出语义变更——即在 {@code Merchant.Status} 新增 {@code EXITED}（或同类）值，
+ *       并明确它与 {@code ACTIVE} 的关系（是否可从 {@code ACTIVE} 迁移、是否可逆/复活）；</li>
+ *   <li>同步决定 {@code OPEN_STATUSES} 是否纳入该态、以及退出后信用分/等级如何处置
+ *       （保留、冻结还是归档）——这些都要先有结论，不能在 handler 里顺手实现；</li>
+ *   <li>届时本命令改为在冻结之后显式推进该状态，并把守门测试从「钉住不改」翻转为
+ *       「钉住改为 EXITED」，同时更新 {@code docs/KNOWN-ISSUES.md} 第 18 条。</li>
+ * </ol>
+ *
  * <p><b>身份校验在 handler 内</b>：{@code /merchant_exit} 是「无权限门槛但限本人」的命令
  * （同 {@code /listing_appeal}）——{@code @BotCommand.requiredPermission} 表达不了
  * 「资源的属主」，故不声明权限点，由本类比对 {@code ownerUserId}。

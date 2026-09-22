@@ -46,7 +46,21 @@ import java.util.Arrays;
 @Table(name = "merchants")
 public class Merchant {
 
-    /** 入驻状态。取值即 V5.0 的流程节点，与 {@code merchants.status} 列的字符串一一对应。 */
+    /**
+     * 入驻状态。取值即 V5.0 的流程节点，与 {@code merchants.status} 列的字符串一一对应。
+     *
+     * <p><b>本枚举刻意不含「退出态」（有意缺口，非遗漏）</b>：商家申请退出（{@code /merchant_exit}）
+     * 走的是<b>保证金</b>状态机（{@code LOCKED → FROZEN → REFUNDED/DEDUCTED}），
+     * <b>不改</b> {@code merchants.status}——退出后商家仍是 {@link #ACTIVE}。
+     * 两个状态机各表一事实：本枚举表「入驻是否获批」，保证金状态表「钱还在不在」。
+     * 把「已申请退出」塞进本枚举会与 {@code CreditService}/{@code MerchantService.OPEN_STATUSES}
+     * 的既有语义耦合，属行为变更，故本轮保守不动（契约由
+     * {@code MerchantExitCommandHandlerTest#merchantStatusEnumHasNoExitStateByDesign} 钉住、
+     * 由 {@code MerchantExitCommandHandler} 的 javadoc 记录复访条件）。
+     *
+     * <p><b>复访条件</b>：产品决定引入退出态时，在此新增 {@code EXITED} 并明确其迁移来源
+     * （可否从 {@link #ACTIVE} 进入）、是否可逆，以及退出后信用分/等级的处置——先有结论再落代码。
+     */
     public enum Status {
         /** 已提交，待复核。 */
         SUBMITTED,
