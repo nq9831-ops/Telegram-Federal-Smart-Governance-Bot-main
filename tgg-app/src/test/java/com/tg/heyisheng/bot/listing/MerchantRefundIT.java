@@ -55,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest(properties = {
         "tgg.merchant.enabled=true",
         "tgg.credit.enabled=true",
-        "tgg.merchant.reviewers=" + MerchantRefundIT.REVIEWER_USER,
+        "tgg.federation.admins=" + MerchantRefundIT.REVIEWER_USER,
         "tgg.merchant.initial-score=500"
 })
 class MerchantRefundIT {

@@ -54,7 +54,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "tgg.merchant.enabled=true",
         // 商家信用分走模块七的账本，故两个开关都要开
         "tgg.credit.enabled=true",
-        "tgg.merchant.reviewers=" + MerchantOnboardingIT.REVIEWER_USER,
+        "tgg.federation.admins=" + MerchantOnboardingIT.REVIEWER_USER,
         "tgg.merchant.initial-score=500"
 })
 class MerchantOnboardingIT {

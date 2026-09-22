@@ -12,7 +12,7 @@ import org.springframework.core.env.Environment;
  *
  * <p><b>关键</b>：必须复用 runner 自己的 {@link Environment}（而不是另造一个空
  * {@code MockEnvironment}）——否则热读取的消费方看不到测试用 {@code withPropertyValues}
- * 设置的配置值（如 {@code tgg.merchant.reviewers} / {@code tgg.merchant.initial-score}）。
+ * 设置的配置值（如 {@code tgg.federation.admins} / {@code tgg.merchant.initial-score}）。
  *
  * <p>其 {@code @PostConstruct} 会尝试从 mock 仓库加载覆盖：mock 返回 {@code null} 触发 NPE，
  * 由 {@code RuntimeConfigService} 自身 catch 成 WARN，不影响上下文启动。

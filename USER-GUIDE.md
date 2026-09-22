@@ -14,14 +14,16 @@
 
 ## 二、权限：谁能用哪些命令
 
-共 **4 条互相独立的授权通道**（不要在它们之间做类比）：
+共 **3 条互相独立的授权通道**（不要在它们之间做类比；2026-09-22 起商家管理并入联邦通道），
+外加一条**权限排名**（用户 2026-09-22）：**超级管理员 > 联邦管理员 > 群管理员 > 普通用户**——
+排名即上界（低级角色不得执行高级动作），暂不做隐式继承（高级角色的权限来自各自通道的显式授权）：
 
 | 谁能用 | 由谁配置 | 配置为空时的后果 |
 |---|---|---|
 | **群内管理员** | 部署方设 `TGG_PERMISSION_ADMINS`（格式 `<chatId>:<userId>[:role]`） | **所有管理命令对任何人不可用**（不是「人人可用」） |
 | **复核人** | 部署方设 `TGG_MODERATION_REVIEWERS` | `/review_*` 无响应（不是「权限不足」提示） |
 | **联邦管理员** | 部署方设 `TGG_FEDERATION_ADMINS` | `/pending`·`/approve`·`/reject` 不可用 |
-| **商家复核人** | 部署方设 `TGG_MERCHANT_REVIEWERS` | `/merchant_review`·`/merchant_deposit`·`/merchant_settle` 不可用 |
+| ~~**商家复核人**~~（通道已裁撤 2026-09-22） | 无——归**联邦管理员**（`TGG_FEDERATION_ADMINS`） | 「商家只有联邦管理员才可以审核处理」：`/merchant_review`·`/merchant_deposit`·`/merchant_settle` 仅联邦管理员可用 |
 
 **命令的「需管理员权限」指上表第一行**。你自己的 userId 怎么取：给机器人发条私聊，然后
 `curl -s "https://api.telegram.org/bot<Token>/getUpdates" | jq '.result[-1].message.from.id'`
@@ -41,7 +43,7 @@
 | **公众自助面**（`/echo`（别名 `/ping`）、`/menu`、`/help`、`/whoami`、`/status`、`/quiet_hours`、`/export_my_data`、`/case_appeal`、`/appeal`、`/merchant_apply`、`/merchant_status`、`/merchant_exit`、`/listing_list`、`/listing_appeal`） | ✅ | ✅ | 无授权即可用（`/case_appeal` 限当事人；模块类命令需部署方开启对应开关）³ |
 | **群内管理面**（`/enable`、`/disable`、`/addword`、`/delword`、`/words`、`/rules`、`/unteach`） | ❌¹ | ✅ | 群内管理员（`TGG_PERMISSION_ADMINS`，**按群**授予） |
 | **群限定三条**（`/teach`、`/group_tag`、`/listing_add`） | ❌² | ✅ **只能在群里用** | 群内管理员（同上） |
-| **商家管理面**（`/merchant_review`、`/merchant_deposit`、`/merchant_settle`） | ✅ | ✅ | 商家复核人（`TGG_MERCHANT_REVIEWERS` / 平台 `MERCHANT_REVIEW`，**全局**） |
+| **商家管理面**（`/merchant_review`、`/merchant_deposit`、`/merchant_settle`） | ✅ | ✅ | **联邦管理员独占**（`TGG_FEDERATION_ADMINS` / 平台 `FEDERATION_ADMIN`，**全局**——「商家只有联邦管理员才可以审核处理」） |
 | **平台复核合规面**（`/review_list`、`/review_approve`、`/review_reject`、`/data_breach`） | ✅ | ✅ | 平台复核人（`TGG_MODERATION_REVIEWERS` / 平台 `REVIEW_DECIDE`，**全局**） |
 | **联邦裁决面**（`/pending`、`/approve`、`/reject`） | ✅ | ✅ | 联邦管理员（`TGG_FEDERATION_ADMINS` / 平台 `FEDERATION_ADMIN`，**全局**） |
 | **权益通知**（禁言告知、案件通知、信用异动） | ✅ 送进私聊 | — | 当事人 |
@@ -50,13 +52,12 @@
 userId，默认查不到授权 ⇒ 管理命令在私聊里**静默忽略**（不回「权限不足」——那等于确认命令存在）。
 ² 这三条带**硬门**：授权齐了也一样，私聊里发只回「这条命令得在群里发才管用。」
 `/help` 私聊版会把你在某个群有权用的这类命令单列在「这些得到群里用」；`/menu` 私聊版主页也会提示一行。
-³ **面板策展**（2026-09-22）：**商家域的管理者**（商家复核 ∨ 群内管理员）的面上，商家入驻自助链
+³ **面板策展**（2026-09-22）：**商家域的管理者**（联邦管理员 ∨ 群内管理员）的面上，商家入驻自助链
 （`/merchant_apply`、`/merchant_status`、`/merchant_exit`）整链收起——管理侧的商家面不再有「提交」噪音。
-**边界**：平台复核人 / 联邦管理员管的是别的域，与商家域的关系是普通用户（可能自己要入驻），自助链照常。
-**只收展示、不动执行**：这些命令仍可直接键入执行。「管理商家」三件属**独立授权通道**——纯群管未授
-`TGG_MERCHANT_REVIEWERS` 时其商家面为**空面**（刻意 fail-closed：保证金结算是资金动作，默认不因
-「是群管」而并权；要并权改一行授权即可）。全表六面的机械判据钉在 `RoleMatrixContentTest`（增删命令或
-改判据即变红）。
+**边界**：平台复核人管的是复核域，与商家域的关系是普通用户（可能自己要入驻），自助链照常。
+**只收展示、不动执行**：这些命令仍可直接键入执行。「管理商家」三件归**联邦管理员独占**（二次拍板：
+「商家只有联邦管理员才可以审核处理」）——纯群管不并权、其商家面为**空面**（刻意 fail-closed：
+保证金结算是资金动作）。全表六面的机械判据钉在 `RoleMatrixContentTest`（增删命令或改判据即变红）。
 
 <!-- /场景矩阵 -->
 

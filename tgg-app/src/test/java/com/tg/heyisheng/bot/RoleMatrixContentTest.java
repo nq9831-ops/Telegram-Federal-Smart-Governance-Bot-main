@@ -18,11 +18,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 增删命令或改判据本类即变红，提醒人显式更新划分。判定同源链：
  * {@code MenuCatalog.visibleCommands}（RBAC / 接缝 / 策展三路）→ 各模块 Guard。
  *
- * <p><b>权限分叉的拍板记录</b>：商家管理权（含保证金结算这类**资金动作**）默认**不**并入群内管理员
- * ——USER-GUIDE 明文「四条互相独立的授权通道（不要在它们之间做类比）」。故纯群管的商家面为**空**
- * （自助链被策展收走、管理三件不在其授权内）——这是刻意的 fail-closed，不是缺陷：
- * 群管要管商家，加一行 {@code TGG_MERCHANT_REVIEWERS} 即可。若产品决定改为并权，
- * 本类的 adminSlice / merchantReviewerSlice 断言与 {@code MerchantMenuVisibility} 会同步变红。
+ * <p><b>权限拍板记录（2026-09-22 二次拍板）</b>：「商家只有联邦管理员才可以审核处理」——
+ * 商家管理三件（含保证金结算这类**资金动作**）归 {@code TGG_FEDERATION_ADMINS} / 平台
+ * {@code FEDERATION_ADMIN} 独占，旧商家复核通道（{@code TGG_MERCHANT_REVIEWERS}）**已裁撤**。
+ * 群管依旧**不并权**：纯群管的商家面为**空**（自助链被策展收走、管理三件不在其授权内）
+ * ——刻意的 fail-closed；要管商家，成为联邦管理员。若产品再改授权归属，
+ * 本类的切片断言与 {@code MerchantMenuVisibility} 会同步变红。
+ *
+ * <p><b>权限排名（用户 2026-09-22）</b>：超级管理员 &gt; 联邦管理员 &gt; 群管理员 &gt; 普通用户。
+ * 本模型按**排名即上界**执行：低级角色不得执行高级动作（本类逐条钉住）；**暂不做隐式继承**
+ * ——高级角色的权限来自各自通道的显式授权，继承是提权语义、拍板后再上（见交付报告的分叉）。
  *
  * <p>联邦未在本容器启用（其命令需可解析对端公钥，由 {@code FederationMenuVisibilityWiringTest} 覆盖）；
  * 联邦管理面 = pending/approve/reject 三条，判据同构（{@code FederationMenuVisibility}）。
@@ -30,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "tgg.listing.enabled=true",
         "tgg.merchant.enabled=true",
-        "tgg.merchant.reviewers=777001,777003",
+        "tgg.federation.admins=777005,777003",
         "tgg.moderation.reviewers=777002",
         "tgg.permission.admins=-777010:42:ADMIN,-777010:777003:ADMIN"
 })
@@ -39,9 +44,9 @@ class RoleMatrixContentTest {
     private static final long GROUP = -777010L;
     private static final long PLAIN = 99L;
     private static final long ADMIN = 42L;
-    private static final long MERCHANT_REVIEWER = 777001L;
+    private static final long FEDERATION_ADMIN = 777005L;
     private static final long MODERATION_REVIEWER = 777002L;
-    private static final long COMBO = 777003L;   // 群管 + 商家复核双授权（并集回归）
+    private static final long COMBO = 777003L;   // 群管 + 联邦管理员双授权（并集回归）
 
     /** 通用自助面（全员共有；menu 自身不进目录）。 */
     private static final List<String> SELF_SERVICE = List.of(
@@ -49,7 +54,7 @@ class RoleMatrixContentTest {
     /** 商家入驻自助链（「提交商家收录」——非管理侧可见）。 */
     private static final List<String> MERCHANT_SUBMISSION =
             List.of("merchant_apply", "merchant_status", "merchant_exit");
-    /** 商家管理三件（「管理商家」——仅商家复核授权）。 */
+    /** 商家管理三件（「管理商家」——**联邦管理员独占**：商家只有联邦管理员才可以审核处理，2026-09-22 二次拍板）。 */
     private static final List<String> MERCHANT_MANAGEMENT =
             List.of("merchant_review", "merchant_deposit", "merchant_settle");
     /** 群组收录的公共面。 */
@@ -95,21 +100,21 @@ class RoleMatrixContentTest {
                 .as("群管不看商家入驻自助链（策展）——与「不需要提交商家收录」一致")
                 .doesNotContainAnyElementsOf(MERCHANT_SUBMISSION);
         assertThat(visible)
-                .as("商家管理三件属独立授权通道：未授 TGG_MERCHANT_REVIEWERS 则不出现（fail-closed，不并权）")
+                .as("商家管理三件归联邦管理员独占：不是联邦管理员则不出现（fail-closed，不并权）")
                 .doesNotContainAnyElementsOf(MERCHANT_MANAGEMENT);
     }
 
-    /** 商家复核人：商家管理三件 + 通用自助 + 群组收录——入驻自助链被策展收走。 */
+    /** 联邦管理员：商家管理三件 + 通用自助 + 群组收录——入驻自助链被策展收走（商家只有联邦管理员才可以审核处理）。 */
     @Test
-    void merchantReviewerSliceIsExactlyMerchantManagement() {
-        assertThat(catalog.visibleCommands(GROUP, MERCHANT_REVIEWER, true))
+    void federationAdminSliceIsExactlyMerchantManagement() {
+        assertThat(catalog.visibleCommands(GROUP, FEDERATION_ADMIN, true))
                 .containsExactlyInAnyOrderElementsOf(
                         concat(SELF_SERVICE, MERCHANT_MANAGEMENT, LISTING_PUBLIC));
     }
 
     /**
      * 平台复核人：复核合规面 + 通用自助 + 群组收录 + **商家入驻自助链照常**——
-     * 策展边界是「是否管理**商家域**」（商家复核 ∨ 群管，用户点名的两类管理员），
+     * 策展边界是「是否管理**商家域**」（联邦管理员 ∨ 群管，用户点名的两类管理员），
      * 平台复核人管的是复核域：他与商家域的关系就是普通用户（可能自己要入驻），
      * 自助链是他的个人自助功能，不属「别人的工作台」。
      */
@@ -120,9 +125,9 @@ class RoleMatrixContentTest {
                         SELF_SERVICE, REVIEW_WORKSPACE, LISTING_PUBLIC, MERCHANT_SUBMISSION));
     }
 
-    /** 复合角色（群管 + 商家复核双授权）：两面并集，自助链仍收走（策展不因多授权而失效）。 */
+    /** 复合角色（群管 + 联邦管理员双授权）：两面并集，自助链仍收走（策展不因多授权而失效）。 */
     @Test
-    void combinedAdminAndMerchantReviewerUnionsTheirSlices() {
+    void combinedAdminAndFederationAdminUnionsTheirSlices() {
         assertThat(catalog.visibleCommands(GROUP, COMBO, true))
                 .containsExactlyInAnyOrderElementsOf(concat(
                         SELF_SERVICE, GROUP_MANAGEMENT, LISTING_PUBLIC, MERCHANT_MANAGEMENT));

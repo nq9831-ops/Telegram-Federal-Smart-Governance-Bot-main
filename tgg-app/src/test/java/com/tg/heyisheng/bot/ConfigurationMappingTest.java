@@ -73,7 +73,9 @@ class ConfigurationMappingTest {
         assertThat(yml.getProperty("tgg.merchant.initial-score"))
                 .as("多词键必须显式映射到 TGG_MERCHANT_INITIAL_SCORE")
                 .isEqualTo("${TGG_MERCHANT_INITIAL_SCORE:500}");
-        assertThat(yml.getProperty("tgg.merchant.reviewers")).isEqualTo("${TGG_MERCHANT_REVIEWERS:}");
+        assertThat(yml.getProperty("tgg.merchant.reviewers"))
+                .as("商家复核通道已裁撤（2026-09-22：商家只有联邦管理员才可以审核处理）——该键不得再映射")
+                .isNull();
     }
 
     /** 模块四：准入与验证的两个多词键也要显式映射（本波次补齐，此前 yml 里没有 admission 段）。 */

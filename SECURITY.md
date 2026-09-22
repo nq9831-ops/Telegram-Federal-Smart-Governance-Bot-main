@@ -52,7 +52,7 @@
 | 群内管理员 | `TGG_PERMISSION_ADMINS`，格式 `<chatId>:<userId>[:role]` | **所有管理命令对任何人不可用**（门控只拒不放 + 启动 WARN） |
 | 复核人 | `TGG_MODERATION_REVIEWERS` | `/review_*` 与 `/admin/*` 的审批人身份不可用 |
 | 联邦管理员 | `TGG_FEDERATION_ADMINS` | `/pending`·`/approve`·`/reject` 不可用 |
-| 商家复核人 | `TGG_MERCHANT_REVIEWERS` | `/merchant_review`·`/merchant_deposit` 不可用 |
+| ~~商家复核人~~（通道已裁撤 2026-09-22） | 无——现归**联邦管理员**（`TGG_FEDERATION_ADMINS`） | 「商家只有联邦管理员才可以审核处理」：`/merchant_review`·`/merchant_deposit`·`/merchant_settle` 仅联邦管理员可用 |
 
 **两条不得削弱的约束**：
 

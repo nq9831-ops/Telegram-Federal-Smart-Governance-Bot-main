@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigRepository;
@@ -38,6 +40,9 @@ class FederationWiringTest {
             .withBean(FederationPenaltyRepository.class, () -> mock(FederationPenaltyRepository.class))
             .withBean(FederationAppealRepository.class, () -> mock(FederationAppealRepository.class))
             .withBean(ModerationActionSender.class, ModerationActionSender::noop)
+            // 判定器已上移 core（TggCoreConfiguration 恒在装配）；这里补替身，
+            // hasSingleBean 断言同时守住「FederationConfiguration 不得重复注册」
+            .withBean(FederationAdminGuard.class, () -> new FederationAdminGuard(java.util.List.of(42L)))
             .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules());
 
     @Test

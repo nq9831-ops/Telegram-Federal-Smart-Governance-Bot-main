@@ -1,4 +1,4 @@
-package com.tg.heyisheng.bot.federation;
+package com.tg.heyisheng.bot.core.platform;
 
 import org.junit.jupiter.api.Test;
 
@@ -6,7 +6,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 联邦管理员判定的单测：全局白名单语义。 */
+/** 联邦管理员判定的单测：全局白名单语义。（随判定器上移 core.platform，2026-09-22） */
 class FederationAdminGuardTest {
 
     @Test

@@ -106,7 +106,7 @@ tgg:
     min-membership-days: ${TGG_TEACH_MIN_MEMBERSHIP_DAYS:30}
   moderation:
     # 复核人 userId 全局白名单（逗号分隔）。复核是**平台层**动作，与群内管理员不是同一套
-    # （理由同 tgg.merchant.reviewers）。为空则 /review_list·/review_approve·/review_reject
+    # （理由同 tgg.federation.admins）。为空则 /review_list·/review_approve·/review_reject
     # 对任何人不可用（启动期 WARN）。
     reviewers: ${TGG_MODERATION_REVIEWERS:}
     # 敏感话题分级（模块九 §10.5）：默认关闭。启用后按群对敏感话题分级（命中即删除 + 入队复核，
@@ -189,5 +189,5 @@ tgg:
     enabled: ${TGG_MERCHANT_ENABLED:false}
     # 显式映射多词键（同上理由）：Spring 默认推导为 TGG_MERCHANT_INITIALSCORE。
     initial-score: ${TGG_MERCHANT_INITIAL_SCORE:500}
-    # 资质复核人 userId（全局白名单，逗号分隔）；为空则启动 WARN，且 /merchant_review 对任何人不可用。
-    reviewers: ${TGG_MERCHANT_REVIEWERS:}
+    # 原资质复核人白名单（TGG_MERCHANT_REVIEWERS）已裁撤（2026-09-22：商家只有联邦管理员才可以审核处理）
+    # ——商家管理命令的授权源是 tgg.federation.admins / 平台 FEDERATION_ADMIN。

@@ -116,6 +116,29 @@ public class TggCoreConfiguration {
         return new PermissionChecker(roleSource);
     }
 
+    /**
+     * 联邦管理员判定器（{@code tgg.federation.admins} + 平台账本）——<b>恒在装配</b>。
+     * 「商家只有联邦管理员才可以审核处理」（2026-09-22）后，tgg-listing 的商家管理命令也以它为门；
+     * 判定与联邦联网模块（{@code tgg.federation.enabled}）互相独立：不联网也照样有联邦管理员，
+     * 联网没配管理员则无人有权（fail-closed）。形参用全限定名与 {@code MerchantConfiguration} 同款，
+     * 免动本文件的 import 面。
+     */
+    @Bean
+    public com.tg.heyisheng.bot.core.platform.FederationAdminGuard federationAdminGuard(
+            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig,
+            org.springframework.beans.factory.ObjectProvider<
+                    com.tg.heyisheng.bot.core.platform.PlatformGrantSource> platformGrants) {
+        com.tg.heyisheng.bot.core.platform.FederationAdminGuard guard =
+                new com.tg.heyisheng.bot.core.platform.FederationAdminGuard(
+                        runtimeConfig, platformGrants.getIfAvailable());
+        if (guard.size() == 0) {
+            log.warn("未配置 tgg.federation.admins（TGG_FEDERATION_ADMINS）：联邦管理命令"
+                    + "（/pending /approve /reject）与商家管理命令（/merchant_review /merchant_deposit /merchant_settle）"
+                    + "将对任何人不可用。");
+        }
+        return guard;
+    }
+
     @Bean
     public CommandDispatcher commandDispatcher(CommandRegistry registry,
                                                PermissionChecker permissionChecker,

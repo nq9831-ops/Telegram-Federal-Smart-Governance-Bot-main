@@ -7,7 +7,8 @@ import java.util.Set;
  *
  * <p><b>存在理由</b>：{@code /menu} 的过滤依赖 {@code @BotCommand.requiredPermission}，
  * 但有一批命令的权限载体是**平台层全局白名单**（{@code ModerationReviewGuard} /
- * {@code MerchantReviewGuard} / {@code FederationAdminGuard}），注解权限是 {@code NONE}——
+ * {@code FederationAdminGuard}——原 {@code MerchantReviewGuard} 已随商家授权改判裁撤），
+ * 注解权限是 {@code NONE}——
  * **注册表判不出「此人是否可见」**，于是这些命令一向进不了 /menu。
  *
  * <p><b>为什么在 core 定义、由各模块注册</b>：判定白名单需要各模块自己的 {@code Guard}，

@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.listing.merchant;
 
+import com.tg.heyisheng.bot.core.interaction.MenuCurator;
+import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
 import com.tg.heyisheng.bot.listing.command.MerchantApplyCommandHandler;
 import com.tg.heyisheng.bot.listing.command.MerchantDepositCommandHandler;
 import com.tg.heyisheng.bot.listing.command.MerchantExitCommandHandler;
@@ -57,14 +59,20 @@ class MerchantWiringTest {
                     RuntimeConfigTestStub.class,
                     MerchantApplyCommandHandler.class, MerchantReviewCommandHandler.class,
                     MerchantStatusCommandHandler.class, MerchantExitCommandHandler.class,
-                    MerchantDepositCommandHandler.class, MerchantSettleCommandHandler.class);
+                    MerchantDepositCommandHandler.class, MerchantSettleCommandHandler.class)
+            // 判定器已上移 core（TggCoreConfiguration 恒在装配）；切片替身用空名单——
+            // 本测验的是装配门两个方向，权威行为由 MerchantMenuVisibilityWiringTest /
+            // MerchantSubmissionCurationTest / RoleMatrixContentTest 钉住
+            .withBean(com.tg.heyisheng.bot.core.platform.FederationAdminGuard.class,
+                    () -> new com.tg.heyisheng.bot.core.platform.FederationAdminGuard(java.util.List.of()));
 
     @Test
     void disabledByDefaultProducesNoMerchantBeans() {
         runner.run(context -> {
             assertThat(context).doesNotHaveBean(MerchantProperties.class);
             assertThat(context).doesNotHaveBean(MerchantService.class);
-            assertThat(context).doesNotHaveBean(MerchantReviewGuard.class);
+            assertThat(context).doesNotHaveBean(MenuVisibility.class);
+            assertThat(context).doesNotHaveBean(MenuCurator.class);
             assertThat(context).doesNotHaveBean(MerchantDepositService.class);
             assertThat(context).doesNotHaveBean(DepositGateway.class);
             assertThat(context).doesNotHaveBean(MerchantApplyCommandHandler.class);
@@ -81,7 +89,8 @@ class MerchantWiringTest {
         runner.withPropertyValues("tgg.merchant.enabled=false").run(context -> {
             assertThat(context).doesNotHaveBean(MerchantProperties.class);
             assertThat(context).doesNotHaveBean(MerchantService.class);
-            assertThat(context).doesNotHaveBean(MerchantReviewGuard.class);
+            assertThat(context).doesNotHaveBean(MenuVisibility.class);
+            assertThat(context).doesNotHaveBean(MenuCurator.class);
             assertThat(context).doesNotHaveBean(MerchantDepositService.class);
             assertThat(context).doesNotHaveBean(DepositGateway.class);
             assertThat(context).doesNotHaveBean(MerchantApplyCommandHandler.class);
@@ -95,12 +104,13 @@ class MerchantWiringTest {
 
     @Test
     void enabledWiresServiceGuardDepositAndCommands() {
-        runner.withPropertyValues("tgg.merchant.enabled=true", "tgg.merchant.reviewers=888001")
+        runner.withPropertyValues("tgg.merchant.enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(MerchantProperties.class);
                     assertThat(context).hasSingleBean(MerchantService.class);
-                    assertThat(context).hasSingleBean(MerchantReviewGuard.class);
+                    assertThat(context).hasSingleBean(MenuVisibility.class);
+                    assertThat(context).hasSingleBean(MenuCurator.class);
                     assertThat(context).hasSingleBean(DepositGateway.class);
                     assertThat(context).hasSingleBean(MerchantDepositService.class);
                     assertThat(context).hasSingleBean(MerchantApplyCommandHandler.class);
@@ -111,9 +121,8 @@ class MerchantWiringTest {
                     assertThat(context).hasSingleBean(MerchantSettleCommandHandler.class);
 
                     assertThat(context.getBean(MerchantProperties.class).getInitialScore()).isEqualTo(500);
-                    assertThat(context.getBean(MerchantReviewGuard.class).isReviewer(888001L))
-                            .as("配置里的复核人应真的进入白名单")
-                            .isTrue();
+                    // 授权判定器已上移 core（FederationAdminGuard，商家只有联邦管理员才可以审核处理）——
+                    // 「白名单真生效」的行为探针在 MerchantMenuVisibilityWiringTest / MerchantSubmissionCurationTest
                     assertThat(context.getBean(DepositGateway.class))
                             .as("默认装配的是接入位（noop），真实链上实现由部署方覆盖")
                             .isInstanceOf(NoopDepositGateway.class);

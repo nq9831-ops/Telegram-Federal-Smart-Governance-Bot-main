@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
+
 import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;

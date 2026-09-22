@@ -4,7 +4,7 @@ import com.tg.heyisheng.bot.common.exception.TggException;
 import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDeposit;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDepositService;
-import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -41,13 +41,13 @@ class MerchantSettleCommandHandlerTest {
     private static final long MERCHANT_ID = 42L;
 
     private MerchantDepositService depositService;
-    private MerchantReviewGuard guard;
+    private FederationAdminGuard guard;
     private MerchantSettleCommandHandler handler;
 
     @BeforeEach
     void setUp() {
         depositService = mock(MerchantDepositService.class);
-        guard = mock(MerchantReviewGuard.class);
+        guard = mock(FederationAdminGuard.class);
         handler = new MerchantSettleCommandHandler(depositService, guard);
     }
 
@@ -79,7 +79,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void nonReviewerIsSilentlyIgnoredAndNeverReachesService() {
-        when(guard.isReviewer(OUTSIDER)).thenReturn(false);
+        when(guard.isAdmin(OUTSIDER)).thenReturn(false);
 
         assertThat(handler.handle(ctx(OUTSIDER, "42 NONE"))).isNull();
 
@@ -92,7 +92,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void malformedArgumentsReplyUsageWithoutTouchingService() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
 
         String[] malformed = {
                 null,                              // 无操作数
@@ -117,7 +117,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void unknownMerchantRepliesNotFound() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.empty());
 
         assertThat(textOf(handler.handle(ctx(REVIEWER, "42 NONE"))))
@@ -130,7 +130,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void noneBranchRefundsInFull() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.of(frozenDeposit()));
         MerchantDeposit refunded = frozenDeposit();
         refunded.markRefunded(null, Instant.now());
@@ -146,7 +146,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void unresolvedBranchKeepsMoneyFrozen() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.of(frozenDeposit()));
         // UNRESOLVED 的语义就是「不动状态、不写流水」——service 原样返回
         when(depositService.settle(eq(MERCHANT_ID), eq(MerchantDepositService.Dispute.UNRESOLVED),
@@ -160,7 +160,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void withCompensationBranchPassesDeductionAndReasonThroughVerbatim() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.of(frozenDeposit()));
         MerchantDeposit after = frozenDeposit();
         after.markRefunded("多次未履约", Instant.now());
@@ -177,7 +177,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void settleRejectionIsReportedBackInsteadOfSilentlySwallowed() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.of(frozenDeposit()));
         when(depositService.settle(anyLong(), any(), any(), any(), any()))
                 .thenThrow(new TggException("保证金结算只适用于 FROZEN 状态，当前为 LOCKED（商家 #42）"));
@@ -190,7 +190,7 @@ class MerchantSettleCommandHandlerTest {
 
     @Test
     void branchNameIsCaseInsensitive() {
-        when(guard.isReviewer(REVIEWER)).thenReturn(true);
+        when(guard.isAdmin(REVIEWER)).thenReturn(true);
         when(depositService.find(MERCHANT_ID)).thenReturn(Optional.of(frozenDeposit()));
         when(depositService.settle(eq(MERCHANT_ID), eq(MerchantDepositService.Dispute.NONE),
                 any(), any(), any())).thenReturn(Optional.of(frozenDeposit()));

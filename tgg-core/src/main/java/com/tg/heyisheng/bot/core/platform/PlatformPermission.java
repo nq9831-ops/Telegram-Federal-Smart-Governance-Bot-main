@@ -25,7 +25,11 @@ public enum PlatformPermission {
     /** 联邦治理管理（对应原 {@code tgg.federation.admins}）。 */
     FEDERATION_ADMIN,
 
-    /** 商家资质复核（对应原 {@code tgg.merchant.reviewers}）。 */
+    /**
+     * 商家资质复核（原 {@code tgg.merchant.reviewers}）。<b>已不再授予任何命令</b>
+     * （2026-09-22 二次拍板：「商家只有联邦管理员才可以审核处理」——商家管理三件归
+     * {@link #FEDERATION_ADMIN}）。保留本枚举值仅为让平台账本存量行仍可解析；新授权勿再使用。
+     */
     MERCHANT_REVIEW,
 
     /** 分配权限（<b>仅超管</b>——授予它等于给出一条提权路，故任何 API 都不得把它授予非超管主体）。 */

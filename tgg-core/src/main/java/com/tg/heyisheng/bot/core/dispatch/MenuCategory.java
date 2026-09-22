@@ -37,7 +37,8 @@ public enum MenuCategory {
 
     /**
      * 商家收录（模块六）：入驻申请链（公众自助：apply/status/exit）与商家管理
-     * （商家复核人：review/deposit/settle）。两族**按角色切片呈现**——管理侧只见管理
+     * （联邦管理员独占：review/deposit/settle——「商家只有联邦管理员才可以审核处理」，2026-09-22）。
+     * 两族**按角色切片呈现**——管理侧只见管理
      * （{@code MerchantSubmissionCuration}），公众侧只见自助；此前与群组收录混在一枚
      * 「收录商家」分类里，正是用户点名的「功能模糊」（2026-09-22 拆分）。
      */

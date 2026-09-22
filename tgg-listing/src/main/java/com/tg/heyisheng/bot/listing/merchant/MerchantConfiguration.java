@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.credit.CreditService;
 import com.tg.heyisheng.bot.core.interaction.MenuCurator;
 import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
 import com.tg.heyisheng.bot.core.permission.PermissionChecker;
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,29 +39,18 @@ public class MerchantConfiguration {
         this.properties = properties;
     }
 
-    /** 复核人清单为空时给出 WARN（同 {@code permission.admins} 纪律：空配置不得静默失效）。 */
+    /**
+     * 启用播报（2026-09-22 二次拍板：商家管理命令的授权源已改为联邦管理员 {@code tgg.federation.admins}
+     * ——空名单 WARN 由 {@code TggCoreConfiguration#federationAdminGuard} 装配点统一给出，此处不重复）。
+     */
     @PostConstruct
-    void warnOnEmptyReviewers() {
-        if (properties.getReviewers() == null || properties.getReviewers().isBlank()) {
-            log.warn("未配置 tgg.merchant.reviewers（TGG_MERCHANT_REVIEWERS）：资质复核命令对任何人不可用。");
-        } else {
-            log.info("模块六 · 商家收录已启用：初始信用分={}。", properties.getInitialScore());
-        }
+    void logEnabledState() {
+        log.info("模块六 · 商家收录已启用：初始信用分={}。商家管理命令（/merchant_review /merchant_deposit"
+                + " /merchant_settle）仅联邦管理员可用。", properties.getInitialScore());
     }
 
-    /**
-     * 资质复核人判定（全局白名单，{@code tgg.merchant.reviewers}）。
-     *
-     * <p>非数字条目会在 {@code parsedReviewers()} 里于<b>装配期</b>抛出——配置错误应在启动时
-     * 暴露，而非运行期把某个复核人静默漏掉。
-     */
-    @Bean
-    public MerchantReviewGuard merchantReviewGuard(
-            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig,
-            org.springframework.beans.factory.ObjectProvider<com.tg.heyisheng.bot.core.platform.PlatformGrantSource> platformGrants) {
-        // ObjectProvider：切片上下文可能不含 core 的账本 bean——缺失时回落配置键
-        return new MerchantReviewGuard(runtimeConfig, platformGrants.getIfAvailable());
-    }
+    // 商家复核通道已裁撤（2026-09-22 二次拍板：商家只有联邦管理员才可以审核处理）——
+    // 判定器为 core.platform.FederationAdminGuard，恒在装配；tgg.merchant.reviewers 配置键随之作废。
 
     /**
      * {@code /menu} 的「商家收录」可见性接缝：资质复核类命令走全局白名单，注册表判不出可见性，
@@ -70,23 +60,29 @@ public class MerchantConfiguration {
      * 菜单里自然不该有「商家收录」分类。
      */
     @Bean
-    public MenuVisibility merchantMenuVisibility(MerchantReviewGuard merchantReviewGuard) {
-        return new MerchantMenuVisibility(merchantReviewGuard);
+    public MenuVisibility merchantMenuVisibility(
+            ObjectProvider<FederationAdminGuard> federationAdminGuard) {
+        // 判定器已上移 core 恒在装配；切片上下文兜底为空判定器（无人是联邦管理员——fail-closed 不放行）
+        return new MerchantMenuVisibility(
+                federationAdminGuard.getIfAvailable(() -> new FederationAdminGuard(java.util.List.of())));
     }
 
     /**
-     * 「商家收录」面的展示策展：对管事的人（商家复核 / 群内管理员）收走商家入驻自助链——
+     * 「商家收录」面的展示策展：对管事的人（联邦管理员 / 群内管理员）收走商家入驻自助链——
      * 管理侧的商家面不再有「提交」噪音（用户 2026-09-22 拍板）。只收展示，不动执行。
-     * 「管理商家」三件另按商家复核授权（独立通道）：纯群管未授则商家面为空面（刻意 fail-closed）。
+     * 「管理商家」三件归联邦管理员独占：纯群管不并权、商家面为空面（刻意 fail-closed）。
      *
-     * <p>{@link PermissionChecker} 经 {@link ObjectProvider} 取（同 {@code CreditService} 的取舍）：
-     * 装配切片上下文可能不含 core 的判定器 bean——缺失时 RBAC 半边判不了即不收（fail-open），
-     * 复核白名单半边照常。
+     * <p>两个判定器经 {@link ObjectProvider} 取（同 {@code CreditService} 的取舍）：装配切片上下文
+     * 可能不含 core 的 bean——判定器缺席兜底空判定器（无人是联邦管理员），权限判定器缺席则 RBAC 半边
+     * 判不了即不收（fail-open）。
      */
     @Bean
-    public MenuCurator merchantSubmissionCuration(MerchantReviewGuard merchantReviewGuard,
-                                                  ObjectProvider<PermissionChecker> permissionChecker) {
-        return new MerchantSubmissionCuration(merchantReviewGuard, permissionChecker.getIfAvailable());
+    public MenuCurator merchantSubmissionCuration(
+            ObjectProvider<FederationAdminGuard> federationAdminGuard,
+            ObjectProvider<PermissionChecker> permissionChecker) {
+        return new MerchantSubmissionCuration(
+                federationAdminGuard.getIfAvailable(() -> new FederationAdminGuard(java.util.List.of())),
+                permissionChecker.getIfAvailable());
     }
 
     /**

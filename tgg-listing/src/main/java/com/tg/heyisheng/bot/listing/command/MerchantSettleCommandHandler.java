@@ -8,7 +8,7 @@ import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.core.dispatch.Confirm;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDeposit;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDepositService;
-import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -38,7 +38,8 @@ import java.util.Optional;
  * 建完整的争议表 + 举证 + 裁决流程是模块十二（担保交易）的一部分——本阶段没有对手方，
  * 做了也无法验证（链上不可达）。故这里走「最小可用」：把死胡同打通，不越界造一个空壳系统。
  *
- * <p><b>权限：平台层复核人白名单</b>（{@link MerchantReviewGuard}，配置 {@code tgg.merchant.reviewers}），
+ * <p><b>权限：联邦管理员独占</b>（{@link FederationAdminGuard}，配置 {@code tgg.federation.admins}
+ * ——「商家只有联邦管理员才可以审核处理」，2026-09-22 二次拍板），
  * 与 {@code /merchant_review}·{@code /merchant_deposit} 同源——结算涉及资金，属平台侧动作，
  * 而 {@code Role} 是群内语义。非复核人返回 {@code null}（静默），与 {@code CommandDispatcher}
  * 的「权限不足即静默」一致。
@@ -51,16 +52,16 @@ public class MerchantSettleCommandHandler implements CommandHandler {
     static final String USAGE = ListingMessages.MERCHANT_SETTLE_USAGE;
 
     private final MerchantDepositService depositService;
-    private final MerchantReviewGuard guard;
+    private final FederationAdminGuard guard;
 
-    public MerchantSettleCommandHandler(MerchantDepositService depositService, MerchantReviewGuard guard) {
+    public MerchantSettleCommandHandler(MerchantDepositService depositService, FederationAdminGuard guard) {
         this.depositService = depositService;
         this.guard = guard;
     }
 
     @Override
     public BotApiMethod<?> handle(UpdateContext ctx) {
-        if (!guard.isReviewer(ctx.userId())) {
+        if (!guard.isAdmin(ctx.userId())) {
             return null;
         }
 

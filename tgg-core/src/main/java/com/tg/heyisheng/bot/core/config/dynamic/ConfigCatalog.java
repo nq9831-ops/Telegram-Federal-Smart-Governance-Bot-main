@@ -157,10 +157,9 @@ public final class ConfigCatalog {
                     "群内管理员授权（<chatId>:<userId>[:role]）。留空的话，所有管理命令对任何人不可用。热生效（格式非法会被写入校验拒绝）。"),
             new ConfigKey("tgg.federation.admins", ConfigCategory.RUNTIME, ConfigValueType.CSV_IDS,
                     true, false, false, "", null, null, null,
-                    "联邦管理员 userId 白名单。留空的话，/pending·/approve·/reject 不可用。热生效。"),
-            new ConfigKey("tgg.merchant.reviewers", ConfigCategory.RUNTIME, ConfigValueType.CSV_IDS,
-                    true, false, false, "", null, null, null,
-                    "商家资质复核人 userId 白名单。留空的话，/merchant_review·/merchant_deposit 不可用。热生效。"),
+                    "联邦管理员 userId 白名单。留空的话，/pending·/approve·/reject 与商家管理三件"
+                            + "（/merchant_review·/merchant_deposit·/merchant_settle）对任何人不可用。热生效。"),
+            // 原 tgg.merchant.reviewers（商家复核人白名单）已裁撤（2026-09-22：商家只有联邦管理员才可以审核处理）
             new ConfigKey("tgg.merchant.initial-score", ConfigCategory.RUNTIME, ConfigValueType.INT,
                     true, false, false, "500", 0, 1000, null,
                     "商家入驻成功时写入的初始信用分（需模块七启用）。热生效。"),

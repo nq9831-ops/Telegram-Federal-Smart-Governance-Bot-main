@@ -1,16 +1,15 @@
 package com.tg.heyisheng.bot.listing.merchant;
 
-import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 商家配置解析单测（{@code tgg.merchant.reviewers} 的解析口径）。
+ * 商家配置解析单测。
  *
- * <p><b>非数字条目必须启动期抛</b>：配置错误若被静默忽略，表现为「配了复核人但没人能审」
- * ——本项目反复踩过的「空配置即静默失效」坑。
+ * <p>原 {@code tgg.merchant.reviewers} 的三条解析用例随**商家复核通道裁撤**退场
+ * （2026-09-22 二次拍板：「商家只有联邦管理员才可以审核处理」，授权源改为
+ * {@code tgg.federation.admins} / 平台 {@code FEDERATION_ADMIN}）。
  */
 class MerchantPropertiesTest {
 
@@ -20,32 +19,5 @@ class MerchantPropertiesTest {
 
         assertThat(properties.isEnabled()).isFalse();
         assertThat(properties.getInitialScore()).as("V5.0 §7.1：商家初始信用分 500").isEqualTo(500);
-    }
-
-    @Test
-    void blankSpecYieldsEmptyList() {
-        MerchantProperties properties = new MerchantProperties();
-        properties.setReviewers("   ");
-
-        assertThat(properties.parsedReviewers()).isEmpty();
-    }
-
-    @Test
-    void parsesCommaSeparatedIdsIgnoringBlanks() {
-        MerchantProperties properties = new MerchantProperties();
-        properties.setReviewers(" 42 , 43 ,, 44 ");
-
-        assertThat(properties.parsedReviewers()).containsExactly(42L, 43L, 44L);
-    }
-
-    @Test
-    void nonNumericEntryFailsFast() {
-        MerchantProperties properties = new MerchantProperties();
-        properties.setReviewers("42,abc");
-
-        assertThatThrownBy(properties::parsedReviewers)
-                .as("配置错误应在装配期暴露，而不是运行期静默漏掉一个复核人")
-                .isInstanceOf(TggConfigException.class)
-                .hasMessageContaining("abc");
     }
 }

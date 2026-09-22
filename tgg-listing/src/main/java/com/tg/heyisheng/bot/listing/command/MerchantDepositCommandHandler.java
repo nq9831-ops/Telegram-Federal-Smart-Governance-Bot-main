@@ -7,7 +7,7 @@ import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
 import com.tg.heyisheng.bot.listing.merchant.Merchant;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDeposit;
 import com.tg.heyisheng.bot.listing.merchant.MerchantDepositService;
-import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
 import com.tg.heyisheng.bot.listing.merchant.MerchantService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -30,7 +30,8 @@ import java.util.Optional;
  * （锁仓 + 推到 {@code ACTIVE} + 信用分初始化 + 等级评定）两步——
  * 拆成两条命令只会让运维在中间态里犯错。
  *
- * <p><b>权限：平台层复核人白名单</b>（{@link MerchantReviewGuard}，配置 {@code tgg.merchant.reviewers}），
+ * <p><b>权限：联邦管理员独占</b>（{@link FederationAdminGuard}，配置 {@code tgg.federation.admins}
+ * ——「商家只有联邦管理员才可以审核处理」，2026-09-22 二次拍板），
  * 理由同 {@code /merchant_review}——保证金是平台侧动作，{@code Role} 是群内语义。
  * 本阶段复核人兼保证金操作人；将来若需分离职能，再拆一个白名单即可（判定点已收敛在 guard）。
  *
@@ -51,11 +52,11 @@ public class MerchantDepositCommandHandler implements CommandHandler {
 
     private final MerchantService merchants;
     private final MerchantDepositService depositService;
-    private final MerchantReviewGuard guard;
+    private final FederationAdminGuard guard;
 
     public MerchantDepositCommandHandler(MerchantService merchants,
                                          MerchantDepositService depositService,
-                                         MerchantReviewGuard guard) {
+                                         FederationAdminGuard guard) {
         this.merchants = merchants;
         this.depositService = depositService;
         this.guard = guard;
@@ -63,7 +64,7 @@ public class MerchantDepositCommandHandler implements CommandHandler {
 
     @Override
     public BotApiMethod<?> handle(UpdateContext ctx) {
-        if (!guard.isReviewer(ctx.userId())) {
+        if (!guard.isAdmin(ctx.userId())) {
             return null;
         }
 

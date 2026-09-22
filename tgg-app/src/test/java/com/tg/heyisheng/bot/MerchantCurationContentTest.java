@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 「商家收录」面的**策展不变量**（真容器、真注册表，用户 2026-09-22 拍板）：
- * 管事的人（商家复核白名单 / 群内管理员）的面板里不该混着「提交商家入驻」的自助链——
+ * 管事的人（联邦管理员 / 群内管理员）的面板里不该混着「提交商家入驻」的自助链——
  * 面对他们是模糊的（他们管商家，不申请入驻）；他们的面里**只有「管理商家」**。
  * 普通成员视角不变（自助链照常可见）。
  *
@@ -25,31 +25,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "tgg.listing.enabled=true",
         "tgg.merchant.enabled=true",
-        "tgg.merchant.reviewers=777001",
+        "tgg.federation.admins=777005",
         "tgg.permission.admins=-777003:42:ADMIN"
 })
 class MerchantCurationContentTest {
 
     /** 与授权配置同框的测试群/身份（格式 <chatId>:<userId>:role 见上）。 */
     private static final long GROUP = -777003L;
-    private static final long REVIEWER = 777001L;
+    private static final long FEDERATION_ADMIN = 777005L;
     private static final long RBAC_ADMIN = 42L;
     private static final long MEMBER = 99L;
 
     /** 「提交商家收录」的自助链（入驻申请的这一家族）。 */
     private static final List<String> SUBMISSION =
             List.of("merchant_apply", "merchant_status", "merchant_exit");
-    /** 「管理商家」：资质复核与保证金三件（商家复核白名单门控）。 */
+    /** 「管理商家」：资质复核与保证金三件（联邦管理员独占：商家只有联邦管理员才可以审核处理）。 */
     private static final List<String> MANAGEMENT =
             List.of("merchant_review", "merchant_deposit", "merchant_settle");
 
     @Autowired
     private MenuCatalog catalog;
 
-    /** 商家复核人：面里只有「管理商家」，自助链整链收走。 */
+    /** 联邦管理员（商家域的管理者，2026-09-22 二次拍板：商家只有联邦管理员才可以审核处理）：自助链整链收走。 */
     @Test
-    void reviewerSeesOnlyMerchantManagement() {
-        List<String> visible = catalog.visibleCommands(GROUP, REVIEWER, true);
+    void federationAdminSeesOnlyMerchantManagement() {
+        List<String> visible = catalog.visibleCommands(GROUP, FEDERATION_ADMIN, true);
 
         assertThat(visible)
                 .as("复核人的「商家收录」面不该混着商家入驻自助链")
@@ -69,7 +69,7 @@ class MerchantCurationContentTest {
                 .doesNotContainAnyElementsOf(SUBMISSION);
         assertThat(visible)
                 .as("对称断言（审查 MEDIUM 闭环）：管理三件属独立授权通道，纯群管不出现——"
-                        + "其商家面为刻意的空面（fail-closed 不并权；群管要管商家需另授 TGG_MERCHANT_REVIEWERS，"
+                        + "其商家面为刻意的空面（fail-closed 不并权；群管要管商家需成为联邦管理员，"
                         + "边界判据见 RoleMatrixContentTest 类注）")
                 .doesNotContainAnyElementsOf(MANAGEMENT);
     }
@@ -83,7 +83,7 @@ class MerchantCurationContentTest {
                 .as("普通成员的商家自助链照常可见（策展只收管理者的面）")
                 .containsAll(SUBMISSION);
         assertThat(visible)
-                .as("管理三件仍按商家复核白名单门控，非复核人不出现")
+                .as("管理三件按联邦管理员门控，非联邦管理员不出现")
                 .doesNotContainAnyElementsOf(MANAGEMENT);
     }
 }

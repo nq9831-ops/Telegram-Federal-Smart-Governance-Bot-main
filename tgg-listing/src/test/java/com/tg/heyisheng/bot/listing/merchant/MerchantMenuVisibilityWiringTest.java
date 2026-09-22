@@ -100,7 +100,9 @@ class MerchantMenuVisibilityWiringTest {
 
     @Test
     void enabledMerchantModuleRegistersTheSeamForItsWhitelistCommands() {
-        runner.withPropertyValues("tgg.merchant.enabled=true", "tgg.merchant.reviewers=" + REVIEWER)
+        runner.withBean(com.tg.heyisheng.bot.core.platform.FederationAdminGuard.class,
+                () -> new com.tg.heyisheng.bot.core.platform.FederationAdminGuard(java.util.List.of(REVIEWER)))
+                .withPropertyValues("tgg.merchant.enabled=true", "tgg.federation.admins=" + REVIEWER)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(MenuVisibility.class);
@@ -117,7 +119,9 @@ class MerchantMenuVisibilityWiringTest {
     /** 端到端接线：真实接缝 + 真实 core 聚合器 → 复核人看到「商家收录」分类，非复核人看不到（2026-09-22 拆分后归 MERCHANT）。 */
     @Test
     void reviewerSeesMerchantCategoryThroughTheRealComposition() {
-        runner.withPropertyValues("tgg.merchant.enabled=true", "tgg.merchant.reviewers=" + REVIEWER)
+        runner.withBean(com.tg.heyisheng.bot.core.platform.FederationAdminGuard.class,
+                () -> new com.tg.heyisheng.bot.core.platform.FederationAdminGuard(java.util.List.of(REVIEWER)))
+                .withPropertyValues("tgg.merchant.enabled=true", "tgg.federation.admins=" + REVIEWER)
                 .run(context -> {
                     MenuCatalog catalog = catalogWith(registryOf(context),
                             context.getBean(MenuVisibility.class));

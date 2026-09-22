@@ -5,8 +5,8 @@ import com.tg.heyisheng.bot.common.model.UpdateContext;
 import com.tg.heyisheng.bot.core.dispatch.BotCommand;
 import com.tg.heyisheng.bot.core.dispatch.MenuCategory;
 import com.tg.heyisheng.bot.core.dispatch.CommandHandler;
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
 import com.tg.heyisheng.bot.listing.merchant.Merchant;
-import com.tg.heyisheng.bot.listing.merchant.MerchantReviewGuard;
 import com.tg.heyisheng.bot.listing.merchant.MerchantService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
@@ -19,12 +19,12 @@ import java.util.Optional;
  * {@code /merchant_review <商家编号> approve|reject|need-more} —— 商家资质人工复核（设计文档 §6.1）。
  *
  * <p><b>权限载体是全局白名单，不是 {@code @BotCommand.requiredPermission}</b>：
- * 复核人由 {@code tgg.merchant.reviewers} 配置（{@link MerchantReviewGuard}），
- * 因为资质复核是<b>平台层</b>动作，而 {@code Permission}/{@code Role} 是群内权能模型
- * ——理由同 {@code FederationAdminGuard}（模块八）。故本命令不声明权限点，
- * 门控在 handler 内完成。
+ * 商家只有<b>联邦管理员</b>才可以审核处理（用户 2026-09-22 二次拍板）——授权源是
+ * {@code tgg.federation.admins} / 平台 {@code FEDERATION_ADMIN}（{@link FederationAdminGuard}），
+ * 旧商家复核通道（{@code tgg.merchant.reviewers}）已裁撤。资质复核是<b>平台层</b>动作，
+ * 而 {@code Permission}/{@code Role} 是群内权能模型。故本命令不声明权限点，门控在 handler 内完成。
  *
- * <p><b>非复核人返回 {@code null}（静默）</b>：与 {@code CommandDispatcher} 的「权限不足即静默」
+ * <p><b>非联邦管理员返回 {@code null}（静默）</b>：与 {@code CommandDispatcher} 的「权限不足即静默」
  * 语义一致——回复「权限不足」等于向无权者确认了命令存在。
  *
  * <p><b>状态机两条通道</b>：{@code SUBMITTED}/{@code NEED_MORE} 先经
@@ -46,16 +46,16 @@ public class MerchantReviewCommandHandler implements CommandHandler {
     static final String USAGE = ListingMessages.MERCHANT_REVIEW_USAGE;
 
     private final MerchantService service;
-    private final MerchantReviewGuard guard;
+    private final FederationAdminGuard guard;
 
-    public MerchantReviewCommandHandler(MerchantService service, MerchantReviewGuard guard) {
+    public MerchantReviewCommandHandler(MerchantService service, FederationAdminGuard guard) {
         this.service = service;
         this.guard = guard;
     }
 
     @Override
     public BotApiMethod<?> handle(UpdateContext ctx) {
-        if (!guard.isReviewer(ctx.userId())) {
+        if (!guard.isAdmin(ctx.userId())) {
             return null;
         }
 

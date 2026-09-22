@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.federation;
 
+import com.tg.heyisheng.bot.core.platform.FederationAdminGuard;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tg.heyisheng.bot.common.exception.TggConfigException;
 import com.tg.heyisheng.bot.core.groupconfig.GroupConfigRepository;
@@ -54,19 +56,8 @@ public class FederationConfiguration {
         log.info("模块八 · 联邦治理已启用：对端节点 {} 个。", nodeCount);
     }
 
-    /** 联邦管理员判定（全局白名单，热读取）。 */
-    @Bean
-    public FederationAdminGuard federationAdminGuard(
-            com.tg.heyisheng.bot.core.config.dynamic.RuntimeConfigService runtimeConfig,
-            org.springframework.beans.factory.ObjectProvider<com.tg.heyisheng.bot.core.platform.PlatformGrantSource> platformGrants) {
-        // ObjectProvider：本模块的切片上下文可能不含 core 的账本 bean——缺失时回落配置键
-        FederationAdminGuard guard = new FederationAdminGuard(runtimeConfig, platformGrants.getIfAvailable());
-        if (guard.size() == 0) {
-            log.warn("未配置 tgg.federation.admins（TGG_FEDERATION_ADMINS）：联邦管理命令"
-                    + "（/pending /approve /reject）将对任何人不可用。");
-        }
-        return guard;
-    }
+    // FederationAdminGuard 已上移 core.platform（2026-09-22：商家只有联邦管理员才可以审核处理，
+    // tgg-listing 也要用它作门）——bean 由 TggCoreConfiguration 恒在装配，此处不再重复注册。
 
     /**
      * {@code /menu} 的「复核合规」可见性接缝（联邦部分）：裁决类命令走全局白名单，

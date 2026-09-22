@@ -57,6 +57,10 @@ class FederationMenuVisibilityWiringTest {
             .withBean(FederationPenaltyRepository.class, () -> mock(FederationPenaltyRepository.class))
             .withBean(FederationAppealRepository.class, () -> mock(FederationAppealRepository.class))
             .withBean(ModerationActionSender.class, ModerationActionSender::noop)
+            // 判定器已上移 core（TggCoreConfiguration 恒在装配）；切片替身用固定名单
+            // （本测验的是接线；热读路径由 FederationAdminGuardTest 独立钉住）
+            .withBean(com.tg.heyisheng.bot.core.platform.FederationAdminGuard.class,
+                    () -> new com.tg.heyisheng.bot.core.platform.FederationAdminGuard(java.util.List.of(ADMIN)))
             .withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules());
 
     @SuppressWarnings("unchecked")
