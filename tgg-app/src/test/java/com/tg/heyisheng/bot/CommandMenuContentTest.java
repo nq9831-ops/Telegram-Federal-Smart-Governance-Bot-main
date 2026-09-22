@@ -143,6 +143,23 @@ class CommandMenuContentTest {
                 .allSatisfy((name, description) -> assertThat(description).as(name).isNotBlank());
     }
 
+    /**
+     * ⑤ 群限定声明与硬门的同步钉：{@code @BotCommand(groupOnly = true)} 必须**恰好**是
+     * handler 内 {@code chatId >= 0} 硬拒（GROUP_ONLY）的命令集合——当前三条
+     * （teach / group_tag / listing_add）。增删硬门而不同步声明（或反之）会让 /help·/menu
+     * 的分场景渲染漂移：私聊里列出点了却无声的命令，或漏列「这些得到群里用」。
+     */
+    @Test
+    void groupOnlyDeclarationIsExactlyTheHardGatedTrio() {
+        Set<String> declared = registry.mainCommands().keySet().stream()
+                .filter(registry::groupOnly)
+                .collect(Collectors.toSet());
+
+        assertThat(declared)
+                .as("群限定声明应恰好是三条硬门命令；增删时同步 @BotCommand(groupOnly)、handler 硬门与本断言")
+                .containsExactlyInAnyOrder("teach", "group_tag", "listing_add");
+    }
+
     @Test
     void writesThePlanForDeploymentCrossCheck() throws Exception {
         List<Map<String, Object>> tiers = plan().stream().map(menu -> {

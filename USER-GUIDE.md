@@ -27,6 +27,30 @@
 `curl -s "https://api.telegram.org/bot<Token>/getUpdates" | jq '.result[-1].message.from.id'`
 （应用日志里的 id 是**哈希**过的，看不出来）。
 
+### 场景 × 权限：私聊和群里各能用什么
+
+> 判据与 `/help`、`/menu` 面板**同一套**（`MenuCatalog` + `@BotCommand` 声明），本表是按判据展开的
+> 速查矩阵；用法与说明以「三、命令一览」为准（这里只管**场景与谁能用**）。
+> 同源防漂移：`SceneMatrixConformanceTest` 钉住「每个真实命令都出现在下表」与「群限定集合一致」，
+> 增删命令会让测试变红——**不要**绕过它另养一份命令表。
+
+<!-- 场景矩阵 -->
+
+| 功能集 | 私聊 | 群聊 | 谁能用 |
+|---|---|---|---|
+| **自助功能**（`/echo`（别名 `/ping`）、`/menu`、`/help`、`/whoami`、`/status`、`/quiet_hours`、`/export_my_data`、`/case_appeal`、`/appeal`、`/merchant_apply`、`/merchant_status`、`/merchant_exit`、`/listing_appeal`、`/listing_list`） | ✅ | ✅ | 全体成员（`/case_appeal` 限当事人；模块类命令需部署方开启对应开关） |
+| **群内管理**（`/enable`、`/disable`、`/addword`、`/delword`、`/words`、`/rules`、`/unteach`） | ❌¹ | ✅ | 群内管理员（本节上表第一行授权，**按群**授予） |
+| **群限定三条**（`/teach`、`/group_tag`、`/listing_add`） | ❌² | ✅ **只能在群里用** | 群内管理员 |
+| **平台白名单**（`/review_list`、`/review_approve`、`/review_reject`、`/data_breach`、`/merchant_review`、`/merchant_deposit`、`/merchant_settle`、`/pending`、`/approve`、`/reject`） | ✅ | ✅ | 复核人 / 商家复核人 / 联邦管理员（本节上表，**全局**白名单） |
+| **权益通知**（禁言告知、案件通知、信用异动） | ✅ 送进私聊 | — | 当事人 |
+
+¹ 群管理员身份**按群授予、不跟到私聊**：授权是 `<chatId>:<userId>` 按群给的，私聊里 chatId 等于你自己的
+userId，默认查不到授权 ⇒ 管理命令在私聊里**静默忽略**（不回「权限不足」——那等于确认命令存在）。
+² 这三条带**硬门**：授权齐了也一样，私聊里发只回「这条命令得在群里发才管用。」
+`/help` 私聊版会把你在某个群有权用的这类命令单列在「这些得到群里用」；`/menu` 私聊版主页也会提示一行。
+
+<!-- /场景矩阵 -->
+
 ## 三、命令一览（34 个）
 
 > 计数由 `grep -rhoE '@BotCommand\(value = "[a-z_]+"' --include=*.java tgg-*/src/main | sort -u | wc -l` 实测得出。
@@ -170,5 +194,6 @@ Telegram 的管理员身份**不被本项目直接采信**——授权来自部�
 最后一条是**故意**的：那类正则会灾难性回溯，让机器人卡死在单条消息上。
 
 **Q：机器人会读我的私聊吗？**
-只处理发给它命令的那些更新；私聊不是它的运营场景（`/start` 等未实现）。群里的普通消息则会经过
+只处理发给它命令的那些更新——私聊里 `/help`、`/menu`、`/whoami` 这些自助命令都能用
+（见「场景 × 权限」），`/start` 等未实现。群里的普通消息则会经过
 审核流水线，但**正文零存储**（见上一节）。

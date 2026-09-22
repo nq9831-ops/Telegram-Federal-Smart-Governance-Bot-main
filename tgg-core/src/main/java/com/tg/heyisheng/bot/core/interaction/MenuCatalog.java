@@ -82,11 +82,54 @@ public class MenuCatalog {
     /** 该用户在此群可见、且属于 /menu 的命令（保持注册表的名称顺序）。 */
     public List<String> visibleCommands(long chatId, Long userId, boolean groupEnabled) {
         CommandRegistry registry = registryProvider.getObject();
+        // 场景规则：私聊里群限定命令（handler 的 chatId>=0 硬门）不可用——不进「可用」列表，
+        // 否则点了只会撞「这条命令得在群里发才管用」，即本类 javadoc 点名的「点了却无声」。
+        boolean privateChat = userId != null && IdentityPresenter.isPrivate(chatId, userId);
         return registry.mainCommands().keySet().stream()
                 .filter(name -> !PANEL_COMMAND.equals(name))
+                .filter(name -> !privateChat || !registry.groupOnly(name))
                 .filter(name -> isVisible(name, chatId, userId, registry))
                 .filter(name -> groupEnabled || registry.worksWhenDisabled(name))
                 .toList();
+    }
+
+    /**
+     * 「这些得到群里用」——群限定命令中，该用户在**任一群**有权使用的那些（存在量词）。
+     *
+     * <p>私聊场景没有「当前群」语义（chatId == userId，群管理员身份不跟过来），跨场景提示
+     * 只能按存在量词回答「你在某个群能用它」。数据源与执行门同一份 {@code RoleSource.grants()}。
+     *
+     * <p>fail-closed：无身份不列；无权限不列；与 {@link #isVisible} 的三条来源逐条对齐
+     * （接缝 → 接缝判定；无权限点 → 须 publicCommand；否则须在任一群有该权限点）。
+     */
+    public List<String> groupBoundCommands(Long userId) {
+        CommandRegistry registry = registryProvider.getObject();
+        List<String> result = new ArrayList<>();
+        for (String name : registry.mainCommands().keySet()) {
+            if (registry.groupOnly(name) && visibleInSomeGroup(name, userId, registry)) {
+                result.add(name);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    /** 与 {@link #isVisible} 同构的「任一群」判定：接缝优先，其次公开性/权限（存在量词）。 */
+    private boolean visibleInSomeGroup(String command, Long userId, CommandRegistry registry) {
+        MenuVisibility seam = seamByCommand.get(command);
+        if (seam != null) {
+            // 平台白名单是全局的、与群无关（各接缝实现同此口径）——chatId 传 0 仅为接口统一
+            return seam.visible(0L, userId);
+        }
+        Permission required = registry.requiredPermission(command);
+        if (required == Permission.NONE) {
+            return registry.publicCommand(command);
+        }
+        return permissionChecker.hasInAnyGroup(userId, required);
+    }
+
+    /** 该命令是否群限定（{@code @BotCommand(groupOnly)} 声明；供 /help 群聊版打「（得在群里用）」标注）。 */
+    public boolean isGroupOnly(String command) {
+        return registryProvider.getObject().groupOnly(command);
     }
 
     /**

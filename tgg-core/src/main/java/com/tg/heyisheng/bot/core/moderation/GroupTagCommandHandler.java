@@ -28,7 +28,7 @@ import java.util.Locale;
  * 避免为「列一下标签」再造一条命令。
  */
 @BotCommand(value = "group_tag", description = "管理本群话题标签（需 MANAGE_CONFIG）",
-        requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.GROUP)
+        requiredPermission = Permission.MANAGE_CONFIG, groupOnly = true, category = MenuCategory.GROUP)
 public class GroupTagCommandHandler implements CommandHandler {
 
     static final String USAGE = ModerationMessages.GROUPTAG_USAGE;

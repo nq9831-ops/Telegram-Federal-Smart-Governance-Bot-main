@@ -87,4 +87,31 @@ class MenuViewTest {
     void categoryTextNamesTheCategory() {
         assertThat(MenuView.categoryText(MenuCategory.LISTING)).contains("收录商家");
     }
+
+    /** 分头渲染：私聊主页「私聊可用的功能」，群聊维持「本群」口径。 */
+    @Test
+    void homeTextBranchesOnPrivateChat() {
+        assertThat(MenuView.homeText("", true, List.of()))
+                .contains("私聊可用的功能")
+                .as("私聊里说「你在本群」是自指错位").doesNotContain("你在本群能用的功能");
+        assertThat(MenuView.homeText("", false, List.of())).contains("你在本群能用的功能");
+    }
+
+    /** 私聊主页把群限定命令单列一行「这些得到群里用」；群聊主页不出现该行（那里它们点得动）。 */
+    @Test
+    void homeTextListsGroupBoundCommandsOnlyInPrivateChat() {
+        assertThat(MenuView.homeText("", true, List.of("teach", "group_tag")))
+                .contains("这些得到群里用")
+                .contains("/teach")
+                .contains("/group_tag");
+        assertThat(MenuView.homeText("", false, List.of("teach")))
+                .doesNotContain("这些得到群里用");
+    }
+
+    /** 空面板：私聊给去路（到群里发 /help），群里维持「私聊我」引导。 */
+    @Test
+    void emptyTextBranchesOnPrivateChat() {
+        assertThat(MenuView.emptyText(true)).contains("到群里发").doesNotContain("私聊我");
+        assertThat(MenuView.emptyText(false)).contains("私聊我");
+    }
 }

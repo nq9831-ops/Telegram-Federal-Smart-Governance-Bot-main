@@ -33,7 +33,7 @@ import java.util.Optional;
  * <p><b>正则不得含空白</b>（命令参数以空白分隔）——含空格的正则请用 {@code \s} 等转义表达。
  */
 @BotCommand(value = "teach", description = "教一条本群审核规则（需 TEACH_RULE）",
-        requiredPermission = Permission.TEACH_RULE, category = MenuCategory.MODERATION)
+        requiredPermission = Permission.TEACH_RULE, groupOnly = true, category = MenuCategory.MODERATION)
 public class TeachCommandHandler implements CommandHandler {
 
     static final String USAGE = WordFilterMessages.TEACH_USAGE;

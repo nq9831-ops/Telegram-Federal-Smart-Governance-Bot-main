@@ -83,6 +83,17 @@ class MenuCatalogTest {
         }
     }
 
+    /** 群限定命令：handler 内 chatId>=0 硬拒（GROUP_ONLY），声明 groupOnly 供展示层分场景。 */
+    @BotCommand(value = "teach", description = "教一条本群审核规则（需 TEACH_RULE）",
+            requiredPermission = Permission.TEACH_RULE, groupOnly = true,
+            category = MenuCategory.MODERATION)
+    static class TeachHandler implements CommandHandler {
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            return new SendMessage(String.valueOf(ctx.chatId()), "教好了");
+        }
+    }
+
     @BotCommand(value = "menu", description = "面板")
     static class MenuHandler implements CommandHandler {
         @Override
@@ -216,5 +227,56 @@ class MenuCatalogTest {
     @Test
     void descriptionsComeFromRegistry() {
         assertThat(catalog(List.of()).descriptions()).containsKey("words");
+    }
+
+    /**
+     * 群限定命令在私聊里不进「可用」列表——handler 的 chatId>=0 硬门只会回 GROUP_ONLY，
+     * 面板照列就是「点了却无声」（MenuCatalog javadoc 点名的漂移形态）。群聊照常。
+     */
+    @Test
+    void groupOnlyCommandStaysOutOfPrivateUsableList() {
+        InMemoryRoleSource source = new InMemoryRoleSource();
+        source.assign(ADMIN, ADMIN, Role.ADMIN);   // 私聊上下文的授权（chatId == userId）
+        source.assign(CHAT, ADMIN, Role.ADMIN);    // 同一人在群里的授权
+        MenuCatalog catalog = new MenuCatalog(providerOf(new CommandRegistry(List.of(
+                new TeachHandler(), new MenuHandler()))),
+                new PermissionChecker(source), List.of());
+
+        assertThat(catalog.visibleCommands(ADMIN, ADMIN, true))
+                .as("私聊里群限定命令不可用——不进「私聊可用」列表")
+                .doesNotContain("teach");
+        assertThat(catalog.visibleCommands(CHAT, ADMIN, true))
+                .as("群聊里照常可见")
+                .contains("teach");
+    }
+
+    /** 「这些得到群里用」的存在量词判据：在**任一群**有对应权限即列出（数据源与执行门同一份 grants）。 */
+    @Test
+    void groupBoundCommandsUseGrantsFromAnyGroup() {
+        InMemoryRoleSource source = new InMemoryRoleSource();
+        source.assign(CHAT, ADMIN, Role.ADMIN);
+        MenuCatalog catalog = new MenuCatalog(providerOf(new CommandRegistry(List.of(
+                new TeachHandler(), new MenuHandler()))),
+                new PermissionChecker(source), List.of());
+
+        assertThat(catalog.groupBoundCommands(ADMIN))
+                .as("他在群里有 TEACH_RULE——私聊面板应提示「这些得到群里用」")
+                .containsExactly("teach");
+        assertThat(catalog.visibleCommands(ADMIN, ADMIN, true))
+                .as("但私聊里仍不进可用列表")
+                .doesNotContain("teach");
+    }
+
+    /** 无授权、无身份都 fail-closed：不列、不猜。MODERATOR 只有 BAN_USER，教规则要 TEACH_RULE。 */
+    @Test
+    void groupBoundCommandsFailClosedWithoutGrants() {
+        InMemoryRoleSource source = new InMemoryRoleSource();
+        source.assign(CHAT, MEMBER, Role.MODERATOR);
+        MenuCatalog catalog = new MenuCatalog(providerOf(new CommandRegistry(List.of(
+                new TeachHandler(), new MenuHandler()))),
+                new PermissionChecker(source), List.of());
+
+        assertThat(catalog.groupBoundCommands(MEMBER)).isEmpty();
+        assertThat(catalog.groupBoundCommands(null)).isEmpty();
     }
 }

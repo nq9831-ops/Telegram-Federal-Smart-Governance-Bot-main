@@ -31,7 +31,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
  * 不抛异常、不覆盖既有条目（见 {@code ListingGroupService#submit}）。
  */
 @BotCommand(value = "listing_add", description = "把本群加入收录库（需管理员权限）",
-        requiredPermission = Permission.MANAGE_CONFIG, category = MenuCategory.LISTING)
+        requiredPermission = Permission.MANAGE_CONFIG, groupOnly = true, category = MenuCategory.LISTING)
 @ConditionalOnProperty(prefix = "tgg.listing", name = "enabled", havingValue = "true")
 public class ListingAddCommandHandler implements CommandHandler {
 

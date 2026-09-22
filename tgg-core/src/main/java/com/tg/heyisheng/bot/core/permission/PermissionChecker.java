@@ -60,6 +60,27 @@ public class PermissionChecker {
         return roleSource.roleOf(chatId, userId).has(permission);
     }
 
+    /**
+     * 「在**任一群**有该权限」的存在量词判定——供「这些得到群里用」这类跨场景提示使用。
+     *
+     * <p>与 {@link #has}（「在此群」）互补，判据同一份数据源：遍历 {@link RoleSource#grants()}
+     * 的授权项，逐项问 {@link Role#has}。私聊场景没有「当前群」语义（chatId == userId），
+     * 群管理员身份不会跟到私聊里——跨场景提示只能按存在量词回答「你在某个群能用它」。
+     *
+     * @param userId 用户；{@code null} 一律 {@code false}（fail-closed，不猜身份）
+     * @param permission 所需权限；{@code null} 或 {@link Permission#NONE} 表示不设门槛
+     */
+    public boolean hasInAnyGroup(Long userId, Permission permission) {
+        if (userId == null) {
+            return false;
+        }
+        if (permission == null || permission == Permission.NONE) {
+            return true;
+        }
+        return roleSource.grants().stream()
+                .anyMatch(grant -> grant.userId() == userId && grant.role().has(permission));
+    }
+
     /** 便于调用方给出「你是谁」的提示。 */
     public Role roleOf(Long chatId, Long userId) {
         return roleSource.roleOf(chatId, userId);

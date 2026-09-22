@@ -44,8 +44,6 @@ import java.util.Map;
         matchIfMissing = true)
 public class MenuCommandHandler implements CommandHandler {
 
-    static final String NO_PERMISSION = InteractionMessages.MENU_NO_PERMISSION;
-
     /** 回调 data 的 action 前缀，需与 {@link MenuCallbackHandler#action()} 一致。 */
     static final String CALLBACK_ACTION = "menu";
 
@@ -67,13 +65,15 @@ public class MenuCommandHandler implements CommandHandler {
         boolean groupEnabled = groupConfigs.findOrDefault(chatId).enabled();
 
         Map<MenuCategory, List<String>> grouped = catalog.grouped(chatId, userId, groupEnabled);
+        boolean privateChat = chatId != null && userId != null
+                && IdentityPresenter.isPrivate(chatId, userId);
         if (grouped.isEmpty()) {
-            return reply(chatId, NO_PERMISSION);
+            return reply(chatId, MenuView.emptyText(privateChat));
         }
         String identityLine = userId == null ? "" : identity.menuIdentityLine(chatId, userId);
         return SendMessage.builder()
                 .chatId(String.valueOf(chatId))
-                .text(MenuView.homeText(identityLine))
+                .text(MenuView.homeText(identityLine, privateChat, catalog.groupBoundCommands(userId)))
                 .replyMarkup(MenuView.homeKeyboard(chatId, grouped))
                 .build();
     }

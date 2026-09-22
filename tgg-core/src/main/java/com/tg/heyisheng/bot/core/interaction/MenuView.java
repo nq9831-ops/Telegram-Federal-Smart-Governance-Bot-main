@@ -39,16 +39,12 @@ public final class MenuView {
     }
 
     /**
-     * 主页文案。
+     * 主页文案（分头：私聊 / 群聊；可在顶部带一行**身份行**）。
      *
-     * <p>写清「为什么只看到这些」：面板按**当前用户在本群的真实权限**过滤过，不是命令缺失。
-     */
-    static String homeText() {
-        return homeText("");
-    }
-
-    /**
-     * 主页文案（可在顶部带一行**身份行**）。
+     * <p>写清「为什么只看到这些」：面板按**当前用户的真实权限**过滤过，不是命令缺失。
+     * 私聊版标题逐字「私聊可用的功能」，并在有人对群限定命令有权时单列一行
+     * 「这些得到群里用」（{@code groupBound} 由 {@link MenuCatalog#groupBoundCommands} 给出，
+     * 群聊版忽略该参数——那里群限定命令点得动，不需要提示）。
      *
      * <p>身份行由 {@link IdentityPresenter} 决定有无与内容——群内默认不显示（避免对全群可见/被转发），
      * 私聊或开关打开时才有一行用户 ID。传空串即退化为无身份行的主页。
@@ -56,12 +52,24 @@ public final class MenuView {
      * <p><b>为什么由调用方传入而非本类自算</b>：本类是纯渲染（无 Spring 依赖），
      * 隐私判据收敛在 {@link IdentityPresenter} 一处；两处各判一次迟早漂移。
      */
-    static String homeText(String identityLine) {
-        String head = InteractionMessages.MENU_HOME_HINT;
-        if (identityLine == null || identityLine.isBlank()) {
-            return head;
+    static String homeText(String identityLine, boolean privateChat, List<String> groupBound) {
+        String head = privateChat
+                ? InteractionMessages.MENU_HOME_HINT_PRIVATE : InteractionMessages.MENU_HOME_HINT;
+        StringBuilder sb = new StringBuilder();
+        if (identityLine != null && !identityLine.isBlank()) {
+            sb.append(identityLine).append("\n\n");
         }
-        return identityLine + "\n\n" + head;
+        sb.append(head);
+        if (privateChat && groupBound != null && !groupBound.isEmpty()) {
+            sb.append("\n\n").append(InteractionMessages.menuGroupBoundLine(groupBound));
+        }
+        return sb.toString();
+    }
+
+    /** 空面板文案（分头）：私聊给去路（到群里发 /help），群里维持「私聊我」引导。 */
+    static String emptyText(boolean privateChat) {
+        return privateChat
+                ? InteractionMessages.MENU_NO_PERMISSION_PRIVATE : InteractionMessages.MENU_NO_PERMISSION;
     }
 
     /** 分类页文案：说清这是哪一类、以及「需填参数的命令会提示用法」这一过渡行为。 */

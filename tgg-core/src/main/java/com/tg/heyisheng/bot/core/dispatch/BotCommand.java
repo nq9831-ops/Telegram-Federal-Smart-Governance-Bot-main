@@ -109,4 +109,19 @@ public @interface BotCommand {
      * 进客户端菜单会向无权者暴露其存在，{@code CommandMenuRegistrar.planMenus} 会剔除并告警。
      */
     boolean clientMenu() default false;
+
+    /**
+     * 本命令是否**只能在群里用**（私聊里发过来只会回一句「得在群里发才管用」）。
+     *
+     * <p><b>声明与硬门必须同步</b>：标 {@code true} 的命令，其 handler 内已有
+     * {@code chatId >= 0} 的硬门（见 {@code TeachCommandHandler} / {@code GroupTagCommandHandler} /
+     * {@code ListingAddCommandHandler}）。本属性是给**展示层**（{@code /help}、{@code /menu}）
+     * 分场景渲染用的声明——私聊版据此把这些命令单列「这些得到群里用」，而不是混进
+     * 「私聊可用」里点了却无声。
+     *
+     * <p><b>同步纪律</b>：handler 加/去硬门时必须同步本声明，反之亦然——
+     * {@code CommandMenuContentTest.groupOnlyDeclarationIsExactlyTheHardGatedTrio} 钉住当前集合，
+     * 增删时该测试变红，提醒人显式核对。
+     */
+    boolean groupOnly() default false;
 }

@@ -141,7 +141,7 @@ class MenuCommandHandlerTest {
         BotApiMethod<?> reply = handler("MEMBER", true).handle(new UpdateContext(1, 99L, CHAT, "menu"));
 
         assertThat(messageOf(reply).getReplyMarkup()).as("无权时不应给键盘").isNull();
-        assertThat(messageOf(reply).getText()).isEqualTo(MenuCommandHandler.NO_PERMISSION);
+        assertThat(messageOf(reply).getText()).isEqualTo(InteractionMessages.MENU_NO_PERMISSION);
     }
 
     /** 自助命令对**普通成员**可见：客户端 / 菜单已收敛为只留 /menu，面板是唯一发现路径。 */
@@ -166,7 +166,7 @@ class MenuCommandHandlerTest {
         BotApiMethod<?> reply = handler("ADMIN", false).handle(new UpdateContext(1, 42L, CHAT, "menu"));
 
         assertThat(dataOf(reply)).as("停用群里只剩含 /enable 的分类").containsExactly("menu:" + CHAT + ":nav:group");
-        assertThat(messageOf(reply).getText()).isEqualTo(MenuView.homeText());
+        assertThat(messageOf(reply).getText()).isEqualTo(MenuView.homeText("", false, List.of()));
     }
 
     @Test

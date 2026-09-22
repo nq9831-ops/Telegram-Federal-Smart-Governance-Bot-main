@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.core.interaction;
 
+import java.util.List;
+
 /**
  * 交互层（按钮回调 / 确认卡 / 面板 / 身份）的**用户可见文案**——{@code *Messages} 家族在 interaction 包的落点。
  *
@@ -62,6 +64,36 @@ public final class InteractionMessages {
     /** 分类页说明（分类名由调用方给出）。 */
     public static String menuCategoryText(String title) {
         return "「" + title + "」—— 点按钮就能用；需要填参数的命令我会告诉你怎么写。";
+    }
+
+    /** 面板/帮助一无所剩时的说明（私聊版）：不再说「私聊我」（那在私聊里是自指），给出路（R2）。 */
+    public static final String MENU_NO_PERMISSION_PRIVATE =
+            "私聊里暂时没有你能用的功能。到群里发 /help 就能看到群里的功能。";
+
+    /** 面板主页说明（私聊版）。标题逐字「私聊可用的功能」（用户 2026-09-22 拍板）。 */
+    public static final String MENU_HOME_HINT_PRIVATE = "这些是私聊可用的功能：\n先点个分类，再点按钮就能用。";
+
+    /** 群限定命令的单列区标题（/help 私聊版、面板主页提示行）。逐字「这些得到群里用」（用户 2026-09-22 拍板）。 */
+    public static final String GROUP_BOUND_HEADER = "这些得到群里用：";
+
+    /** 群限定命令的行尾标注（/help 群聊版）——口语档位「得…用」（VOICE 第十节）。 */
+    public static final String GROUP_ONLY_TAG = "（得在群里用）";
+
+    /** {@code /help} 标题（含插值）：私聊版逐字「私聊可用的功能」，群聊版维持「本群」口径。 */
+    public static String helpTitle(int total, boolean privateChat) {
+        return (privateChat ? "私聊可用的功能（共 " : "你在本群能用的功能（共 ") + total + " 条）：";
+    }
+
+    /** 私聊面板主页的群限定提示行（含插值），如「这些得到群里用：/teach、/group_tag。」 */
+    public static String menuGroupBoundLine(List<String> commands) {
+        StringBuilder sb = new StringBuilder(GROUP_BOUND_HEADER);
+        for (int i = 0; i < commands.size(); i++) {
+            if (i > 0) {
+                sb.append('、');
+            }
+            sb.append('/').append(commands.get(i));
+        }
+        return sb.append('。').toString();
     }
 
     // ────────────── 身份（/whoami 与面板身份行）──────────────

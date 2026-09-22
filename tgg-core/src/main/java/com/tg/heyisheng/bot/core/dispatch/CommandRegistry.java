@@ -27,7 +27,7 @@ public class CommandRegistry {
     /** 一条命令的注册项。 */
     private record Entry(CommandHandler handler, Permission permission, boolean worksWhenDisabled,
                          Confirm confirm, MenuCategory category, boolean publicCommand,
-                         boolean clientMenu) {
+                         boolean clientMenu, boolean groupOnly) {
     }
 
     private final Map<String, Entry> entries;
@@ -55,7 +55,7 @@ public class CommandRegistry {
             String owner = bean.getClass().getName();
             Entry entry = new Entry(handler, annotation.requiredPermission(),
                     annotation.worksWhenDisabled(), annotation.confirm(), annotation.category(),
-                    annotation.publicCommand(), annotation.clientMenu());
+                    annotation.publicCommand(), annotation.clientMenu(), annotation.groupOnly());
             register(map, annotation.value(), entry, owner);
             // 只把**主命令**收进菜单视图：别名（如 /ping）在客户端菜单里是噪声。
             // description() 自切片 1 起一直无人消费——命令菜单正是它的第一个消费者。
@@ -116,6 +116,16 @@ public class CommandRegistry {
     public boolean worksWhenDisabled(String command) {
         Entry entry = entries.get(normalize(command));
         return entry != null && entry.worksWhenDisabled();
+    }
+
+    /**
+     * 查询某命令是否**只能在群里用**（见 {@link BotCommand#groupOnly()}）。
+     *
+     * @return 命令不存在时返回 {@code false}（未知命令本就不会被执行）
+     */
+    public boolean groupOnly(String command) {
+        Entry entry = entries.get(normalize(command));
+        return entry != null && entry.groupOnly();
     }
 
     /**

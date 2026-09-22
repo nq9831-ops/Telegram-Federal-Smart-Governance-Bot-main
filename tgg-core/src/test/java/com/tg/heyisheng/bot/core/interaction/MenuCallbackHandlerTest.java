@@ -176,7 +176,7 @@ class MenuCallbackHandlerTest {
         Optional<BotApiMethod<?>> result = member.handle(click("menu:" + CHAT + ":nav:home"));
 
         EditMessageText card = (EditMessageText) result.orElseThrow();
-        assertThat(card.getText()).isEqualTo(MenuCommandHandler.NO_PERMISSION);
+        assertThat(card.getText()).isEqualTo(InteractionMessages.MENU_NO_PERMISSION);
         assertThat(((InlineKeyboardMarkup) card.getReplyMarkup()).getKeyboard())
                 .as("卡片置为终态就必须显式空键盘，否则旧按钮会留着")
                 .isEmpty();

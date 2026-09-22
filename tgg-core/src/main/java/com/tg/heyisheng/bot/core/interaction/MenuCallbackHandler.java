@@ -83,6 +83,7 @@ public class MenuCallbackHandler implements CallbackHandler {
         }
         boolean groupEnabled = groupConfigs.findOrDefault(chatId).enabled();
         Map<MenuCategory, List<String>> grouped = catalog.grouped(chatId, userId, groupEnabled);
+        boolean privateChat = IdentityPresenter.isPrivate(chatId, userId);
 
         Optional<MenuCategory> category = MenuCategory.fromKey(nav.key());
         List<String> commands = category.map(grouped::get).orElse(null);
@@ -94,10 +95,12 @@ public class MenuCallbackHandler implements CallbackHandler {
         }
         // 主页，或非法 key／该分类此刻已空 → 一律回主页（不发死按钮，也不猜）
         if (grouped.isEmpty()) {
-            return card(query, chatId, MenuCommandHandler.NO_PERMISSION, null);
+            return card(query, chatId, MenuView.emptyText(privateChat), null);
         }
         String identityLine = identity.menuIdentityLine(chatId, userId);
-        return card(query, chatId, MenuView.homeText(identityLine), MenuView.homeKeyboard(chatId, grouped));
+        return card(query, chatId,
+                MenuView.homeText(identityLine, privateChat, catalog.groupBoundCommands(userId)),
+                MenuView.homeKeyboard(chatId, grouped));
     }
 
     /**
