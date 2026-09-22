@@ -15,8 +15,6 @@ import com.tg.heyisheng.bot.core.failover.WebhookHealthProbe;
 import com.tg.heyisheng.bot.core.failover.WebhookHealthScheduler;
 import com.tg.heyisheng.bot.core.webhook.WebhookProperties;
 import okhttp3.OkHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -46,8 +44,6 @@ import java.time.Duration;
 @EnableScheduling
 @ConditionalOnProperty(prefix = "tgg.failover", name = "enabled", havingValue = "true")
 public class FailoverConfiguration {
-
-    private static final Logger log = LoggerFactory.getLogger(FailoverConfiguration.class);
 
     private final WebhookProperties webhookProperties;
 

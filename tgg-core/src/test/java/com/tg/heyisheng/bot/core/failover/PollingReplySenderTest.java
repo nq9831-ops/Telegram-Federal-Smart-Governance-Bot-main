@@ -30,7 +30,6 @@ class PollingReplySenderTest {
     private final UpdateDispatcher dispatcher = mock(UpdateDispatcher.class);
     private final Update update = mock(Update.class);
 
-    @SuppressWarnings("unchecked")
     private final BotApiMethod<?> reply = mock(BotApiMethod.class);
 
     /** 发送器子类固定返回给定结果——不触网，且忠实复刻 execute 的成败语义。 */
