@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 import com.tg.heyisheng.bot.core.failover.DefaultTelegramModeController;
 import com.tg.heyisheng.bot.core.failover.HealthTracker;
 import com.tg.heyisheng.bot.core.failover.PollingFallbackCoordinator;
+import com.tg.heyisheng.bot.core.failover.PollingReplySender;
 import com.tg.heyisheng.bot.core.failover.TelegramApiMethodExecutor;
 import com.tg.heyisheng.bot.core.failover.TelegramApiWebhookHealthProbe;
 import com.tg.heyisheng.bot.core.failover.TelegramModeController;
@@ -94,13 +95,13 @@ public class FailoverConfiguration {
         TelegramApiMethodExecutor executor =
                 new TelegramApiMethodExecutor(failoverOkHttpClient, objectMapper, properties.getBotToken());
 
+        // 编排下沉到 PollingReplySender：它把「分发 → 发送 → 成败观测」收在一处，
+        // 装配这里只负责把它交给长轮询应用。本方法不再直接触碰发送返回值——
+        // 旧写法 `dispatch(update).ifPresent(executor::execute)` 会把成败静默丢弃。
+        PollingReplySender replySender = new PollingReplySender(updateDispatcher, executor);
         LongPollingUpdateConsumer consumer = updates -> {
             for (Update update : updates) {
-                try {
-                    updateDispatcher.dispatch(update).ifPresent(executor::execute);
-                } catch (Exception ex) {
-                    log.warn("长轮询模式下分发 update 失败：{}", ex.getClass().getSimpleName(), ex);
-                }
+                replySender.handleAndObserve(update);
             }
         };
 

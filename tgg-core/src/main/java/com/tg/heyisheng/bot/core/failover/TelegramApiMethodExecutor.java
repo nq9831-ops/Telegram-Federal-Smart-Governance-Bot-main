@@ -65,13 +65,14 @@ public class TelegramApiMethodExecutor {
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    log.warn("发送 {} 失败：HTTP {}", methodName, response.code());
+                    // ERROR 级：单条回复发不出去是**业务级**失败（用户看不到回复），不该只留 warn。
+                    log.error("发送 {} 失败：HTTP {}", methodName, response.code());
                     return false;
                 }
                 return true;
             }
         } catch (Exception ex) {
-            log.warn("发送 {} 时发生异常", methodName, ex);
+            log.error("发送 {} 时发生异常", methodName, ex);
             return false;
         }
     }

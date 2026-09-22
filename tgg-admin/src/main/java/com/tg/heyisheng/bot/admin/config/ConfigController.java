@@ -124,6 +124,10 @@ public class ConfigController {
                     "clear " + key + " old=" + masked(key, before));
             return ResponseEntity.ok(Map.of("result", "CLEARED", "key", key));
         } catch (ConfigWriteException ex) {
+            // 失败也要留痕——与 update 的失败分支**对称**（GUARD-5）。此前这里静默 404，
+            // 审计只记「清成功的键」，而「谁试图清除哪个键却被拒」正是越权尝试与误操作最该被看见的一面。
+            audit.record(actorType, actorId, AUDIT_ACTION, null, AuditEntry.Outcome.FAILURE,
+                    "clear rejected " + key + " (" + ex.kind() + ")");
             return ResponseEntity.status(404).body(Map.of("error", ex.getMessage()));
         }
     }
