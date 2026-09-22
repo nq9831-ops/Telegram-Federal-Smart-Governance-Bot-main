@@ -226,10 +226,16 @@ public final class ListingMessages {
         return "\n等级：" + tier;
     }
 
+    /** 信用分行（拼在末尾，让商家看到等级背后的分值）。 */
+    public static String merchantScoreSuffix(Object score) {
+        return "\n信用分：" + score;
+    }
+
     /** 商家入驻状态整段。 */
-    public static String merchantStatus(Object id, String name, String statusText, String tierSuffix) {
+    public static String merchantStatus(Object id, String name, String statusText,
+                                       String tierSuffix, String scoreSuffix) {
         return "商家入驻状态：\n编号 #" + id + " · " + name
-                + "\n状态：" + statusText + tierSuffix;
+                + "\n状态：" + statusText + tierSuffix + scoreSuffix;
     }
 
     // ────────────── 下架通知（私聊提交者）──────────────

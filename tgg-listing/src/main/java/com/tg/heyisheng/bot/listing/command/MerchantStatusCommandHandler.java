@@ -47,7 +47,8 @@ public class MerchantStatusCommandHandler implements CommandHandler {
         Merchant merchant = latest.get();
         return reply(ctx, ListingMessages.merchantStatus(
                 merchant.getId(), merchant.getName(), describe(merchant.getStatus()),
-                merchant.getTier() == null ? "" : ListingMessages.merchantTierSuffix(merchant.getTier())));
+                merchant.getTier() == null ? "" : ListingMessages.merchantTierSuffix(merchant.getTier()),
+                ListingMessages.merchantScoreSuffix(service.currentCreditScore(merchant.getId()))));
     }
 
     /** 状态枚举 → 对用户可读的中文短句。 */

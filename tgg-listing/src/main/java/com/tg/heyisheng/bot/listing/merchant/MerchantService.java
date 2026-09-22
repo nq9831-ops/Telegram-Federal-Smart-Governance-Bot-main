@@ -209,8 +209,14 @@ public class MerchantService {
         return Optional.of(merchants.save(merchant));
     }
 
-    /** 商家当前信用分（模块七未启用时用配置初值，理由见 {@link #evaluateTier}）。 */
-    private int currentCreditScore(long merchantId) {
+    /**
+     * 商家当前信用分（模块七未启用时用配置初值，理由见 {@link #evaluateTier}）。
+     *
+     * <p><b>公开只读出口</b>：{@code /merchant_status} 要把「分值本身」回显给商家——等级只是分值的产物，
+     * 只看得到等级、看不到分值，商家就不知道自己离下一档还差多少。取值一律走这条既有链路
+     * （模块七启用读账本、未启用回落配置初值），<b>不要</b>在下游另起一套取分口径。
+     */
+    public int currentCreditScore(long merchantId) {
         if (creditService == null) {
             return initialScore();
         }
