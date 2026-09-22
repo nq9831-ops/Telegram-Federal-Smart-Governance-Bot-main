@@ -21,6 +21,11 @@ import static org.mockito.Mockito.when;
  * （{@code ModerationReviewDecisionService}）、商家复核（{@code MerchantService}）
  * 同一约束。同类缺陷曾在三个模块里各自出现，故三处都对齐到「规则写在共用服务层」。
  *
+ * <p><b>守「终态不可改写」</b>：已结案（APPROVED / REJECTED）的申诉不得再次裁定。
+ * 否则 {@code /approve}、{@code /reject} 可对同一条申诉反复裁定，前次结论被静默覆盖——
+ * 终态失去意义、审计链断裂。守卫写在服务层（{@code requirePending}）+ 实体层
+ * （{@code FederationAppeal.decide} 状态机自守）。
+ *
  * <p>本类此前**不存在**：{@code FederationAppealService.decide} 除命令处理器外没有任何测试调用方，
  * 「申诉人能自己批自己的解封」因此无人能发现。
  */
@@ -72,6 +77,38 @@ class FederationAppealServiceTest {
         service.decide(APPEAL_ID, false, OTHER_ADMIN);
 
         assertThat(appeal.getStatus()).isEqualTo(FederationAppeal.Status.REJECTED.name());
+    }
+
+    @Test
+    void approvedAppealCannotBeDecidedAgain() {
+        FederationAppeal appeal = appeal();
+        appeal.decide(FederationAppeal.Status.APPROVED);
+        when(repository.findById(APPEAL_ID)).thenReturn(Optional.of(appeal));
+
+        assertThatThrownBy(() -> service.decide(APPEAL_ID, false, OTHER_ADMIN))
+                .as("已结案（APPROVED）的申诉不得再次裁定——否则前次结论被静默覆盖")
+                .isInstanceOf(TggException.class)
+                .hasMessageContaining("已结案");
+
+        assertThat(appeal.getStatus()).as("被拒的再裁定不得改动已结案的结论")
+                .isEqualTo(FederationAppeal.Status.APPROVED.name());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void rejectedAppealCannotBeDecidedAgain() {
+        FederationAppeal appeal = appeal();
+        appeal.decide(FederationAppeal.Status.REJECTED);
+        when(repository.findById(APPEAL_ID)).thenReturn(Optional.of(appeal));
+
+        assertThatThrownBy(() -> service.decide(APPEAL_ID, true, OTHER_ADMIN))
+                .as("已结案（REJECTED）的申诉不得再次裁定——否则前次结论被静默覆盖")
+                .isInstanceOf(TggException.class)
+                .hasMessageContaining("已结案");
+
+        assertThat(appeal.getStatus()).as("被拒的再裁定不得改动已结案的结论")
+                .isEqualTo(FederationAppeal.Status.REJECTED.name());
+        verify(repository, never()).save(any());
     }
 
     @Test

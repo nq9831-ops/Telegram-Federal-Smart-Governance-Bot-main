@@ -77,8 +77,24 @@ public class FederationAppeal {
         return createdAt;
     }
 
-    /** 裁定：APPROVED / REJECTED。 */
+    /** 是否已结案（终态）：APPROVED / REJECTED。 */
+    public boolean isDecided() {
+        return !Status.PENDING.name().equals(status);
+    }
+
+    /**
+     * 裁定：APPROVED / REJECTED。
+     *
+     * <p>状态机自守：仅 {@code PENDING} 可被裁定。已结案的申诉是**终态**，
+     * 再裁定会静默覆盖前次结论（审计断裂），故在这一层直接拒绝——
+     * 即便将来有新的调用方绕过服务层的守卫，实体也不会被二次改写。
+     *
+     * @throws IllegalStateException 该申诉已结案
+     */
     public void decide(Status decision) {
+        if (isDecided()) {
+            throw new IllegalStateException("申诉 #" + id + " 已结案（" + status + "），不能再次裁定");
+        }
         this.status = decision.name();
     }
 }
