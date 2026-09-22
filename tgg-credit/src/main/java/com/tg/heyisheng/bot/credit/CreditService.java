@@ -97,10 +97,15 @@ public class CreditService {
         Instant now = clock.instant();
         String subjectType = event.subjectType().name();
 
-        // 首次记账时建行（幂等）；随后原子应用增量。
-        repository.insertIfAbsent(subjectType, event.subjectId(), INITIAL_SCORE, now);
+        // 建行（幂等）**并直接取排他锁**：用 ON DUPLICATE KEY UPDATE 而非 INSERT IGNORE —— 后者命中已存在
+        // 行时只取共享锁，随后与下面的锁读构成 S→X 升级环，同主体并发会死锁（实测 Deadlock found）。
+        repository.ensureRowLocked(subjectType, event.subjectId(), INITIAL_SCORE, now);
 
-        int scoreBefore = repository.findBySubjectTypeAndSubjectId(event.subjectType(), event.subjectId())
+        // 行锁读前值：保证「流水 score_before」与「账本当前分」一致。
+        // 若用普通读，同一主体的并发事件会读到同一个前值，流水出现重复 before ⇒ 审计轨迹断裂
+        // （实测：修复前曾观测到两条流水 before 均为 100；锁读后 6 并发产出完整链 100→85→…→10）。
+        // 守门测试 CreditLedgerConcurrencyIT —— 其 RED 复现是**概率性**的，见该测试 javadoc 的诚实说明。
+        int scoreBefore = repository.findForUpdate(event.subjectType(), event.subjectId())
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
 
@@ -238,8 +243,10 @@ public class CreditService {
 
         Instant now = clock.instant();
         String subjectType = original.getSubjectType().name();
-        repository.insertIfAbsent(subjectType, original.getSubjectId(), INITIAL_SCORE, now);
-        int scoreBefore = repository.findBySubjectTypeAndSubjectId(original.getSubjectType(), original.getSubjectId())
+        // 与 apply 同理：建行并直接取排他锁（避免 INSERT IGNORE 的 S→X 升级死锁）。
+        repository.ensureRowLocked(subjectType, original.getSubjectId(), INITIAL_SCORE, now);
+        // 与 apply 同理：补偿流水的前值也必须锁读，否则并发补偿/扣分会让流水 before 失真。
+        int scoreBefore = repository.findForUpdate(original.getSubjectType(), original.getSubjectId())
                 .map(CreditScore::getScore)
                 .orElse(INITIAL_SCORE);
 
