@@ -60,6 +60,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 })
 class MerchantRefundIT {
 
+    /** GUARD-4 update_id 去重后每次 dispatch 需唯一 id——本类独立计数基数 28000（防跨类碰撞）。 */
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+            new java.util.concurrent.atomic.AtomicInteger(28000);
+
     static final long REVIEWER_USER = 889001L;
     private static final long OWNER_USER = 889002L;
     private static final long OUTSIDER_USER = 889003L;
@@ -403,7 +407,7 @@ class MerchantRefundIT {
         query.setData(prefix + nonce);
 
         Update callback = new Update();
-        callback.setUpdateId(2);
+        callback.setUpdateId(SEQ.incrementAndGet());
         callback.setCallbackQuery(query);
 
         Optional<BotApiMethod<?>> after = updateDispatcher.dispatch(callback);
@@ -435,7 +439,7 @@ class MerchantRefundIT {
                 .build();
 
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setMessage(message);
         return update;
     }

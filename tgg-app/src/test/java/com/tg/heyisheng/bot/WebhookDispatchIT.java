@@ -15,7 +15,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -44,6 +48,13 @@ class WebhookDispatchIT {
     /** 本测试专用的群 ID——刻意不同于人工验收常用的 -100，避免与手工数据相撞。 */
     private static final long TEST_CHAT_ID = -777001L;
 
+    /**
+     * 每条 update 的 update_id 必须**互不相同**：分发入口按 update_id 幂等去重，
+     * 重复投递同一 id 只会执行一次。真实 Telegram 的 update_id 本就全局递增，
+     * 这里逐条分配不同的值以贴近现实（同一测试方法内重复使用同一 id 会被去重跳过）。
+     */
+    private static final AtomicInteger UPDATE_SEQ = new AtomicInteger(100_000);
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -69,6 +80,11 @@ class WebhookDispatchIT {
         BoomHandler boomHandler() {
             return new BoomHandler();
         }
+
+        @Bean
+        CountingHandler countingHandler() {
+            return new CountingHandler();
+        }
     }
 
     @BotCommand("boom")
@@ -79,12 +95,24 @@ class WebhookDispatchIT {
         }
     }
 
+    /** 每次执行都计数的命令——用于验证「同一 update 重投只执行一次」。 */
+    @BotCommand("count")
+    static class CountingHandler implements CommandHandler {
+        static final AtomicInteger CALLS = new AtomicInteger();
+
+        @Override
+        public BotApiMethod<?> handle(UpdateContext ctx) {
+            CALLS.incrementAndGet();
+            return new SendMessage(String.valueOf(ctx.chatId()), "已计数。");
+        }
+    }
+
     @Test
     void validSecretInvokesHandlerAndReturnsItsReply() throws Exception {
         mockMvc.perform(post("/webhook")
                         .header(SECRET_HEADER, secret)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateJson("/echo")))
+                        .content(updateJson("/echo", nextUpdateId())))
                 .andExpect(status().isOk())
                 // 关键断言语义：只查状态码会掩盖「链路断了但库仍回 200」。
                 // 必须验证 handler 的回复真的出现在响应体里。
@@ -95,7 +123,7 @@ class WebhookDispatchIT {
     void missingSecretReturns401() throws Exception {
         mockMvc.perform(post("/webhook")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateJson("/echo")))
+                        .content(updateJson("/echo", nextUpdateId())))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -104,7 +132,7 @@ class WebhookDispatchIT {
         mockMvc.perform(post("/webhook")
                         .header(SECRET_HEADER, secret + "-wrong")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateJson("/echo")))
+                        .content(updateJson("/echo", nextUpdateId())))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -113,16 +141,45 @@ class WebhookDispatchIT {
         mockMvc.perform(post("/webhook")
                         .header(SECRET_HEADER, secret)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateJson("/boom")))
+                        .content(updateJson("/boom", nextUpdateId())))
                 .andExpect(status().isOk());
     }
 
-    private static String updateJson(String command) {
+    /**
+     * 幂等护栏（GUARD-4）：Telegram 未及时收到 200 会**原样重投**同一条 update（update_id 不变）。
+     * 没有这道闸，一条非幂等命令会被执行两遍。这里重投两次，断言只执行了一次。
+     */
+    @Test
+    void duplicateUpdateIdIsDispatchedOnlyOnce() throws Exception {
+        CountingHandler.CALLS.set(0);
+        String body = updateJson("/count", nextUpdateId());
+
+        mockMvc.perform(post("/webhook")
+                        .header(SECRET_HEADER, secret)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/webhook")
+                        .header(SECRET_HEADER, secret)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+
+        assertThat(CountingHandler.CALLS.get())
+                .as("同一 update 重投只应执行一次").isEqualTo(1);
+    }
+
+    private static int nextUpdateId() {
+        return UPDATE_SEQ.incrementAndGet();
+    }
+
+    private static String updateJson(String command, int updateId) {
         // 必须带 from：链首 AuthenticationMiddleware 要求可识别的发送者，
         // 缺 from 会让链路在中途中断（这正是本测试此前「假通过」的原因）。
         return """
                 {
-                  "update_id": 1,
+                  "update_id": %d,
                   "message": {
                     "message_id": 10,
                     "date": 1700000000,
@@ -132,6 +189,6 @@ class WebhookDispatchIT {
                     "entities": [{"type": "bot_command", "offset": 0, "length": %d}]
                   }
                 }
-                """.formatted(command, TEST_CHAT_ID, command.length());
+                """.formatted(updateId, command, TEST_CHAT_ID, command.length());
     }
 }

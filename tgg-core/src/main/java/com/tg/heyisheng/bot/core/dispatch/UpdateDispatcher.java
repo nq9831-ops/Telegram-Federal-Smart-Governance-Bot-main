@@ -37,6 +37,9 @@ import org.telegram.telegrambots.meta.api.objects.polls.PollOption;
 import org.telegram.telegrambots.meta.api.objects.polls.PollOptionAdded;
 import org.telegram.telegrambots.meta.api.objects.polls.PollOptionDeleted;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,6 +60,12 @@ import java.util.Optional;
 public class UpdateDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(UpdateDispatcher.class);
+
+    /** 去重记忆的容量上限——超出即按插入序驱逐最旧项，保证长跑内存有界。 */
+    static final int RECENT_UPDATE_CAPACITY = 10_000;
+
+    /** 去重时效——重投通常发生在秒级到分钟级，5 分钟足以覆盖。 */
+    static final Duration RECENT_UPDATE_TTL = Duration.ofMinutes(5);
 
     private final MiddlewareChain middlewareChain;
     private final CommandDispatcher commandDispatcher;
@@ -89,6 +98,15 @@ public class UpdateDispatcher {
     private final AuditService auditService;
 
     /**
+     * 已处理 {@code update_id} 的有界记忆（GUARD-4）：同一 update 重投时只处理一次。
+     *
+     * <p><b>为什么需要</b>：Telegram 在未及时收到 200 时会**原样重投**同一条 update，
+     * update_id 不变。此前没有去重，一条「非幂等」命令（再扣一次信用分、再发一条通知）
+     * 会被执行两遍。分发入口按 update_id 去重是最外层的幂等护栏。
+     */
+    private final RecentUpdateIds recentUpdateIds;
+
+    /**
      * <b>唯一的公开装配入口</b>。
      *
      * <p>构造重载已全部移除：它们逐参递增（最多到 10 个），每加一个审核能力就得再加一个重载，
@@ -118,6 +136,8 @@ public class UpdateDispatcher {
         private CreditEventSink creditEventSink = CreditEventSink.noop();
         private MemberJoinRecorder memberJoinRecorder;
         private AuditService auditService;
+        private RecentUpdateIds recentUpdateIds =
+                new RecentUpdateIds(RECENT_UPDATE_CAPACITY, RECENT_UPDATE_TTL, Clock.systemUTC());
 
         public Builder middlewareChain(MiddlewareChain value) {
             this.middlewareChain = value;
@@ -214,6 +234,15 @@ public class UpdateDispatcher {
             return this;
         }
 
+        /**
+         * 去重记忆；默认 TTL 5 分钟、容量 1 万。注入可控时钟便于测试过期行为——
+         * 与 {@code InMemoryRateLimiter} 的时钟注入同款，生产无需设置。
+         */
+        public Builder recentUpdateIds(RecentUpdateIds value) {
+            this.recentUpdateIds = value;
+            return this;
+        }
+
         public UpdateDispatcher build() {
             return new UpdateDispatcher(this);
         }
@@ -237,12 +266,24 @@ public class UpdateDispatcher {
         this.creditEventSink = b.creditEventSink == null ? CreditEventSink.noop() : b.creditEventSink;
         this.memberJoinRecorder = b.memberJoinRecorder;
         this.auditService = b.auditService;
+        this.recentUpdateIds = b.recentUpdateIds == null
+                ? new RecentUpdateIds(RECENT_UPDATE_CAPACITY, RECENT_UPDATE_TTL, Clock.systemUTC())
+                : b.recentUpdateIds;
     }
 
 
     public Optional<BotApiMethod<?>> dispatch(Update update) throws Exception {
         try {
             if (update == null) {
+                return Optional.empty();
+            }
+
+            // 幂等护栏（GUARD-4）：Telegram 未及时收到 200 会**原样重投**同一条 update，
+            // update_id 不变。此前没有去重，一条非幂等命令（再扣一次信用分、再发一条通知）
+            // 会被执行两遍。这道闸放在最外层——callback / chat_member / message 三条路径同受保护。
+            Integer updateId = update.getUpdateId();
+            if (updateId != null && !recentUpdateIds.firstSeen(updateId)) {
+                log.debug("重复投递的 update（id={}），已跳过以保持幂等", updateId);
                 return Optional.empty();
             }
 
@@ -641,5 +682,54 @@ public class UpdateDispatcher {
             }
         }
         return -1;
+    }
+
+    /**
+     * 已处理 {@code update_id} 的有界记忆：{@link #firstSeen} 首次放行、TTL 内重投拒绝。
+     *
+     * <p><b>双重有界</b>：① TTL 到期即失效；② 容量上限，超出按插入序驱逐最旧项——
+     * 即便长时间没有新 update 触发 TTL 清理，内存也不会无界增长。
+     *
+     * <p><b>单实例内同步即可</b>：分发通常按 update 串行处理；即便并发，{@code synchronized}
+     * 也只在此处产生可忽略的争用。多实例部署时需换成共享存储（与 {@code InMemoryRateLimiter}
+     * 的切片边界同源）——切片 1 的 Bot 是单实例，够用。
+     */
+    static final class RecentUpdateIds {
+
+        private final int maxSize;
+        private final long ttlMillis;
+        private final Clock clock;
+        /** 插入序：驱逐时从最旧的开始。 */
+        private final LinkedHashMap<Integer, Long> seen = new LinkedHashMap<>();
+
+        RecentUpdateIds(int maxSize, Duration ttl, Clock clock) {
+            this.maxSize = maxSize;
+            this.ttlMillis = ttl.toMillis();
+            this.clock = clock;
+        }
+
+        /**
+         * @return {@code true} 表示首次见到该 update（应处理）；{@code false} 表示 TTL 内的重复投递（应跳过）
+         */
+        synchronized boolean firstSeen(int updateId) {
+            long now = clock.millis();
+            Long at = seen.get(updateId);
+            if (at != null && now - at < ttlMillis) {
+                return false;
+            }
+            seen.put(updateId, now);
+            evict(now);
+            return true;
+        }
+
+        /** 先清理过期项，再按插入序驱逐到容量上限内。 */
+        private void evict(long now) {
+            seen.entrySet().removeIf(entry -> now - entry.getValue() >= ttlMillis);
+            while (seen.size() > maxSize) {
+                var oldest = seen.keySet().iterator();
+                oldest.next();
+                oldest.remove();
+            }
+        }
     }
 }

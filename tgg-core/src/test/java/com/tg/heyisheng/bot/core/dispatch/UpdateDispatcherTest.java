@@ -25,6 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class UpdateDispatcherTest {
 
+    /** GUARD-4 update_id 去重后每次 dispatch 需唯一 id——本类独立计数基数 21000（防跨类碰撞）。 */
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+            new java.util.concurrent.atomic.AtomicInteger(21000);
+
     private final CommandRegistry registry = new CommandRegistry(List.of(new EchoCommandHandler()));
 
     @Test
@@ -32,10 +36,11 @@ class UpdateDispatcherTest {
         UpdateContext[] seenByMiddleware = new UpdateContext[1];
         UpdateDispatcher dispatcher = dispatcherCapturing(seenByMiddleware);
 
-        dispatcher.dispatch(update("/echo", 42L, -100L));
+        Update dispatched = update("/echo", 42L, -100L);
+        dispatcher.dispatch(dispatched);
 
         UpdateContext ctx = seenByMiddleware[0];
-        assertThat(ctx.updateId()).isEqualTo(1);
+        assertThat(ctx.updateId()).isEqualTo(dispatched.getUpdateId());
         assertThat(ctx.userId()).isEqualTo(42L);
         assertThat(ctx.chatId()).isEqualTo(-100L);
         assertThat(ctx.command()).contains("/echo");
@@ -211,7 +216,7 @@ class UpdateDispatcherTest {
         }
 
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setMessage(messageBuilder.build());
         return update;
     }

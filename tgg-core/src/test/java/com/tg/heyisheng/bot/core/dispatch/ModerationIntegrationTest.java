@@ -34,6 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ModerationIntegrationTest {
 
+    /** GUARD-4 update_id 去重后每次 dispatch 需唯一 id——本类独立计数基数 23000（防跨类碰撞）。 */
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+            new java.util.concurrent.atomic.AtomicInteger(23000);
+
     private static final long CHAT_ID = -100L;
 
     private final RegexLayer layer = new RegexLayer(List.of(
@@ -300,7 +304,7 @@ class ModerationIntegrationTest {
                 .build();
 
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setMessage(message);
         return update;
     }
@@ -374,7 +378,7 @@ class ModerationIntegrationTest {
                 .build();
 
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setMessage(message);
         return update;
     }
@@ -387,7 +391,7 @@ class ModerationIntegrationTest {
                 .build();
 
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setEditedMessage(message);
         return update;
     }
@@ -405,7 +409,7 @@ class ModerationIntegrationTest {
                 .build();
 
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setMessage(message);
         return update;
     }

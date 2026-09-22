@@ -27,6 +27,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
  */
 class MemberJoinDispatchTest {
 
+    /** GUARD-4 update_id 去重后每次 dispatch 需唯一 id——本类独立计数基数 22000（防跨类碰撞）。 */
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+            new java.util.concurrent.atomic.AtomicInteger(22000);
+
     private static final long CHAT = -100900999L;
     private static final long MEMBER = 777L;
 
@@ -45,7 +49,7 @@ class MemberJoinDispatchTest {
 
     private static Update chatMemberUpdate() {
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setChatMember(ChatMemberUpdated.builder()
                 .chat(Chat.builder().id(CHAT).type("supergroup").build())
                 .from(User.builder().id(MEMBER).firstName("u").isBot(false).build())

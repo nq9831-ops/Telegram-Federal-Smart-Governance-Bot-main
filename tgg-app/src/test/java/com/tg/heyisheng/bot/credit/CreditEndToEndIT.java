@@ -35,6 +35,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {"tgg.credit.enabled=true"})
 class CreditEndToEndIT {
 
+    /** GUARD-4 update_id 去重后每次 dispatch 需唯一 id——本类独立计数基数 25000（防跨类碰撞）。 */
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+            new java.util.concurrent.atomic.AtomicInteger(25000);
+
     private static final long USER_ID = 700001L;
     private static final long CHAT_ID = -100700001L;
 
@@ -133,7 +137,7 @@ class CreditEndToEndIT {
                 .from(User.builder().id(userId).firstName("T").isBot(false).build())
                 .build();
         Update update = new Update();
-        update.setUpdateId(1);
+        update.setUpdateId(SEQ.incrementAndGet());
         update.setMessage(message);
         return update;
     }

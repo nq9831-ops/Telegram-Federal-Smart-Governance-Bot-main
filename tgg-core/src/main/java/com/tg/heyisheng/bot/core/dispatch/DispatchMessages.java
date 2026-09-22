@@ -22,6 +22,18 @@ public final class DispatchMessages {
     public static final String ECHO_REPLY = "在的，连通没问题。";
 
     /**
+     * **未注册 / 拼写错误**命令的固定回复。
+     *
+     * <p>此前未注册命令是<b>静默丢弃</b>（不回复、不报错）：用户敲错命令后得不到任何反馈，
+     * 只会干等——看起来像机器人坏了（见 {@code CommandDispatcher#dispatch}）。
+     * 这里给一条固定提示，并按 VOICE 的「拒绝要给出去路」附上可照抄的 {@code /menu}。
+     *
+     * <p><b>刻意不回显用户输入的命令名</b>：回显会把用户正文重新写回群里与日志，
+     * 与「消息原文零存储」冲突；固定文案同时也避免把它变成模板注入点。
+     */
+    public static final String UNKNOWN_COMMAND_REPLY = "没找到这条命令。发 /menu 看一眼都有哪些功能吧。";
+
+    /**
      * 「需在群会话内执行」的统一提示。
      *
      * <p>刻意放在这里（跨域共享）而**不**各域各写一份：wordfilter 的 {@code /teach} 与 moderation 的

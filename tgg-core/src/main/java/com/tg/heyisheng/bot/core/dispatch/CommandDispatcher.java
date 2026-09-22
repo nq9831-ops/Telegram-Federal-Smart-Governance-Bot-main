@@ -61,12 +61,17 @@ public class CommandDispatcher {
      * <p><b>只接收 {@link UpdateContext}</b>，不再从 Update 重新构造上下文——
      * 否则中间件链 enrich 到上下文里的信息传不到 handler。
      *
-     * @return 处理器产出的 Bot API 调用；无命令、未知命令、权限不足或处理器返回 null 时为空
+     * @return 处理器产出的 Bot API 调用；无命令、权限不足或处理器返回 null 时为空；
+     *         <b>未注册/拼写错误</b>的命令返回一条固定提示（不再静默丢弃）
      */
     public Optional<BotApiMethod<?>> dispatch(UpdateContext ctx) throws Exception {
         Optional<CommandHandler> resolvable = resolvableHandler(ctx);
         if (resolvable.isEmpty()) {
-            return Optional.empty();
+            // 未注册 / 拼写错误的命令：给一条固定提示（此前静默丢弃，用户毫无反馈，像坏了）。
+            // 权限不足或群开关关闭仍走「静默」——不向无权者暴露命令存在（见类 javadoc）。
+            // 兜底只读注册表，**不改动** resolvableHandler 的判定语义：
+            // willExecute / exemptFromModeration 仍以 resolvableHandler 为准。
+            return unknownCommandHint(ctx);
         }
 
         String command = ctx.command().orElseThrow();
@@ -87,6 +92,33 @@ public class CommandDispatcher {
             // 统一包装为项目异常，便于上游 @RestControllerAdvice 识别与记录
             throw new TggDispatchException("命令处理失败：" + command, ex);
         }
+    }
+
+    /**
+     * 命令**未注册**（拼写错误 / 已下线）时的兜底提示。
+     *
+     * <p><b>只在「命令名确实不在注册表里」时才回复</b>：已注册但被权限或群开关挡下的命令保持静默
+     * ——回复"权限不足"等于向无权用户确认该命令存在（见类 javadoc 的静默取舍）。
+     * 提示是固定文案，<b>不回显用户输入</b>（避免把正文写回群里与日志）。
+     *
+     * <p>不影响审核豁免判定：{@link #exemptFromModeration} 与 {@link #willExecute} 仍走
+     * {@link #resolvableHandler}，未注册命令对它们恒为「不执行、不豁免」。
+     *
+     * @return 给用户的固定提示；无命令、命令已注册、或拿不到 chatId（无法回复）时为空
+     */
+    private Optional<BotApiMethod<?>> unknownCommandHint(UpdateContext ctx) {
+        if (ctx == null || !ctx.hasCommand() || ctx.chatId() == null) {
+            return Optional.empty();
+        }
+        String command = ctx.command().orElseThrow();
+        if (registry.find(command).isPresent()) {
+            // 已注册但被门禁挡下（权限不足 / 群功能关闭）——静默，不暴露命令存在。
+            return Optional.empty();
+        }
+        return Optional.of(SendMessage.builder()
+                .chatId(String.valueOf(ctx.chatId()))
+                .text(DispatchMessages.UNKNOWN_COMMAND_REPLY)
+                .build());
     }
 
     /**
