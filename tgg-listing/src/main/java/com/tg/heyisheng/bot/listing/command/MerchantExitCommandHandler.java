@@ -31,7 +31,7 @@ import java.util.Optional;
  * 「资源的属主」，故不声明权限点，由本类比对 {@code ownerUserId}。
  */
 @BotCommand(value = "merchant_exit", description = "申请退出商家（触发保证金冻结）",
-        confirm = Confirm.ALWAYS, publicCommand = true, category = MenuCategory.LISTING)
+        confirm = Confirm.ALWAYS, publicCommand = true, category = MenuCategory.MERCHANT)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantExitCommandHandler implements CommandHandler {
 

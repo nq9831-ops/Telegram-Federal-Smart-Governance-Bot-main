@@ -114,22 +114,22 @@ class MerchantMenuVisibilityWiringTest {
                 });
     }
 
-    /** 端到端接线：真实接缝 + 真实 core 聚合器 → 复核人看到「收录商家」分类，非复核人看不到。 */
+    /** 端到端接线：真实接缝 + 真实 core 聚合器 → 复核人看到「商家收录」分类，非复核人看不到（2026-09-22 拆分后归 MERCHANT）。 */
     @Test
-    void reviewerSeesListingCategoryThroughTheRealComposition() {
+    void reviewerSeesMerchantCategoryThroughTheRealComposition() {
         runner.withPropertyValues("tgg.merchant.enabled=true", "tgg.merchant.reviewers=" + REVIEWER)
                 .run(context -> {
                     MenuCatalog catalog = catalogWith(registryOf(context),
                             context.getBean(MenuVisibility.class));
 
                     Map<MenuCategory, List<String>> forReviewer = catalog.grouped(CHAT, REVIEWER, true);
-                    assertThat(forReviewer).containsKey(MenuCategory.LISTING);
-                    assertThat(forReviewer.get(MenuCategory.LISTING)).containsExactlyInAnyOrder(
+                    assertThat(forReviewer).containsKey(MenuCategory.MERCHANT);
+                    assertThat(forReviewer.get(MenuCategory.MERCHANT)).containsExactlyInAnyOrder(
                             "merchant_review", "merchant_deposit", "merchant_settle");
 
                     assertThat(catalog.grouped(CHAT, OTHER, true))
                             .as("非复核人的面板里不得出现这些命令——不暴露其存在")
-                            .doesNotContainKey(MenuCategory.LISTING);
+                            .doesNotContainKey(MenuCategory.MERCHANT);
                 });
     }
 }

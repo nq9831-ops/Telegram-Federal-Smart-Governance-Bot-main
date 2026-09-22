@@ -10,7 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 「收录商家」面的**策展不变量**（真容器、真注册表，用户 2026-09-22 拍板）：
+ * 「商家收录」面的**策展不变量**（真容器、真注册表，用户 2026-09-22 拍板）：
  * 管事的人（商家复核白名单 / 群内管理员）的面板里不该混着「提交商家入驻」的自助链——
  * 面对他们是模糊的（他们管商家，不申请入驻）；他们的面里**只有「管理商家」**。
  * 普通成员视角不变（自助链照常可见）。
@@ -52,7 +52,7 @@ class MerchantCurationContentTest {
         List<String> visible = catalog.visibleCommands(GROUP, REVIEWER, true);
 
         assertThat(visible)
-                .as("复核人的「收录商家」面不该混着商家入驻自助链")
+                .as("复核人的「商家收录」面不该混着商家入驻自助链")
                 .doesNotContainAnyElementsOf(SUBMISSION);
         assertThat(visible)
                 .as("复核人的面里应有管理三件（资质复核/保证金）")
@@ -67,6 +67,11 @@ class MerchantCurationContentTest {
         assertThat(visible)
                 .as("管理员不需要「提交商家收录」的这些功能")
                 .doesNotContainAnyElementsOf(SUBMISSION);
+        assertThat(visible)
+                .as("对称断言（审查 MEDIUM 闭环）：管理三件属独立授权通道，纯群管不出现——"
+                        + "其商家面为刻意的空面（fail-closed 不并权；群管要管商家需另授 TGG_MERCHANT_REVIEWERS，"
+                        + "边界判据见 RoleMatrixContentTest 类注）")
+                .doesNotContainAnyElementsOf(MANAGEMENT);
     }
 
     /** 普通成员视角不变：自助链照常可见，管理三件照常不出现。 */

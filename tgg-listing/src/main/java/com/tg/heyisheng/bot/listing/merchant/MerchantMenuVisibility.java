@@ -5,7 +5,7 @@ import com.tg.heyisheng.bot.core.interaction.MenuVisibility;
 import java.util.Set;
 
 /**
- * 「收录商家」类的可见性接缝（模块六）：资质复核类命令的权限载体是**平台层**全局白名单
+ * 「商家收录」类的可见性接缝（模块六）：资质复核类命令的权限载体是**平台层**全局白名单
  * （{@link MerchantReviewGuard}，配置 {@code tgg.merchant.reviewers}），
  * 注解权限是 {@code NONE}——{@code /menu} 从注册表判不出「此人是否可见」。
  *
@@ -18,7 +18,7 @@ import java.util.Set;
  * 或（更糟）对无权者暴露命令存在。
  *
  * <p><b>本接缝由 {@code MerchantConfiguration} 装配</b>，因此随 {@code tgg.merchant.enabled}
- * 一同出现/消失：模块未启用时不得存在「收录商家」分类（那些命令本就不在容器里）。
+ * 一同出现/消失：模块未启用时不得存在「商家收录」分类（那些命令本就不在容器里）。
  */
 public class MerchantMenuVisibility implements MenuVisibility {
 

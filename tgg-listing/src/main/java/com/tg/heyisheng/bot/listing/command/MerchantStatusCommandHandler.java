@@ -22,7 +22,7 @@ import java.util.Optional;
  * 而「待缴纳保证金」直接告诉他下一步要做什么。
  */
 @BotCommand(value = "merchant_status", description = "查看我的商家入驻状态", publicCommand = true,
-        category = MenuCategory.LISTING)
+        category = MenuCategory.MERCHANT)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantStatusCommandHandler implements CommandHandler {
 

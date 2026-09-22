@@ -9,7 +9,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 「收录商家」策展的判据（用户 2026-09-22 拍板）：管事的人（商家复核人 / 群内管理员）
+ * 「商家收录」策展的判据（用户 2026-09-22 拍板）：管事的人（商家复核人 / 群内管理员）
  * 的面上收走商家入驻自助链，普通成员与身份不明者照常。
  *
  * <p>判据与管理判定同源：复核侧走 {@link MerchantReviewGuard#isReviewer}（本测用静态名单构造器），

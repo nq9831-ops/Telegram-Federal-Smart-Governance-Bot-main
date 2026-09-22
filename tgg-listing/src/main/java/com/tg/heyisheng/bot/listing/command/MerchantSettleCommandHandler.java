@@ -44,7 +44,7 @@ import java.util.Optional;
  * 的「权限不足即静默」一致。
  */
 @BotCommand(value = "merchant_settle", description = "结算已冻结的商家保证金（平台复核人）",
-        confirm = Confirm.ALWAYS, category = MenuCategory.LISTING)
+        confirm = Confirm.ALWAYS, category = MenuCategory.MERCHANT)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantSettleCommandHandler implements CommandHandler {
 

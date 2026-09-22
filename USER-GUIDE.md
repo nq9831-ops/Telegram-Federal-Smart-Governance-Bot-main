@@ -27,7 +27,7 @@
 `curl -s "https://api.telegram.org/bot<Token>/getUpdates" | jq '.result[-1].message.from.id'`
 （应用日志里的 id 是**哈希**过的，看不出来）。
 
-### 场景 × 权限：私聊和群里各能用什么
+### 场景 × 权限：角色 × 面 的彻底划分
 
 > 判据与 `/help`、`/menu` 面板**同一套**（`MenuCatalog` + `@BotCommand` 声明），本表是按判据展开的
 > 速查矩阵；用法与说明以「三、命令一览」为准（这里只管**场景与谁能用**）。
@@ -36,22 +36,27 @@
 
 <!-- 场景矩阵 -->
 
-| 功能集 | 私聊 | 群聊 | 谁能用 |
+| 角色的面 | 私聊 | 群聊 | 授权通道（谁能用） |
 |---|---|---|---|
-| **自助功能**（`/echo`（别名 `/ping`）、`/menu`、`/help`、`/whoami`、`/status`、`/quiet_hours`、`/export_my_data`、`/case_appeal`、`/appeal`、`/merchant_apply`、`/merchant_status`、`/merchant_exit`、`/listing_appeal`、`/listing_list`） | ✅ | ✅ | 全体成员（`/case_appeal` 限当事人；模块类命令需部署方开启对应开关） |
-| **群内管理**（`/enable`、`/disable`、`/addword`、`/delword`、`/words`、`/rules`、`/unteach`） | ❌¹ | ✅ | 群内管理员（本节上表第一行授权，**按群**授予） |
-| **群限定三条**（`/teach`、`/group_tag`、`/listing_add`） | ❌² | ✅ **只能在群里用** | 群内管理员 |
-| **平台白名单**（`/review_list`、`/review_approve`、`/review_reject`、`/data_breach`、`/merchant_review`、`/merchant_deposit`、`/merchant_settle`、`/pending`、`/approve`、`/reject`） | ✅ | ✅ | 复核人 / 商家复核人 / 联邦管理员（本节上表，**全局**白名单） |
+| **公众自助面**（`/echo`（别名 `/ping`）、`/menu`、`/help`、`/whoami`、`/status`、`/quiet_hours`、`/export_my_data`、`/case_appeal`、`/appeal`、`/merchant_apply`、`/merchant_status`、`/merchant_exit`、`/listing_list`、`/listing_appeal`） | ✅ | ✅ | 无授权即可用（`/case_appeal` 限当事人；模块类命令需部署方开启对应开关）³ |
+| **群内管理面**（`/enable`、`/disable`、`/addword`、`/delword`、`/words`、`/rules`、`/unteach`） | ❌¹ | ✅ | 群内管理员（`TGG_PERMISSION_ADMINS`，**按群**授予） |
+| **群限定三条**（`/teach`、`/group_tag`、`/listing_add`） | ❌² | ✅ **只能在群里用** | 群内管理员（同上） |
+| **商家管理面**（`/merchant_review`、`/merchant_deposit`、`/merchant_settle`） | ✅ | ✅ | 商家复核人（`TGG_MERCHANT_REVIEWERS` / 平台 `MERCHANT_REVIEW`，**全局**） |
+| **平台复核合规面**（`/review_list`、`/review_approve`、`/review_reject`、`/data_breach`） | ✅ | ✅ | 平台复核人（`TGG_MODERATION_REVIEWERS` / 平台 `REVIEW_DECIDE`，**全局**） |
+| **联邦裁决面**（`/pending`、`/approve`、`/reject`） | ✅ | ✅ | 联邦管理员（`TGG_FEDERATION_ADMINS` / 平台 `FEDERATION_ADMIN`，**全局**） |
 | **权益通知**（禁言告知、案件通知、信用异动） | ✅ 送进私聊 | — | 当事人 |
 
 ¹ 群管理员身份**按群授予、不跟到私聊**：授权是 `<chatId>:<userId>` 按群给的，私聊里 chatId 等于你自己的
 userId，默认查不到授权 ⇒ 管理命令在私聊里**静默忽略**（不回「权限不足」——那等于确认命令存在）。
 ² 这三条带**硬门**：授权齐了也一样，私聊里发只回「这条命令得在群里发才管用。」
 `/help` 私聊版会把你在某个群有权用的这类命令单列在「这些得到群里用」；`/menu` 私聊版主页也会提示一行。
-³ **面板策展**（2026-09-22）：**管事的人**（商家复核白名单 / 群内管理员）的面上，商家入驻自助链
-（`/merchant_apply`、`/merchant_status`、`/merchant_exit`）整链收起——他们的「收录商家」面只有
-「管理商家」三件（`/merchant_review`、`/merchant_deposit`、`/merchant_settle`）。只收展示、不动执行：
-这些命令仍可直接键入执行；普通成员视角不变。
+³ **面板策展**（2026-09-22）：**商家域的管理者**（商家复核 ∨ 群内管理员）的面上，商家入驻自助链
+（`/merchant_apply`、`/merchant_status`、`/merchant_exit`）整链收起——管理侧的商家面不再有「提交」噪音。
+**边界**：平台复核人 / 联邦管理员管的是别的域，与商家域的关系是普通用户（可能自己要入驻），自助链照常。
+**只收展示、不动执行**：这些命令仍可直接键入执行。「管理商家」三件属**独立授权通道**——纯群管未授
+`TGG_MERCHANT_REVIEWERS` 时其商家面为**空面**（刻意 fail-closed：保证金结算是资金动作，默认不因
+「是群管」而并权；要并权改一行授权即可）。全表六面的机械判据钉在 `RoleMatrixContentTest`（增删命令或
+改判据即变红）。
 
 <!-- /场景矩阵 -->
 

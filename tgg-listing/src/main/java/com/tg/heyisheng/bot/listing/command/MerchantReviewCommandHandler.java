@@ -34,7 +34,7 @@ import java.util.Optional;
  * 不可复核——给出明确提示，而不是让实体的非法迁移异常穿透到分发层。
  */
 @BotCommand(value = "merchant_review", description = "商家资质复核（复核人）",
-        category = MenuCategory.LISTING)
+        category = MenuCategory.MERCHANT)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantReviewCommandHandler implements CommandHandler {
 

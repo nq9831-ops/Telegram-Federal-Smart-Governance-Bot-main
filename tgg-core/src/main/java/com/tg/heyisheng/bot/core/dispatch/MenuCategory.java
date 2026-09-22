@@ -32,8 +32,16 @@ public enum MenuCategory {
     /** 复核合规：平台层复核队列、合规证据、联邦申诉裁决。 */
     REVIEW(DispatchMessages.CATEGORY_REVIEW),
 
-    /** 收录商家：收录库与商家资质流程。 */
+    /** 群组收录（模块五）：收录库与链接验证——把好群收进目录、浏览与申诉。 */
     LISTING(DispatchMessages.CATEGORY_LISTING),
+
+    /**
+     * 商家收录（模块六）：入驻申请链（公众自助：apply/status/exit）与商家管理
+     * （商家复核人：review/deposit/settle）。两族**按角色切片呈现**——管理侧只见管理
+     * （{@code MerchantSubmissionCuration}），公众侧只见自助；此前与群组收录混在一枚
+     * 「收录商家」分类里，正是用户点名的「功能模糊」（2026-09-22 拆分）。
+     */
+    MERCHANT(DispatchMessages.CATEGORY_MERCHANT),
 
     /** 兜底：尚未声明分类的可见命令。 */
     OTHER(DispatchMessages.CATEGORY_OTHER);

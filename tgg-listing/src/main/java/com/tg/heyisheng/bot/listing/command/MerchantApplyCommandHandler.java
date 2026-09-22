@@ -29,7 +29,7 @@ import java.util.Optional;
  * （否则连续点两次就会产出两条并行申请，复核人无从判断该审哪条）。
  */
 @BotCommand(value = "merchant_apply", description = "提交商家入驻申请", publicCommand = true,
-        category = MenuCategory.LISTING)
+        category = MenuCategory.MERCHANT)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantApplyCommandHandler implements CommandHandler {
 

@@ -86,8 +86,11 @@ public final class DispatchMessages {
     /** 分类名：复核合规。 */
     public static final String CATEGORY_REVIEW = "复核合规";
 
-    /** 分类名：收录商家。 */
-    public static final String CATEGORY_LISTING = "收录商家";
+    /** 分类名：群组收录。 */
+    public static final String CATEGORY_LISTING = "群组收录";
+
+    /** 分类名：商家收录。 */
+    public static final String CATEGORY_MERCHANT = "商家收录";
 
     /** 分类名：兜底。 */
     public static final String CATEGORY_OTHER = "其他";

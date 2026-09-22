@@ -7,10 +7,15 @@ import com.tg.heyisheng.bot.core.permission.PermissionChecker;
 import java.util.Set;
 
 /**
- * 「收录商家」面的策展（模块六，用户 2026-09-22 拍板）：对**管事的人**收走商家入驻自助链——
+ * 「商家收录」面的策展（模块六，用户 2026-09-22 拍板）：对**管事的人**收走商家入驻自助链——
  * 他们管商家（资质复核 / 保证金），不申请入驻；两类混排正是用户说的「功能模糊」。
- * 管理者的面里因此**只有「管理商家」**（{@code /merchant_review}·{@code /merchant_deposit}·
- * {@code /merchant_settle}，仍按 {@link MerchantMenuVisibility} 的白名单门控）。
+ * 管理侧的商家面因此**不再有「提交」噪音**。
+ *
+ * <p><b>「管理商家」三件另按商家复核授权</b>（{@code /merchant_review}·{@code /merchant_deposit}·
+ * {@code /merchant_settle}，见 {@link MerchantMenuVisibility}——四条授权通道**互相独立**，不类比、
+ * 不继承）：纯群管未授商家复核权时，其商家面为**空面**（分类整块不出现）。这是刻意的 fail-closed
+ * （保证金结算是资金动作，默认不因「是群管」而并权），不是遗漏——群管要管商家，加一行
+ * {@code TGG_MERCHANT_REVIEWERS} 即可。策展边界判据见 {@code RoleMatrixContentTest}。
  *
  * <p><b>「管事的人」的判据</b>（与该功能的管理判定同源）：
  * <ul>

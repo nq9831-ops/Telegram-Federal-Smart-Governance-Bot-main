@@ -63,11 +63,11 @@ public class MerchantConfiguration {
     }
 
     /**
-     * {@code /menu} 的「收录商家」可见性接缝：资质复核类命令走全局白名单，注册表判不出可见性，
+     * {@code /menu} 的「商家收录」可见性接缝：资质复核类命令走全局白名单，注册表判不出可见性，
      * 故把判定交给菜单侧——详见 {@link MerchantMenuVisibility}。
      *
      * <p>随本类的 {@code tgg.merchant.enabled} 门控一同出现/消失：模块未启用时连命令都不存在，
-     * 菜单里自然不该有「收录商家」分类。
+     * 菜单里自然不该有「商家收录」分类。
      */
     @Bean
     public MenuVisibility merchantMenuVisibility(MerchantReviewGuard merchantReviewGuard) {
@@ -75,8 +75,9 @@ public class MerchantConfiguration {
     }
 
     /**
-     * 「收录商家」面的展示策展：对管事的人（复核人 / 群内管理员）收走商家入驻自助链——
-     * 他们的面里只有「管理商家」（用户 2026-09-22 拍板）。只收展示，不动执行。
+     * 「商家收录」面的展示策展：对管事的人（商家复核 / 群内管理员）收走商家入驻自助链——
+     * 管理侧的商家面不再有「提交」噪音（用户 2026-09-22 拍板）。只收展示，不动执行。
+     * 「管理商家」三件另按商家复核授权（独立通道）：纯群管未授则商家面为空面（刻意 fail-closed）。
      *
      * <p>{@link PermissionChecker} 经 {@link ObjectProvider} 取（同 {@code CreditService} 的取舍）：
      * 装配切片上下文可能不含 core 的判定器 bean——缺失时 RBAC 半边判不了即不收（fail-open），

@@ -83,9 +83,11 @@ class MenuViewTest {
                 assertThat(d.length()).as("callback_data 上限 64 字节：%s", d).isLessThanOrEqualTo(64));
     }
 
+    /** 分类标题随拆分更新（2026-09-22）：群组收录与商家收录是两枚分类，不再混在「收录商家」。 */
     @Test
     void categoryTextNamesTheCategory() {
-        assertThat(MenuView.categoryText(MenuCategory.LISTING)).contains("收录商家");
+        assertThat(MenuView.categoryText(MenuCategory.LISTING)).contains("群组收录");
+        assertThat(MenuView.categoryText(MenuCategory.MERCHANT)).contains("商家收录");
     }
 
     /** 分头渲染：私聊主页「私聊可用的功能」，群聊维持「本群」口径。 */

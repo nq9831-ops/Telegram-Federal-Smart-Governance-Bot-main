@@ -39,7 +39,7 @@ import java.util.Optional;
  * <p><b>幂等</b>：已有保证金记录的商家直接给出提示，不重复开通（否则第二次会撞 `lock` 的 PENDING 守卫）。
  */
 @BotCommand(value = "merchant_deposit", description = "确认商家保证金并完成入驻（平台复核人）",
-        category = MenuCategory.LISTING)
+        category = MenuCategory.MERCHANT)
 @ConditionalOnProperty(prefix = "tgg.merchant", name = "enabled", havingValue = "true")
 public class MerchantDepositCommandHandler implements CommandHandler {
 
