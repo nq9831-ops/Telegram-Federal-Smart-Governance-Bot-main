@@ -42,6 +42,14 @@ export const useSession = defineStore('session', () => {
     role.value === 'SUPER_ADMIN' || permissions.value.includes('AUDIT_READ'),
   )
 
+  /**
+   * 是否显示「信用」入口——**显示分区，不是安全边界**：真正放行/拒绝在服务端
+   * （`CreditQueryController` 校验超管或 `CREDIT_READ`）。权限未知时一律不显示（保守）。
+   */
+  const canReadCredit = computed(() =>
+    role.value === 'SUPER_ADMIN' || permissions.value.includes('CREDIT_READ'),
+  )
+
   /** 顶部身份行文案。 */
   const operatorLabel = computed(() => {
     if (role.value === 'SUPER_ADMIN') {
@@ -86,6 +94,6 @@ export const useSession = defineStore('session', () => {
 
   return {
     authenticated, subjectType, subjectId, role, permissions, operatorLabel, canReadAudit,
-    signIn, signInWithTelegram, signOut,
+    canReadCredit, signIn, signInWithTelegram, signOut,
   }
 })

@@ -39,5 +39,13 @@ public enum PlatformPermission {
     SYSTEM_RESTART,
 
     /** 查看审计（只读）。 */
-    AUDIT_READ
+    AUDIT_READ,
+
+    /**
+     * 查看信用账本 / 流水（只读）。
+     *
+     * <p>与 {@link #AUDIT_READ} 单列：审计（谁做了什么动作）与信用（谁被扣了什么分）是两条
+     * 不同的可见面，读审计不等于读账本——沿用本项目「一个面一个能力点」的既有取舍。
+     */
+    CREDIT_READ
 }

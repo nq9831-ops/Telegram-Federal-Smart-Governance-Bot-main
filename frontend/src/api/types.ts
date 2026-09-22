@@ -184,3 +184,53 @@ export interface AuditEntry {
   detail: string | null
   occurredAt: string
 }
+
+// ───────────────────────────── 信用账本 / 流水（gap-01 · 只读可见面）─────────────────────────────
+
+/**
+ * 信用主体类型 —— 后端 `CreditSubjectType`。三套信用分共用一张账本表，按此枚举区分。
+ *
+ * ⚠️ `subjectId` 的数值空间在三种类型间**重叠**（个人 userId / 群 chatId / 商户 id），
+ * 呈现主体时必须**成对**显示「类型#id」，只显示 id 会串号（与审计页同一坑）。
+ */
+export type CreditSubjectType = 'INDIVIDUAL' | 'GROUP' | 'MERCHANT'
+
+/** 危机等级 —— 后端 `RiskLevel`（信用流水复用；只有四级，没有 CRITICAL）。 */
+export type CreditRiskLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH'
+
+/**
+ * 信用流水一行 —— 后端 `CreditQueryController.toEventView`。
+ *
+ * 一次分值变动的**不可变**记录（只追加）。`scoreBefore` / `scoreDelta` / `scoreAfter`
+ * 是数据库夹取后的**实际**变化（不是规则引擎的重算值）。
+ */
+export interface CreditEvent {
+  id: number
+  subjectType: CreditSubjectType | null
+  subjectId: number
+  eventType: string | null
+  severity: CreditRiskLevel | null
+  hardLine: boolean
+  scoreBefore: number
+  scoreDelta: number
+  scoreAfter: number
+  source: string | null
+  occurredAt: string
+}
+
+/** 信用账本一行 —— 后端 `CreditQueryController.toScoreView`（「现在多少分」的快照）。 */
+export interface CreditScore {
+  id: number
+  subjectType: CreditSubjectType | null
+  subjectId: number
+  score: number
+  updatedAt: string
+}
+
+/** 一页结果 —— 后端 `CreditQueryController.page(...)`：`{items,total,page,size}`。 */
+export interface CreditPage<T> {
+  items: T[]
+  total: number
+  page: number
+  size: number
+}

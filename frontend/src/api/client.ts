@@ -5,6 +5,10 @@ import type {
   ApprovalStats,
   AuditEntry,
   ConfigItem,
+  CreditEvent,
+  CreditPage,
+  CreditScore,
+  CreditSubjectType,
   DecideFailure,
   DecideRequest,
   DecideSuccess,
@@ -306,6 +310,7 @@ export const ALL_PERMISSIONS = [
   'MERCHANT_REVIEW',
   'SYSTEM_RESTART',
   'AUDIT_READ',
+  'CREDIT_READ',
 ] as const
 
 /** 能力点的中文说明——界面呈现用，避免裸显后端英文枚举。 */
@@ -316,6 +321,7 @@ export const PERMISSION_LABEL: Record<string, string> = {
   MERCHANT_REVIEW: '商家复核',
   SYSTEM_RESTART: '系统重启',
   AUDIT_READ: '审计查看',
+  CREDIT_READ: '信用查看',
 }
 
 // ───────────────────────────── Telegram 登录（模块十一 · TG 用户登录）─────────────────────────────
@@ -367,5 +373,56 @@ export const AUDIT_MAX_LIMIT = 200
  */
 export async function fetchAuditRecent(limit = 100): Promise<AuditEntry[]> {
   const { data } = await http.get<AuditEntry[]>('/admin/audit/recent', { params: { limit } })
+  return data
+}
+
+// ───────────────────── 信用账本 / 流水（gap-01 · 只读可见面）─────────────────────
+
+/** 信用单页上限（与后端 `CreditQueryController.MAX_PAGE_SIZE` 一致）。 */
+export const CREDIT_MAX_PAGE_SIZE = 200
+
+/** 信用查询的过滤 + 分页入参（与后端 `@RequestParam` 一一对应）。 */
+export interface CreditQuery {
+  subjectType?: CreditSubjectType
+  subjectId?: number
+  page?: number
+  size?: number
+}
+
+/** 只把「有值」的过滤条件放进 query——空串/空值时后端按「不过滤」处理，不发无意义的参数。 */
+function creditParams(query: CreditQuery): Record<string, string | number> {
+  const params: Record<string, string | number> = {}
+  if (query.subjectType !== undefined) {
+    params.subjectType = query.subjectType
+  }
+  if (query.subjectId !== undefined) {
+    params.subjectId = query.subjectId
+  }
+  if (query.page !== undefined) {
+    params.page = query.page
+  }
+  if (query.size !== undefined) {
+    params.size = query.size
+  }
+  return params
+}
+
+/**
+ * `GET /admin/credit/events` —— 信用流水（倒序，只读）。
+ *
+ * 超管天然可读；其余主体需持 `CREDIT_READ`，否则后端 403（`{error}`）——由调用方按 403 渲染无权限态。
+ */
+export async function fetchCreditEvents(query: CreditQuery = {}): Promise<CreditPage<CreditEvent>> {
+  const { data } = await http.get<CreditPage<CreditEvent>>('/admin/credit/events', {
+    params: creditParams(query),
+  })
+  return data
+}
+
+/** `GET /admin/credit/scores` —— 信用账本（倒序，只读）。权限同流水。 */
+export async function fetchCreditScores(query: CreditQuery = {}): Promise<CreditPage<CreditScore>> {
+  const { data } = await http.get<CreditPage<CreditScore>>('/admin/credit/scores', {
+    params: creditParams(query),
+  })
   return data
 }

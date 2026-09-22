@@ -1,5 +1,8 @@
 package com.tg.heyisheng.bot.credit;
 
+import com.tg.heyisheng.bot.core.credit.CreditSubjectType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -66,4 +69,17 @@ public interface CreditEventRecordRepository extends JpaRepository<CreditEventRe
      * 而不是用规则引擎重算：分数 10 时硬红线 −100 实际只扣 10，重算会退 100。
      */
     java.util.Optional<CreditEventRecord> findByIdempotencyKey(String idempotencyKey);
+
+    // ───────────────────── 只读可见面（模块十一 · 后台信用流水页）─────────────────────
+    // 过滤进**查询条件**（与「我的收录」同一纪律），绝不在控制器里「查全部再过滤」。
+
+    /** 全量分页（新在前）——无过滤时的默认视图。 */
+    Page<CreditEventRecord> findAllByOrderByIdDesc(Pageable pageable);
+
+    /** 按主体类型分页（新在前）。 */
+    Page<CreditEventRecord> findBySubjectTypeOrderByIdDesc(CreditSubjectType subjectType, Pageable pageable);
+
+    /** 按主体（类型 + id）分页（新在前）。 */
+    Page<CreditEventRecord> findBySubjectTypeAndSubjectIdOrderByIdDesc(CreditSubjectType subjectType,
+                                                                      long subjectId, Pageable pageable);
 }

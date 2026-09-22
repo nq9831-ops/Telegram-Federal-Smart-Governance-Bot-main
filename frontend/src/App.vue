@@ -10,11 +10,12 @@ import ConfigCenter from './views/ConfigCenter.vue'
 import AccountCenter from './views/AccountCenter.vue'
 import MyContent from './views/MyContent.vue'
 import AuditCenter from './views/AuditCenter.vue'
+import CreditCenter from './views/CreditCenter.vue'
 
 const session = useSession()
 const form = reactive({ username: '', password: '' })
-/** 已登录后的五个视图；项目刻意不引 vue-router（条件渲染足够）。账号管理仅超管、审计按 AUDIT_READ 分区。 */
-const view = ref<'todos' | 'config' | 'accounts' | 'mine' | 'audit'>('todos')
+/** 已登录后的六个视图；项目刻意不引 vue-router（条件渲染足够）。账号管理仅超管、审计按 AUDIT_READ、信用按 CREDIT_READ 分区。 */
+const view = ref<'todos' | 'config' | 'accounts' | 'mine' | 'audit' | 'credit'>('todos')
 const submitting = ref(false)
 
 async function submit(): Promise<void> {
@@ -128,6 +129,7 @@ function mountTelegramWidget(botUsername: string): void {
         <el-radio-button value="config">配置中心</el-radio-button>
         <el-radio-button value="mine">我的收录</el-radio-button>
         <el-radio-button v-if="session.canReadAudit" value="audit">审计</el-radio-button>
+        <el-radio-button v-if="session.canReadCredit" value="credit">信用</el-radio-button>
         <el-radio-button v-if="session.role === 'SUPER_ADMIN'" value="accounts">账号管理</el-radio-button>
       </el-radio-group>
     </div>
@@ -135,6 +137,7 @@ function mountTelegramWidget(botUsername: string): void {
     <ConfigCenter v-else-if="view === 'config'" :operator="session.operatorLabel" @sign-out="signOut" />
     <MyContent v-else-if="view === 'mine'" :operator="session.operatorLabel" @sign-out="signOut" />
     <AuditCenter v-else-if="view === 'audit'" :operator="session.operatorLabel" @sign-out="signOut" />
+    <CreditCenter v-else-if="view === 'credit'" :operator="session.operatorLabel" @sign-out="signOut" />
     <AccountCenter v-else :operator="session.operatorLabel" @sign-out="signOut" />
   </template>
 </template>

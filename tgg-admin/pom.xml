@@ -31,6 +31,14 @@
       <artifactId>tgg-listing</artifactId>
     </dependency>
 
+    <!-- 信用可见面（gap-01）：后台只读端点直接读信用流水 / 账本，需信用模块的仓库。
+         虽然 tgg-listing 已传递引入 tgg-credit，这里**显式声明**——不让本模块的编译期
+         依赖隐藏在别人的传递依赖里（tgg-listing 若哪天去掉 credit，这里不会静默编译失败）。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-credit</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

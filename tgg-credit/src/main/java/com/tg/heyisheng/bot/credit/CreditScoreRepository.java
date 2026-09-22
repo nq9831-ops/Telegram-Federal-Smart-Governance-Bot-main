@@ -2,6 +2,8 @@ package com.tg.heyisheng.bot.credit;
 
 import com.tg.heyisheng.bot.core.credit.CreditSubjectType;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -92,4 +94,17 @@ public interface CreditScoreRepository extends JpaRepository<CreditScore, Long> 
                    @Param("minScore") int minScore,
                    @Param("maxScore") int maxScore,
                    @Param("now") Instant now);
+
+    // ───────────────────── 只读可见面（模块十一 · 后台信用账本页）─────────────────────
+    // 过滤进**查询条件**（与「我的收录」同一纪律），绝不在控制器里「查全部再过滤」。
+
+    /** 全量分页（新在前）。 */
+    Page<CreditScore> findAllByOrderByIdDesc(Pageable pageable);
+
+    /** 按主体类型分页（新在前）。 */
+    Page<CreditScore> findBySubjectTypeOrderByIdDesc(CreditSubjectType subjectType, Pageable pageable);
+
+    /** 按主体（类型 + id）分页（新在前）。 */
+    Page<CreditScore> findBySubjectTypeAndSubjectIdOrderByIdDesc(CreditSubjectType subjectType,
+                                                                 long subjectId, Pageable pageable);
 }
