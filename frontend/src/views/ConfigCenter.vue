@@ -27,8 +27,8 @@ const writePermissionText = computed(() => {
     return '——'
   }
   const from = info.source === 'explicit'
-    ? '显式配置 tgg.admin.config-admins'
-    : '回落自 TGG_MODERATION_REVIEWERS（能审批的人也能改配置）'
+    ? '已显式指定可改配置的管理员名单'
+    : '未指定时跟随审批人名单（能审批的人也能改配置）'
   return `共 ${info.count} 人有权写入；来源：${from}`
 })
 

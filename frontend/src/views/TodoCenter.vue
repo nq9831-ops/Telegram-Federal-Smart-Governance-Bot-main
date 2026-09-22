@@ -16,6 +16,12 @@ const page = ref(1)
 const size = ref(20)
 const status = ref<ReviewStatus>('PENDING')
 const stats = ref<ApprovalStats | null>(null)
+/**
+ * 加载失败的错误文案——**留在页面上**（不只弹一次 toast）。
+ * 只 toast 的话，刷新后页面退化成空表，「真没有待办」与「没拉到」就分不清了。
+ * 与审计 / 我的收录同一错误态口径。
+ */
+const error = ref('')
 
 /**
  * 超时阈值**来自配置中心**（`tgg.admin.overdue-*-hours`，热参数），不硬编码。
@@ -59,6 +65,7 @@ function statusText(value: ReviewStatus): string {
 
 async function load(): Promise<void> {
   loading.value = true
+  error.value = ''
   try {
     // 注意 page 是 0 基（后端 `@RequestParam(defaultValue = "0")`），界面上是 1 基
     const [pageData, statsData, config] = await Promise.all([
@@ -77,8 +84,9 @@ async function load(): Promise<void> {
     }
     remindHours.value = readHours('tgg.admin.overdue-remind-hours')
     escalateHours.value = readHours('tgg.admin.overdue-escalate-hours')
-  } catch (error) {
-    ElMessage.error(describeError(error, FORBIDDEN_APPROVAL))
+  } catch (e) {
+    error.value = describeError(e, FORBIDDEN_APPROVAL)
+    ElMessage.error(error.value)
   } finally {
     loading.value = false
   }
@@ -115,6 +123,17 @@ onMounted(load)
     </el-header>
 
     <el-main>
+      <!-- 加载失败：持久错误提示（对齐审计 / 我的收录）——页面不再退化成无信息的空表。 -->
+      <el-alert
+        v-if="error"
+        class="block"
+        type="error"
+        :closable="false"
+        show-icon
+        title="加载失败"
+        :description="error"
+      />
+
       <div class="cards">
         <el-card shadow="never" class="card pixel-card">
           <div class="card-num">{{ stats?.pending ?? '—' }}</div>
@@ -239,6 +258,9 @@ onMounted(load)
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+  margin-bottom: 16px;
+}
+.block {
   margin-bottom: 16px;
 }
 .card-num {

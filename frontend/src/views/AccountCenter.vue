@@ -74,6 +74,19 @@ async function savePerms(account: AccountView): Promise<void> {
 
 async function toggleStatus(account: AccountView): Promise<void> {
   const next = account.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+  // 停用会**立即吊销该账号的会话**——是不可逆的对外动作，必须二次确认（与重置密码、强制下线同口径）。
+  // 启用不弹确认：确认泛滥会让人对确认框脱敏，反而放过真正危险的那一步。
+  if (next === 'DISABLED') {
+    try {
+      await ElMessageBox.confirm(
+        `停用「${account.username}」会立即吊销其全部会话，该账号将无法登录。是否继续？`,
+        '确认停用账号',
+        { type: 'warning', confirmButtonText: '停用', cancelButtonText: '取消' },
+      )
+    } catch {
+      return
+    }
+  }
   try {
     await setAccountStatus(account.id, next)
     ElMessage.success(next === 'DISABLED' ? '已停用（其会话已吊销）' : '已启用')
@@ -100,6 +113,16 @@ async function resetPw(account: AccountView): Promise<void> {
 }
 
 async function revoke(account: AccountView): Promise<void> {
+  // 强制下线同样是「立即生效、影响真人」的动作，成对确认（取消即返回，不误发请求）。
+  try {
+    await ElMessageBox.confirm(
+      `强制下线会立即吊销「${account.username}」的全部会话，对方需重新登录才能继续使用。是否继续？`,
+      '确认强制下线',
+      { type: 'warning', confirmButtonText: '强制下线', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
   try {
     await revokeAccountSessions(account.id)
     ElMessage.success('已强制下线')

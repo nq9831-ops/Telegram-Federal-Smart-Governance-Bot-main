@@ -53,7 +53,7 @@ onMounted(load)
         :closable="false"
         show-icon
         title="只显示你提交的收录"
-        description="数据范围 OWN：这里只含当前登录主体自己提交的收录行（后端在查询条件里过滤，不是前端筛）。后台账号没有「自己提交的收录」，故列表恒为空。"
+        description="这里只显示当前登录主体自己提交的收录。后台管理账号不参与收录提交，所以这里通常为空——不是加载失败。"
       />
 
       <el-alert
