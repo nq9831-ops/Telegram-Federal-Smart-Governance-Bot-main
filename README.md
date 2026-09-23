@@ -35,11 +35,12 @@ tgg-credit      模块七：信用分体系（三套信用分 / 规则引擎 / �
 tgg-federation  模块八：联邦治理（对等节点广播 / 入站验签 / 跨群封禁 / 申诉）
 tgg-listing     模块五/六：收录（群组收录 / 商家收录与保证金）
 tgg-admin       模块十一：Web 后台（审批中心 REST API + frontend/ Vue 3 控制台）
+tgg-escrow      模块十二：担保交易（订单状态机 / 争议裁决；链上结算未接）
 tgg-app         Spring Boot 启动器（打成单一可运行 jar）
 ```
 
 依赖单向：`tgg-app` 依赖各业务模块，业务模块依赖 `tgg-core`，`tgg-core` 依赖 `tgg-common`
-（即 `tgg-app → {federation, listing, admin, credit} → core → common`）；反向依赖不存在。
+（即 `tgg-app → {federation, listing, admin, credit, escrow} → core → common`）；反向依赖不存在。
 
 ```mermaid
 flowchart LR
@@ -181,7 +182,7 @@ MySQL 用托管实例（应用单独部署）时 **1 vCPU / 1 GB** 足够。
 | 九 · AI 审核（L1 正则 + 四层流水线 + 复核队列；L2/L3/L4 默认关闭） | 已完成 |
 | 十 · 通知与审计（三级分类 / 免打扰 / 全链路审计 / 保留策略 / 72h 泄露通报） | 已完成（默认关闭） |
 | 十一 · Web 后台（审批中心后端 + Vue 3 控制台） | 已完成（默认关闭） |
-| 十二 · TON 担保交易 | 未开始 |
+| 十二 · TON 担保交易 | 骨架已落（订单状态机 / 账本 / V24 迁移；链上结算未接，默认关闭） |
 
 ## 相关文档
 
@@ -210,7 +211,7 @@ MySQL 用托管实例（应用单独部署）时 **1 vCPU / 1 GB** 足够。
 # 开发手册（项目现状单一快照）
 
 > **本文定位**：全部开发文档的整合入口——把散落在 README / ARCHITECTURE / 各 GUIDE / KNOWN-ISSUES / DEPLOYMENT-\* 中的**当前有效信息**收敛为一份，供开发/运维快速建立全貌。
-> **快照时点**：截至提交 `2285355`（2026-09-23）。此后行为变更须**回写本文**并同步专册（维护纪律见文末）。
+> **快照时点**：截至提交 `7b34fb4`（2026-09-23；本轮已订正规模数字与模块表）。此后行为变更须**回写本文**并同步专册（维护纪律见文末）。
 > **专册不废**：合规五件套与运维专册（见 §9 索引）仍是各自领域的事实源，本文只收「开发需要知道的现状」并指路；两者冲突时以专册为准并立刻订正本文。
 
 ---
@@ -252,10 +253,11 @@ flowchart LR
 | `tgg-listing` | 群组/商家收录、入驻/保证金/结算、评级 | 商家退出语义=只冻结保证金不改 status（有意契约，KNOWN-ISSUES #18） |
 | `tgg-federation` | 联邦处罚上报/裁决、联邦申诉 | 申诉终态守卫：已结案不可再裁（2026-09-22 修复，守门 `FederationAppealServiceTest`） |
 | `tgg-admin` | Web 管理端 API（auth/accounts/approvals/config/audit/my/credit/dangerous-actions） | 鉴权 fail-closed（AdminSessionFilter）；能力点制（如 CREDIT_READ） |
+| `tgg-escrow` | 担保交易（模块十二）：订单状态机、争议裁决、V24 账本 | 链上结算未接（gap-ESC-01）；`tgg.escrow.enabled` 门控，默认关 |
 | `tgg-app` | Spring Boot 装配、webhook 入口、集成测试（\*IT 全在此） | 全上下文启动测试在此；\*IT 由 failsafe 在 verify 阶段跑 |
-| `frontend` | Vue 3 + Element Plus 管理后台（待办/审计/配置/我的收录/账号/信用） | 文案改动必须同步 `client.test.ts` 的逐字断言 |
+| `frontend` | Vue 3 + Element Plus 管理后台（待办/审计/配置/我的收录/账号/信用/Mini App） | 文案改动必须同步 `client.test.ts` 的逐字断言 |
 
-**规模快照**（实测）：主源 Java 325 个 / 测试 Java 191 个 / Flyway 迁移 V1–V23 / 动态配置键 62 个。
+**规模快照**（2026-09-23 实测）：主源 Java 333 个 / 测试 Java 199 个 / Flyway 迁移 V1–V24（28 张表）/ 动态配置键 62 个。
 
 ## 3. 功能面现状
 
@@ -384,13 +386,14 @@ flowchart LR
 
 ## 二、模块划分与依赖方向
 
-7 个 Maven 模块，依赖严格单向（各模块 `pom.xml` 实证）：
+8 个 Maven 模块，依赖严格单向（各模块 `pom.xml` 实证）：
 
 ```mermaid
 flowchart TD
   APP["tgg-app<br/>启动器 · 可运行 jar"]
   ADMIN["tgg-admin<br/>模块十一 · 审批中心 API"]
   LISTING["tgg-listing<br/>模块五/六 · 收录与保证金"]
+  ESCROW["tgg-escrow<br/>模块十二 · 担保交易"]
   FED["tgg-federation<br/>模块八 · 联邦治理"]
   CREDIT["tgg-credit<br/>模块七 · 信用分"]
   CORE["tgg-core<br/>模块一/三/四/九/十"]
@@ -398,10 +401,12 @@ flowchart TD
 
   APP --> ADMIN
   APP --> LISTING
+  APP --> ESCROW
   APP --> FED
   APP --> CORE
   ADMIN --> CORE
   LISTING --> CORE
+  ESCROW --> CORE
   LISTING --> CREDIT
   FED --> CREDIT
   CREDIT --> CORE
@@ -416,9 +421,10 @@ flowchart TD
 | `tgg-federation` | 对等节点广播、入站验签、跨群封禁、申诉（八） |
 | `tgg-listing` | 群组收录、商家收录与保证金（五/六） |
 | `tgg-admin` | 审批中心 REST API + `frontend/` Vue 3 控制台（十一） |
+| `tgg-escrow` | 担保交易：订单状态机、争议裁决、账本（十二）——链上结算未接 |
 | `tgg-app` | Spring Boot 启动器：把各模块放进组件扫描范围，打成单一 jar |
 
-`tgg-core` 体量最大（**2026-09-21 实测 197 个**源文件——判据 `find tgg-core/src/main/java -name '*.java' | wc -l`；⚠️ 这个数字会随开发增长，**引用时以判据现算为准**），因为「模块一」本身就是横切的接入与调度层。
+`tgg-core` 体量最大（**2026-09-23 实测 202 个**源文件——判据 `find tgg-core/src/main/java -name '*.java' | wc -l`；⚠️ 这个数字会随开发增长，**引用时以判据现算为准**），因为「模块一」本身就是横切的接入与调度层。
 业务模块一律不反向依赖。
 
 ## 三、一次更新的生命周期
@@ -481,7 +487,7 @@ AuthenticationMiddleware → GroupConfigMiddleware → RateLimitMiddleware
 
 ## 五、数据模型
 
-Schema 由 Flyway 管理（**2026-09-21 实测：23 个迁移文件、27 张表**；`ddl-auto: validate`——JPA 只校验不建表）。
+Schema 由 Flyway 管理（**2026-09-23 实测：24 个迁移文件、28 张表**；`ddl-auto: validate`——JPA 只校验不建表）。
 ⚠️ **表清单以 `tgg-*/src/main/resources/db/migration/*.sql` 为准**（迁移只会增加，下面按模块的分组会滞后，别当完整清单）。按模块归属：
 
 | 归属 | 表 |
@@ -490,6 +496,7 @@ Schema 由 Flyway 管理（**2026-09-21 实测：23 个迁移文件、27 张表*
 | credit | `credit_scores` |
 | federation | `federation_appeals`、`federation_penalties` |
 | listing | `listing_groups`、`listing_appeals`、`listing_verification_records`、`merchants`、`merchant_deposits`、`merchant_deposit_records` |
+| escrow | `escrow_orders`（V24：金额 `DECIMAL(24,8)`、订单状态机、无物理删除） |
 
 **消息正文零存储**：表内没有承载正文的字段。`audit_log` 在应用层**无删除入口**（刻意，合规留痕）。
 
@@ -561,7 +568,9 @@ Schema 由 Flyway 管理（**2026-09-21 实测：23 个迁移文件、27 张表*
   裁决 / 统计卡，独立静态站点 + 反向代理（**不经 Spring Boot 托管**）。⚠️ **渲染未经真实浏览器验证**。
 - OpenAPI 文档（springdoc 2.9.1）已引入、**默认关闭**（`TGG_OPENAPI_ENABLED`）；启用会暴露全部端点清单
   ——含第三方 TelegramBots 的 `/{botPath}`，属信息面。
-- **模块十二 TON 担保交易整体未实现**：链上不可达（Tolk 合约 / 第三方审计 / OFAC-KYC 均不在范围内）。
+- **模块十二 TON 担保交易：骨架已落、链上未接**——`tgg-escrow` 有订单状态机与服务
+  （本地账本 / 争议裁决可在真库端到端验证，V24 迁移），但**真实 lock/refund 落链未实现**
+  （属 gap-ESC-01；Tolk 合约 / 第三方审计 / OFAC-KYC 均不在范围内）。`tgg.escrow.enabled` 默认关闭。
 - **单实例部署（全局约束，不只是「无分布式协调」）**：进程内内存态散布多处——限流器、确认令牌
   （`ConfirmationStore`）、准入登记（`PendingVerificationRegistry`）、群配置/词表 TTL 缓存；
   `@Scheduled` 任务（审批超时、红线 SLA、泄露通报、保留策略、收录验证）无分布式锁。故**本系统当前只支持
@@ -569,7 +578,7 @@ Schema 由 Flyway 管理（**2026-09-21 实测：23 个迁移文件、27 张表*
   引入共享协调层（本项目未引 Redis）。
 - **风控类能力未实现**：设备指纹、行为序列、图计算、AI 蜜罐（原文 §15.2 列为远期项）。
 
-> 本地开发资产（`docs/` 目录下的 `ENGINEERING-LOG.md`、`ENGINEERING-LOG.md`、`DEPLOYMENT-HANDBOOK.md` 等）
+> 本地开发资产（`docs/` 目录下的 `ENGINEERING-LOG.md`、`DEPLOYMENT-HANDBOOK.md` 等）
 > **不进 git**——换机器或重新 clone 不会带上它们，详见项目根 `.git/info/exclude`。
 
 
