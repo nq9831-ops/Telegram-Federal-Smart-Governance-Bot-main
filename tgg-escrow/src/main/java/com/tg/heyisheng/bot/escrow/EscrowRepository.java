@@ -1,5 +1,7 @@
 package com.tg.heyisheng.bot.escrow;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -9,8 +11,12 @@ import java.util.List;
  *
  * <p><b>无物理删除</b>：订单是审计与争议裁决的依据（同模块五/六「软删不物理删」纪律）。
  *
- * <p>只读查询侧（gap-ESC-05：避免重演 gap-07「有写入无查询入口」）由 {@link #findByStateOrderByIdAsc}
- * 等按状态取批的入口提供，争议 / 裁决队列据此列单。
+ * <p>查询侧分两类：
+ * <ul>
+ *   <li><b>按主体</b>（买家/卖家）——供 {@code /escrow list} 这类"我的订单"；</li>
+ *   <li><b>分页 + 状态筛选</b>——供后台只读面（运营者与联邦裁决方查看全部订单）。
+ *       过滤下沉到查询条件（与「我的收录」同一纪律），绝不在控制器里"查全部再过滤"。</li>
+ * </ul>
  */
 public interface EscrowRepository extends JpaRepository<EscrowOrder, Long> {
 
@@ -23,8 +29,16 @@ public interface EscrowRepository extends JpaRepository<EscrowOrder, Long> {
     /**
      * 某卖家参与的全部订单（查询侧）。
      *
-     * <p>V24 已建 {@code idx_escrow_seller} 索引，但此前没有对应方法——即"索引建了、查询侧没接"
-     * （与本仓 {@code MyContentController} 的同类补齐同源）。{@code /escrow list} 依赖它。
+     * <p>V24 已建 {@code idx_escrow_seller} 索引，但此前没有对应方法——即"索引建了、查询侧没接"。
+     * {@code /escrow list} 依赖它。
      */
     List<EscrowOrder> findBySellerUserIdOrderByIdAsc(long sellerUserId);
+
+    // ── 后台只读面（分页）────────────────────────────────────────────────────
+
+    /** 全量分页（新在前）——后台订单列表的默认视图。 */
+    Page<EscrowOrder> findAllByOrderByIdDesc(Pageable pageable);
+
+    /** 按状态分页（新在前）——争议队列 / 超时单的筛选视图。 */
+    Page<EscrowOrder> findByStateOrderByIdDesc(String state, Pageable pageable);
 }

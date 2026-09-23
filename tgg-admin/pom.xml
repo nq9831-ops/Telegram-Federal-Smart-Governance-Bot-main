@@ -39,6 +39,14 @@
       <artifactId>tgg-credit</artifactId>
     </dependency>
 
+    <!-- 担保订单可见面（模块十二 · 闭合 gap-ESC-05「有写入无查询入口」）：后台只读端点
+         直接读 escrow 的订单仓库，故显式声明依赖。tgg-escrow 只依赖 core / common，
+         与上面 listing / credit 同理不构成循环。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-escrow</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
