@@ -58,7 +58,7 @@ class ApprovalQueryServiceTest {
      *
      * <p>{@code id} 与 {@code createdAt} <b>必须反射写入</b>：前者由数据库生成（未持久化时为 null，
      * 而列表项用 {@code long} 接收会拆箱 NPE），后者在构造器里被写死为 {@code Instant.now()}，
-     * 不注入就无法构造「两小时前入队」这类场景。项目在 {@code LESSONS.md} 坑 5 已记过同类取舍。
+     * 不注入就无法构造「两小时前入队」这类场景。项目在 {@code ENGINEERING-LOG.md} 坑 5 已记过同类取舍。
      */
     private ModerationReviewItem item(RiskLevel level, boolean hardLine, Instant createdAt) {
         ModerationReviewItem entity =

@@ -43,7 +43,7 @@ import java.util.Optional;
  *   <li>同步决定 {@code OPEN_STATUSES} 是否纳入该态、以及退出后信用分/等级如何处置
  *       （保留、冻结还是归档）——这些都要先有结论，不能在 handler 里顺手实现；</li>
  *   <li>届时本命令改为在冻结之后显式推进该状态，并把守门测试从「钉住不改」翻转为
- *       「钉住改为 EXITED」，同时更新 {@code docs/KNOWN-ISSUES.md} 第 18 条。</li>
+ *       「钉住改为 EXITED」，同时更新 {@code docs/ENGINEERING-LOG.md} 第 18 条。</li>
  * </ol>
  *
  * <p><b>身份校验在 handler 内</b>：{@code /merchant_exit} 是「无权限门槛但限本人」的命令

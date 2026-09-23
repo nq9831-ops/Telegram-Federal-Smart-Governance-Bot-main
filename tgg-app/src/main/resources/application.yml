@@ -76,7 +76,7 @@ tgg:
     overdue-cron: ${TGG_ADMIN_OVERDUE_CRON:0 15 * * * *}
     # ── 账号体系（模块十一 · 账号与权限模型）──
     # 超管由环境变量引导创建（**无任何 API 可建超管**）；password-hash 是 PasswordHasher 生成的
-    # pbkdf2$<iter>$<saltB64>$<hashB64> 串（生成方式见 docs/DEPLOYMENT-VERIFICATION.md）。二者皆空则不创建超管。
+    # pbkdf2$<iter>$<saltB64>$<hashB64> 串（生成方式见 docs/DEPLOYMENT-HANDBOOK.md）。二者皆空则不创建超管。
     super-user: ${TGG_ADMIN_SUPER_USER:}
     super-password-hash: ${TGG_ADMIN_SUPER_PASSWORD_HASH:}
     # 会话有效期（小时）。热生效（登录时读取）。

@@ -4,7 +4,7 @@
 > （`tgg-app/src/test/java/com/tg/heyisheng/bot/VoiceConformanceTest.java`）的判据取自这里的「可机器判定」条目；
 > 主观条目靠评审遵守。
 >
-> **本文件进版本库**（仓库根的规范族，与 `ARCHITECTURE.md` / `PRIVACY.md` / `SECURITY.md` 并列）——
+> **本文件进版本库**（仓库根的规范族，与 `README.md` / `PRIVACY.md` / `SECURITY.md` 并列）——
 > 源码 javadoc 直接引用它（如 `core/interaction/InteractionMessages`），若放在不进 git 的 `docs/` 下，
 > 新克隆的仓库里引用就会悬空。
 

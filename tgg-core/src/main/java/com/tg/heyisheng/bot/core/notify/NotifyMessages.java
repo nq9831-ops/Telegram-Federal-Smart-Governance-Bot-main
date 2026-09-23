@@ -9,7 +9,7 @@ package com.tg.heyisheng.bot.core.notify;
  * <p>固定句子用常量；需要插值的（如时段区间、合并条数）用静态方法——
  * 两者都把文案收在这里一处。
  *
- * <p>规范见仓库根的 {@code VOICE.md}（进版本库，与 {@code ARCHITECTURE.md} 同族）。
+ * <p>规范见仓库根的 {@code VOICE.md}（进版本库，与 {@code README.md} 同族）。
  */
 public final class NotifyMessages {
 

@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p><b>为什么值得一条 IT</b>：{@code WebhookExceptionHandler} 用
  * {@code @ExceptionHandler(Exception.class)} 把所有异常统一吞成 200——这是为了
- * **避免 Telegram 对失败投递重试风暴**的既有设计（见 {@code LESSONS.md} 坑 2）。
+ * **避免 Telegram 对失败投递重试风暴**的既有设计（见 {@code ENGINEERING-LOG.md} 坑 2）。
  * 但 {@code NoResourceFoundException}（DispatcherServlet 找不到任何映射/静态资源时抛）**与 Telegram 无关**：
  * 它只出现在**未知路径**上。把这类请求也答成 200 有两个真实代价（均在公网部署后实测）：
  * <ol>

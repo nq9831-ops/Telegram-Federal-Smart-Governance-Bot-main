@@ -38,7 +38,7 @@ public record CreditPenaltyOrder(
      * 参与签名的规范串。
      *
      * <p><b>字段顺序固定、用 {@code |} 分隔</b>：签名与验签两侧必须逐字一致，
-     * 顺序或分隔符漂移会让验签静默失败（{@code LESSONS.md} 坑 3"同一值两种语义"的同类风险）。
+     * 顺序或分隔符漂移会让验签静默失败（{@code ENGINEERING-LOG.md} 坑 3"同一值两种语义"的同类风险）。
      * 时间用 epoch 毫秒，避免时区/格式歧义。
      */
     public String canonicalString() {
