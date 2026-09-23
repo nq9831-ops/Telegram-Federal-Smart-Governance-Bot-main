@@ -42,18 +42,30 @@ import java.util.Arrays;
 @Table(name = "escrow_orders")
 public class EscrowOrder {
 
-    /** 担保订单状态。取值即 V24 的流程节点，与 {@code escrow_orders.state} 列的字符串一一对应。 */
+    /** 担保订单状态。取值即流程节点，与 {@code escrow_orders.state} 列的字符串一一对应。 */
     public enum State {
-        /** 已创建（待锁仓）。 */
+        /** 已创建（待卖方确认）。 */
         OPEN,
+        /** 卖方已确认（待买方托管资金）。 */
+        CONFIRMED,
         /** 已锁仓（资金托管中）。 */
         LOCKED,
+        /** 卖方已交付（待买方验收；验收后放款，超时按约定处置）。 */
+        DELIVERED,
         /** 争议中（暂停自动结算，待裁决）。 */
         DISPUTED,
         /** 已放款给卖家（终态）。 */
         RELEASED,
         /** 已退款给买家（终态）。 */
-        REFUNDED
+        REFUNDED,
+        /**
+         * 已取消（协商取消，或未托管前超时关闭）。
+         *
+         * <p><b>只允许在资金未托管时进入</b>（{@code OPEN} / {@code CONFIRMED}）——
+         * 托管后要"就地取消"就必须动已锁定的资金，那只能经
+         * {@link #markRefunded} 走退款路径，不可用取消绕过资金流程。
+         */
+        CANCELLED
     }
 
     @Id
@@ -100,33 +112,66 @@ public class EscrowOrder {
         this.updatedAt = createdAt;
     }
 
-    /** 锁仓成功：{@code OPEN} → {@code LOCKED}。 */
-    public void markLocked(Instant now) {
+    /** 卖方确认接单：{@code OPEN} → {@code CONFIRMED}。 */
+    public void markConfirmed(Instant now) {
         requireState(State.OPEN);
+        this.state = State.CONFIRMED.name();
+        this.updatedAt = now;
+    }
+
+    /**
+     * 锁仓成功：{@code OPEN} 或 {@code CONFIRMED} → {@code LOCKED}。
+     *
+     * <p>允许从 {@code OPEN} 直接锁仓：W2 骨架的既有流程没有"卖方确认"这一独立节点；
+     * {@code CONFIRMED} 是为规格 §13.2 的三步创建流程（买方创建 → 卖方确认 → 资金锁定）预留的中间态。
+     */
+    public void markLocked(Instant now) {
+        requireState(State.OPEN, State.CONFIRMED);
         this.state = State.LOCKED.name();
         this.updatedAt = now;
     }
 
-    /** 发起争议：{@code LOCKED} → {@code DISPUTED}。 */
-    public void markDisputed(String reason, Instant now) {
+    /** 卖方交付：{@code LOCKED} → {@code DELIVERED}（待买方验收）。 */
+    public void markDelivered(Instant now) {
         requireState(State.LOCKED);
+        this.state = State.DELIVERED.name();
+        this.updatedAt = now;
+    }
+
+    /** 发起争议：{@code LOCKED} 或 {@code DELIVERED} → {@code DISPUTED}（交付后也能争议）。 */
+    public void markDisputed(String reason, Instant now) {
+        requireState(State.LOCKED, State.DELIVERED);
         this.reason = reason;
         this.state = State.DISPUTED.name();
         this.updatedAt = now;
     }
 
-    /** 放款给卖家：{@code LOCKED} 或 {@code DISPUTED} → {@code RELEASED}。 */
+    /** 放款给卖家：{@code LOCKED} / {@code DELIVERED} / {@code DISPUTED} → {@code RELEASED}。 */
     public void markReleased(Instant now) {
-        requireState(State.LOCKED, State.DISPUTED);
+        requireState(State.LOCKED, State.DELIVERED, State.DISPUTED);
         this.state = State.RELEASED.name();
         this.updatedAt = now;
     }
 
-    /** 退款给买家：{@code LOCKED} 或 {@code DISPUTED} → {@code REFUNDED}。 */
+    /** 退款给买家：{@code LOCKED} / {@code DELIVERED} / {@code DISPUTED} → {@code REFUNDED}。 */
     public void markRefunded(String reason, Instant now) {
-        requireState(State.LOCKED, State.DISPUTED);
+        requireState(State.LOCKED, State.DELIVERED, State.DISPUTED);
         this.reason = reason;
         this.state = State.REFUNDED.name();
+        this.updatedAt = now;
+    }
+
+    /**
+     * 取消订单：{@code OPEN} 或 {@code CONFIRMED} → {@code CANCELLED}。
+     *
+     * <p><b>刻意不允许从 {@code LOCKED}/{@code DELIVERED} 取消</b>：那时资金已托管，
+     * 要退出必须走退款（{@link #markRefunded}）——用这条守卫保证"资金已动"的订单
+     * 永远无法绕过资金流程被就地取消。
+     */
+    public void markCancelled(String reason, Instant now) {
+        requireState(State.OPEN, State.CONFIRMED);
+        this.reason = reason;
+        this.state = State.CANCELLED.name();
         this.updatedAt = now;
     }
 
