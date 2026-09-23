@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -18,8 +19,17 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  * <p><b>代价（必须写清）</b>：异常不再触发 Telegram 重试，只能靠本地日志/告警发现。
  * 因此审计日志的落地在后续切片中不可省——否则异常会静默消失。
  *
- * <p><b>唯一例外：未知路径</b> 由 {@link #notFound} 单独返回 404。Telegram 的 update 只打
- * {@code /webhook}，不会落到未知路径上，故放行它不削弱上面的重试风暴策略。
+ * <p><b>必须如实返回状态码的三类「非 Telegram 流量」</b>（都是公网部署后的实测结论，
+ * 同属一族：它们与 update 投递无关，吞成 200 只会让噪声伪装成故障）：
+ * <ol>
+ *   <li>{@link NoResourceFoundException} → 404（2026-09-19：扫描器打多段路径，
+ *       开放 1 小时即积累 299 条 ERROR，真实故障被淹没）；</li>
+ *   <li>{@link HttpRequestMethodNotSupportedException} → 405（2026-09-20：单段路径的 GET，
+ *       落在 POST-only 的 bot 映射上）；</li>
+ *   <li>{@link HttpMediaTypeNotSupportedException} → 415（2026-09-23：外部 POST
+ *       {@code text/plain}，实测累计 <b>8485 条</b>——本条即该形态的修复）。</li>
+ * </ol>
+ * 三者放行均不削弱重试风暴策略：Telegram 的 update 恒为 {@code POST application/json}。
  *
  * <p>注意 secret 校验失败不经此处：那由 {@code SecretTokenFilter} 直接返回 401，属预期控制流。
  */
@@ -67,6 +77,23 @@ public class WebhookExceptionHandler {
     public ResponseEntity<Void> methodNotAllowed(HttpRequestMethodNotSupportedException ex) {
         log.debug("请求方法不被支持，返回 405：{}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).build();
+    }
+
+    /**
+     * 请求体类型不被支持 → <b>415</b>（不吞成 200）。
+     *
+     * <p><b>为什么需要它（2026-09-23 生产日志实测）</b>：外部对 webhook 路径 POST
+     * {@code Content-Type: text/plain}（扫描器与错误配置的探针的常见形态）会抛本异常。
+     * 它与上面两条同属一族——都不来自 Telegram：update 恒为 {@code application/json}。
+     *
+     * <p>实测该形态在 {@code tgg.log} 里累计 <b>8485 条</b>（{@code grep -c}），
+     * 每条都是整段 ERROR 堆栈：把「有人在乱打我的端口」渲染成「系统出故障了」，
+     * 真实的故障因此被淹没。故如实返回 415 + DEBUG 日志。
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Void> unsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        log.debug("请求体类型不被支持，返回 415：{}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).build();
     }
 
     @ExceptionHandler(Exception.class)
