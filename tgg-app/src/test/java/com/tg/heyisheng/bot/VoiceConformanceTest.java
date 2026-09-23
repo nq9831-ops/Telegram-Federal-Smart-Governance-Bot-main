@@ -17,33 +17,7 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 语气规范（仓库根 {@code VOICE.md}）**可机器判定**部分的守门测试。三条判据：
- *
- * <ol>
- *   <li><b>文案层自身干净</b>：{@code *Messages} 类里的字面量不得含模板符号（{@code < > |}）
- *       或未填占位符（{@code {0}}/XXX/TODO/FIXME）——照抄会失败、或渲染出看不懂的东西。</li>
- *   <li><b>落点</b>：**已搬迁的包**内，用户可见调用点同行不得再出现中文字面量——
- *       文案必须来自 {@code *Messages} 常量，否则第三步「一处改」会重新漏气。</li>
- *   <li><b>不得重新散落</b>：同一句（含中文且长度 ≥5 的字面量）不得在两个 {@code *Messages} 类里各写一份
- *       ——这正是本步要消除的 {@code UNKNOWN = "未知操作。"} 那种重复。</li>
- * </ol>
- *
- * <p><b>为什么放在 {@code tgg-app}</b>：要跨模块扫源码，而 surefire 的工作目录是模块根；
- * 只有这里能同时看到各模块（与 {@code UserFacingUsageTextTest}、{@code ConfigCatalogCompletenessTest}
- * 同一取舍）。目录不存在时**显式失败**——守卫若在错误的工作目录下静默通过，就等于不存在。
- *
- * <p><b>范围</b>：第三步完成后全部已搬迁域都登记在 {@link #MIGRATED_PACKAGES}
- * （交互 / 通知 / 自助 / 准入 / 泄露 / 审核 / 词表 / 审批 / 联邦 / 收录）。
- * 新增文案域时在此登记即可，判据本身不用改。
- *
- * <p><b>判据 2 的覆盖范围与边界（如实记录）</b>：匹配**用户可见调用点**行
- * （{@code .text(} / {@code answer(} / {@code reply(} / {@code sendMessage(} / {@code SendMessage(} /
- * {@code return}），并排除注释行与含 {@code log.} 的行——两者都不是用户文案
- * （{@code NotificationSender.logging()} 正是以 {@code return … -> log.info("…中文…")} 的形式返回 lambda，
- * 不加这条排除会立刻误报）。仍未覆盖的是**不含上述记号**却承载文案的行（如字段初始化的字符串拼接）；
- * 那类靠评审，见 {@code VOICE.md} 第七节的「靠评审遵守」清单。
- */
+
 class VoiceConformanceTest {
 
     /** 参与扫描的模块（与 reactor 的业务模块一致）。 */
