@@ -68,22 +68,26 @@
 
 ### 可机器判定（守门测试直接查）
 
-| # | 禁止 | 判据 |
-|---|---|---|
-| 1 | 模板符号 | 用户可见字面量同时含「斜杠命令」与 `<` `>` `\|` |
-| 2 | 未填占位符 | 文案里出现 `{0}`-`{9}`、`XXX`、`TODO`、`FIXME` |
-| 3 | 就地散落 | 用户可见字面量必须来自 `*Messages` 常量，不得内联在调用点 |
+| # | 禁止 | 判据 | 守门测试（方法名锚） |
+|---|---|---|---|
+| 1 | 模板符号 | 用户可见字面量同时含「斜杠命令」与 `<` `>` `\|` | 后端 `messagesClassesCarryNoTemplateMarkersOrPlaceholders` / 前端 `voice-conformance.test.ts` |
+| 2 | 未填占位符 | 文案里出现 `{0}`-`{9}`、`XXX`、`TODO`、`FIXME` | 后端 `messagesClassesCarryNoTemplateMarkersOrPlaceholders` / 前端 `voice-conformance.test.ts` |
+| 3 | 就地散落 | 用户可见字面量必须来自 `*Messages` 常量，不得内联在调用点 | 后端 `migratedPackagesHoldNoInlineUserVisibleCopy` |
+| 4 | 跨类重复 | 同一整句（中文字符 ≥6，见 `DEDUP_MIN_CJK`）不得在两个 `*Messages` 类里各写一份 | 后端 `copyIsNotDuplicatedAcrossMessagesClasses` |
+| 5 | Markdown 标记 | Web 控制台纯文本渲染，文案不得含 `**` 或行首 `#` 标题标记 | 前端 `frontend/src/voice-conformance.test.ts` |
 
-判据 3 的**覆盖范围**由 `VoiceConformanceTest.MIGRATED_PACKAGES` 声明（随搬迁推进逐包扩大）：
+**就地散落**（#3，`migratedPackagesHoldNoInlineUserVisibleCopy`）的**覆盖范围**
+由 `VoiceConformanceTest.MIGRATED_PACKAGES` 声明（随搬迁推进逐包扩大）：
 匹配「用户可见调用点」行（`.text(` / `answer(` / `reply(` / `sendMessage(` / `SendMessage(` / `return`），
 并排除注释行与含 `log.` 的行（日志不是用户文案）。
+仍未覆盖不含上述记号却承载文案的行（如字段初始化的字符串拼接）——那类靠评审。
 
 ### 靠评审遵守（难机器判定）
 
-4. 真人扮演式措辞（"人家""亲""小女子"…）；
-5. 机器腔（"系统检测到""您的请求"）；
-6. 责备用户；
-7. 使用白名单外的 emoji。
+6. 真人扮演式措辞（"人家""亲""小女子"…）；
+7. 机器腔（"系统检测到""您的请求"）；
+8. 责备用户；
+9. 使用白名单外的 emoji。
 
 ## 八、文案的落点规则（`*Messages` 的组织方式）
 
@@ -95,10 +99,10 @@
 
 ## 九、本规范与守门测试的分工
 
-- 第 7 节的三条**可机器判定**项由 `VoiceConformanceTest` 强制；
+- 第 7 节的**可机器判定**项由守门测试强制：后端 `VoiceConformanceTest`、前端 `frontend/src/voice-conformance.test.ts`，逐条对照见表格「守门测试」列；
 - 其余条目在**评审**时核对。新增文案前先读本文件；新增 `*Messages` 类时逐条对照。
 
-> **为什么不让机器判定语气**：语气是主观的，硬编码词表必然随新文案过窄或过宽（本项目已有"维护一份清单必然悄悄过期"的教训）。机器只守**客观可判**的三条，其余交评审。
+> **为什么不让机器判定语气**：语气是主观的，硬编码词表必然随新文案过窄或过宽（本项目已有"维护一份清单必然悄悄过期"的教训）。机器只守**客观可判**的部分（第七节表格），其余交评审。
 
 ---
 

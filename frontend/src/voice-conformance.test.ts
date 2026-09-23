@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 /**
- * 前端文案守门——把 `VOICE.md` 第七节的**可机器判定三条**覆盖到 `frontend/src`。
+ * 前端文案守门——把 `VOICE.md` 第七节的**可机器判定项**覆盖到 `frontend/src`。
  *
  * <p>对应关系：后端 `VoiceConformanceTest` 守 Java 侧的 `*Messages`，本测试守 Vue/TS 侧。
- * 判据（与后端同源，只判「客观可判」的三条，语气仍交评审）：
+ * 判据（只判「客观可判」的部分，语气仍交评审；与后端的对照——「模板符号/未填占位符」同源，
+ * 「Markdown 标记」为 Web 独有（控制台纯文本渲染）；后端的「就地散落/跨类重复」不适用，前端无 `*Messages` 体系）：
  * <ol>
  *   <li><b>无模板符号</b>（`<` `>` `|`）——会被运营者整串照抄，或渲染成看不懂的东西；</li>
  *   <li><b>无未填占位符</b>（`{0}`–`{9}`、`XXX`、`TODO`、`FIXME`）；</li>
- *   <li><b>无 Markdown 标记</b>（`**`）——本控制台走**纯文本渲染**（全仓无 `v-html`、
+ *   <li><b>无 Markdown 标记</b>（`**`，Web 独有）——本控制台走**纯文本渲染**（全仓无 `v-html`、
  *       不设 parseMode），`**` 不会被解析成加粗，只会原样显示成两个星号。</li>
  * </ol>
  *
