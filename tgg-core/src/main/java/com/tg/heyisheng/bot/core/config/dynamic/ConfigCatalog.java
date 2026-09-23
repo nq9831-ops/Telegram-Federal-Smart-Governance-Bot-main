@@ -163,6 +163,17 @@ public final class ConfigCatalog {
             new ConfigKey("tgg.merchant.initial-score", ConfigCategory.RUNTIME, ConfigValueType.INT,
                     true, false, false, "500", 0, 1000, null,
                     "商家入驻成功时写入的初始信用分（需模块七启用）。热生效。"),
+            // 模块十二 · 担保交易（调研报告 §3 gap-ESC-02）。配置经 @ConfigurationProperties 在启动期绑定，
+            // 故一律标「改动需重启」——不做热生效的虚假承诺（诚实标注比假装热生效重要）。
+            new ConfigKey("tgg.escrow.enabled", ConfigCategory.ASSEMBLY, ConfigValueType.BOOLEAN,
+                    true, true, false, "false", null, null, null,
+                    "模块十二 · 担保交易：默认关闭。不启用则订单状态机、争议裁决与 /escrow_* 命令均不装配。改动需重启。"),
+            new ConfigKey("tgg.escrow.dispute-window-days", ConfigCategory.RUNTIME, ConfigValueType.INT,
+                    true, true, false, "7", 0, 3650, null,
+                    "担保订单争议期（自创建起算，天）。改动需重启。"),
+            new ConfigKey("tgg.escrow.order-timeout-hours", ConfigCategory.RUNTIME, ConfigValueType.HOURS,
+                    true, true, false, "72", 1, 8760, null,
+                    "担保订单未锁仓超时（自创建起算，小时）——超时仍未锁仓的 OPEN 订单可被处置。改动需重启。"),
             new ConfigKey("tgg.teach.min-membership-days", ConfigCategory.RUNTIME, ConfigValueType.LONG,
                     true, false, false, "30", 0, 3650, null,
                     "教学门槛 · 入群时长（天）。热生效。"),

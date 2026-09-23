@@ -426,3 +426,95 @@ export async function fetchCreditScores(query: CreditQuery = {}): Promise<Credit
   })
   return data
 }
+
+// ─────────────────────  Telegram Mini App（模块十二 · 前端壳，gap-ESC-04）─────────────────────
+
+/**
+ * `POST /admin/auth/miniapp` —— Mini App `initData` 换会话令牌。
+ *
+ * <p>与 Widget 的 `/admin/auth/telegram` 并排：验签器不同（Mini App 的 `secret_key` 是
+ * `HMAC_SHA256(key="WebAppData", message=bot_token)`，与 Widget 的 `SHA256(bot_token)`
+ * **相反、不可混用**），但签发出来的都是同一套 `AdminSessionFilter` 会话，
+ * 故响应体就是既有的 `SessionInfo`（不新造第二种会话模型）。
+ *
+ * <p>widget / initData 里的字段**一律不可信**——验签在服务端完成，前端只负责把原始串交上去。
+ *
+ * <p>⚠️ 端点是后端 initData 验签（gap-ESC-03）的落点，须同时进 `AdminSessionFilter` 放行名单
+ * （登录本身无需会话）；本批只落前端壳，**未在真实环境验证**（无真机 initData、无真实 WebView）。
+ */
+export const MINIAPP_LOGIN_PATH = '/admin/auth/miniapp'
+
+/** 宿主注入的 Mini App 桥——只用到 `initData` 一个字段，故**不引** `@telegram-apps/sdk`（报告 §4.2 N1）。 */
+interface TelegramWebAppBridge {
+  initData?: string
+}
+
+function telegramWebApp(): TelegramWebAppBridge | null {
+  const w = window as unknown as { Telegram?: { WebApp?: TelegramWebAppBridge } }
+  return w.Telegram?.WebApp ?? null
+}
+
+/**
+ * 从 URL 里取 Telegram 的启动参数。
+ *
+ * <p>Telegram 打开 Mini App 时会把启动参数写进 URL 片段（`tgWebAppData` 等，值经 URL 编码）；
+ * 页面若未引入 `telegram-web-app.js`，这就是**唯一**的 initData 来源。
+ */
+function launchParam(name: string): string {
+  const sources = [
+    window.location.hash.replace(/^#/, ''),
+    window.location.search.replace(/^\?/, ''),
+  ]
+  for (const raw of sources) {
+    if (raw === '') {
+      continue
+    }
+    for (const pair of raw.split('&')) {
+      const eq = pair.indexOf('=')
+      if (eq <= 0) {
+        continue
+      }
+      if (decodeURIComponent(pair.slice(0, eq)) === name) {
+        return decodeURIComponent(pair.slice(eq + 1))
+      }
+    }
+  }
+  return ''
+}
+
+/**
+ * 原始 `initData` query 串——**未验签，不可信**。
+ *
+ * <p>两个来源：宿主对象 `window.Telegram.WebApp.initData`（页面引入了 `telegram-web-app.js` 时），
+ * 或启动参数 `tgWebAppData`（Telegram 打开 Mini App 时写进 URL）。两者都没有则返回空串
+ * ——含义是「不在 Mini App 容器内」（在浏览器里直接打开控制台）。
+ */
+export function readMiniAppInitData(): string {
+  const injected = telegramWebApp()?.initData ?? ''
+  return injected !== '' ? injected : launchParam('tgWebAppData')
+}
+
+/** 是否运行在 Telegram Mini App 容器内——判据只有一条：拿不拿得到 initData。 */
+export function isMiniAppEnvironment(): boolean {
+  return readMiniAppInitData() !== ''
+}
+
+/**
+ * Mini App 登录：把原始 `initData` 交给服务端验签，成功即持有会话令牌。
+ *
+ * <p>失败面比账号密码登录多一档：容器外打开 / 非白名单用户（403）——错误文案由后端 `{error}` 给出，
+ * 前端不猜成因。
+ */
+export async function miniAppLogin(initData: string): Promise<SessionInfo> {
+  const response = await http.post<SessionInfo>(MINIAPP_LOGIN_PATH, { initData }, {
+    validateStatus: (s) => s === 200 || s === 401 || s === 403 || s === 503,
+  })
+  if (response.status !== 200) {
+    throw new Error(
+      (response.data as { error?: string })?.error ?? 'Mini App 登录失败：initData 未通过服务端校验。',
+    )
+  }
+  token = response.data.token
+  localStorage.setItem(TOKEN_KEY, token)
+  return response.data
+}

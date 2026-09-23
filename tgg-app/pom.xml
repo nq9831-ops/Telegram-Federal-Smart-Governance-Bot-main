@@ -45,6 +45,13 @@
       <artifactId>tgg-admin</artifactId>
     </dependency>
 
+    <!-- 模块十二：担保交易（订单状态机 + 争议裁决骨架）。放启动器 classpath 上，其 @Configuration
+         才被组件扫描到；未设 tgg.escrow.enabled=true 时整组组件不装配（见 EscrowConfiguration）。 -->
+    <dependency>
+      <groupId>com.tg.heyisheng.bot</groupId>
+      <artifactId>tgg-escrow</artifactId>
+    </dependency>
+
     <!-- Swagger / OpenAPI 文档（原文 §17 的「API 文档」）。版本由父 POM 统一管理。
          ⚠️ **默认关闭**：springdoc 会扫描全部 @RestController 并把端点清单、参数结构暴露成
          JSON（/v3/api-docs）与 UI（/swagger-ui.html）——那是一条信息面。与项目

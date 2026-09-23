@@ -4,6 +4,7 @@ import com.tg.heyisheng.bot.core.moderation.ModerationActionSender;
 import com.tg.heyisheng.bot.core.moderation.SensitiveTopicGuard;
 import com.tg.heyisheng.bot.credit.CreditService;
 import com.tg.heyisheng.bot.credit.PenaltyOrderPublisher;
+import com.tg.heyisheng.bot.escrow.EscrowService;
 import com.tg.heyisheng.bot.federation.FederationBroadcaster;
 import com.tg.heyisheng.bot.federation.FederationPenaltyService;
 import com.tg.heyisheng.bot.listing.ListingGroupService;
@@ -57,6 +58,7 @@ class AllModulesWiringTest {
         registry.add("tgg.federation.admins", () -> "42");
         registry.add("tgg.listing.enabled", () -> "true");
         registry.add("tgg.merchant.enabled", () -> "true");
+        registry.add("tgg.escrow.enabled", () -> "true");
         registry.add("tgg.moderation.sensitive-grading-enabled", () -> "true");
     }
 
@@ -87,6 +89,7 @@ class AllModulesWiringTest {
         assertThat(context.getBean(FederationPenaltyService.class)).as("模块八").isNotNull();
         assertThat(context.getBean(ListingGroupService.class)).as("模块五").isNotNull();
         assertThat(context.getBean(MerchantService.class)).as("模块六").isNotNull();
+        assertThat(context.getBean(EscrowService.class)).as("模块十二").isNotNull();
         assertThat(context.getBean(SensitiveTopicGuard.class)).as("模块九 §10.5").isNotNull();
     }
 

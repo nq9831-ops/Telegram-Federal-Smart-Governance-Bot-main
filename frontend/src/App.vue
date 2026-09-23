@@ -3,7 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useSession } from './stores/session'
 import { validateGate } from './gate'
-import { fetchLoginConfig } from './api/client'
+import { fetchLoginConfig, isMiniAppEnvironment } from './api/client'
 import ThemeToggle from './components/ThemeToggle.vue'
 import TodoCenter from './views/TodoCenter.vue'
 import ConfigCenter from './views/ConfigCenter.vue'
@@ -11,12 +11,19 @@ import AccountCenter from './views/AccountCenter.vue'
 import MyContent from './views/MyContent.vue'
 import AuditCenter from './views/AuditCenter.vue'
 import CreditCenter from './views/CreditCenter.vue'
+import MiniAppCenter from './views/MiniAppCenter.vue'
 
 const session = useSession()
 const form = reactive({ username: '', password: '' })
 /** 已登录后的六个视图；项目刻意不引 vue-router（条件渲染足够）。账号管理仅超管、审计按 AUDIT_READ、信用按 CREDIT_READ 分区。 */
 const view = ref<'todos' | 'config' | 'accounts' | 'mine' | 'audit' | 'credit'>('todos')
 const submitting = ref(false)
+
+/**
+ * 是否处于 Telegram Mini App 容器内（拿到 initData 即为真）。
+ * 决定门禁页是否显示「用 Telegram 身份登录」这条入口——判据来自容器注入，不是硬编码。
+ */
+const inMiniApp = ref(isMiniAppEnvironment())
 
 async function submit(): Promise<void> {
   // 校验抽在 gate.ts（纯逻辑，可独立测）——这里只负责反馈与落地。
@@ -47,6 +54,8 @@ async function signOut(): Promise<void> {
 const tgContainer = ref<HTMLElement | null>(null)
 
 onMounted(async () => {
+  // 容器的启动参数（tgWebAppData）可能在首帧之后才可见，故挂载完成后再判一次。
+  inMiniApp.value = isMiniAppEnvironment()
   try {
     const cfg = await fetchLoginConfig()
     if (cfg.telegramBotUsername !== '') {
@@ -89,6 +98,9 @@ function mountTelegramWidget(botUsername: string): void {
           <ThemeToggle />
         </div>
       </template>
+
+      <!-- Telegram Mini App 容器内：先走 initData 换会话；账号密码表单退为兜底 -->
+      <MiniAppCenter v-if="inMiniApp" />
 
       <el-alert type="info" :closable="false" show-icon title="登录">
         <p class="gate-alert">

@@ -63,6 +63,7 @@
     <module>tgg-federation</module>
     <module>tgg-listing</module>
     <module>tgg-admin</module>
+    <module>tgg-escrow</module>
     <module>tgg-app</module>
   </modules>
 
@@ -96,6 +97,11 @@
       <dependency>
         <groupId>com.tg.heyisheng.bot</groupId>
         <artifactId>tgg-admin</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.tg.heyisheng.bot</groupId>
+        <artifactId>tgg-escrow</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -177,7 +183,7 @@
         </executions>
       </plugin>
 
-      <!-- SBOM（软件物料清单）：随 package 阶段生成【聚合】BOM，覆盖全部 7 个模块及其编译期/
+      <!-- SBOM（软件物料清单）：随 package 阶段生成【聚合】BOM，覆盖全部 8 个模块及其编译期/
            运行期传递依赖。用途：供应链审计 + 依赖漏洞扫描（读 target/bom.json 查 OSV 库）。
            - `inherited=false`：只在根 POM 执行，避免每个子模块各生成一份完整 BOM。
            - `includeTestScope=false`：SBOM 描述的是【交付物】，测试作用域依赖不进清单。

@@ -4,9 +4,11 @@ import {
   hasCredentials,
   login as apiLogin,
   logout as apiLogout,
+  miniAppLogin as apiMiniAppLogin,
   setOnUnauthorized,
   telegramLogin as apiTelegramLogin,
 } from '../api/client'
+import type { SessionInfo } from '../api/types'
 
 /**
  * 会话状态：后端 `AdminSessionFilter` 要求的**会话令牌**（`Authorization: Bearer <令牌>`）。
@@ -64,8 +66,13 @@ export const useSession = defineStore('session', () => {
     return subjectId.value === null ? '' : `#${subjectId.value}`
   })
 
-  async function signIn(username: string, password: string): Promise<void> {
-    const info = await apiLogin(username, password)
+  /**
+   * 登录响应 → 会话状态。
+   *
+   * 三条登录路径（账号密码 / Widget / Mini App）共用：它们签发的都是同一套服务端会话，
+   * 差别只在服务端**怎么验身份**。抽在一处是为了「新增一条登录路径时不会漏赋值某项身份」。
+   */
+  function adopt(info: SessionInfo): void {
     subjectType.value = info.subjectType
     subjectId.value = info.subjectId
     role.value = info.role
@@ -73,14 +80,21 @@ export const useSession = defineStore('session', () => {
     authenticated.value = true
   }
 
+  async function signIn(username: string, password: string): Promise<void> {
+    adopt(await apiLogin(username, password))
+  }
+
   /** Telegram 登录：验签在服务端完成，这里只保存会话与身份。 */
   async function signInWithTelegram(user: Record<string, string>): Promise<void> {
-    const info = await apiTelegramLogin(user)
-    subjectType.value = info.subjectType
-    subjectId.value = info.subjectId
-    role.value = info.role
-    permissions.value = info.permissions ?? []
-    authenticated.value = true
+    adopt(await apiTelegramLogin(user))
+  }
+
+  /**
+   * Telegram Mini App 登录：initData 的验签同样在服务端完成（`HMAC_SHA256(key=WebAppData)`，
+   * 与 Widget 的密钥构造相反），这里只保存会话与身份。
+   */
+  async function signInWithMiniApp(initData: string): Promise<void> {
+    adopt(await apiMiniAppLogin(initData))
   }
 
   async function signOut(): Promise<void> {
@@ -94,6 +108,6 @@ export const useSession = defineStore('session', () => {
 
   return {
     authenticated, subjectType, subjectId, role, permissions, operatorLabel, canReadAudit,
-    canReadCredit, signIn, signInWithTelegram, signOut,
+    canReadCredit, signIn, signInWithTelegram, signInWithMiniApp, signOut,
   }
 })

@@ -191,3 +191,11 @@ tgg:
     initial-score: ${TGG_MERCHANT_INITIAL_SCORE:500}
     # 原资质复核人白名单（TGG_MERCHANT_REVIEWERS）已裁撤（2026-09-22：商家只有联邦管理员才可以审核处理）
     # ——商家管理命令的授权源是 tgg.federation.admins / 平台 FEDERATION_ADMIN。
+  escrow:
+    # 模块十二 · 担保交易（调研报告 §3 gap-ESC-02）：默认关闭。不启用则订单状态机、争议裁决
+    # 与 /escrow_* 命令均不装配。链上接入（DepositGateway）留待后续波，本波只落本地账本与状态机。
+    # 显式映射多词键：Spring 默认会把 disputeWindowDays 推导为 TGG_ESCROW_DISPUTEWINDOWDAYS（去连字符），
+    # 与文档惯用的下划线写法不符，故逐个显式映射（同 tgg.merchant.initial-score 的处理）。
+    enabled: ${TGG_ESCROW_ENABLED:false}
+    dispute-window-days: ${TGG_ESCROW_DISPUTE_WINDOW_DAYS:7}
+    order-timeout-hours: ${TGG_ESCROW_ORDER_TIMEOUT_HOURS:72}

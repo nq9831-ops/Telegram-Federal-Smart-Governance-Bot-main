@@ -38,6 +38,7 @@ DEFAULT_ROOTS = [
     "tgg-federation",
     "tgg-listing",
     "tgg-admin",
+    "tgg-escrow",
     "tgg-app",
 ]
 
