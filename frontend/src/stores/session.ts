@@ -52,6 +52,16 @@ export const useSession = defineStore('session', () => {
     role.value === 'SUPER_ADMIN' || permissions.value.includes('CREDIT_READ'),
   )
 
+  /**
+   * 担保交易订单可见面：超管或持 `FEDERATION_ADMIN`（`EscrowQueryController` 的判据）。
+   *
+   * <p>担保交易的裁决方是联邦，故复用该权限点——与后端**同一口径**，
+   * 避免前端显示一个点进去必然 403 的入口。
+   */
+  const canReadEscrow = computed(() =>
+    role.value === 'SUPER_ADMIN' || permissions.value.includes('FEDERATION_ADMIN'),
+  )
+
   /** 顶部身份行文案。 */
   const operatorLabel = computed(() => {
     if (role.value === 'SUPER_ADMIN') {
@@ -108,6 +118,6 @@ export const useSession = defineStore('session', () => {
 
   return {
     authenticated, subjectType, subjectId, role, permissions, operatorLabel, canReadAudit,
-    canReadCredit, signIn, signInWithTelegram, signInWithMiniApp, signOut,
+    canReadCredit, canReadEscrow, signIn, signInWithTelegram, signInWithMiniApp, signOut,
   }
 })

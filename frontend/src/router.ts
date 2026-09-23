@@ -39,6 +39,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('./views/AccountCenter.vue'),
     meta: { requires: 'super' },
   },
+  {
+    path: '/escrow',
+    name: 'escrow',
+    component: () => import('./views/EscrowCenter.vue'),
+    meta: { requires: 'escrow' },
+  },
   // 兜底：未知路径回待办中心（不显示空白页——空白页看起来像坏了）。
   { path: '/:pathMatch(.*)*', redirect: '/todos' },
 ]
@@ -60,6 +66,7 @@ export function resolveGuard(
     authenticated: boolean
     canReadAudit: boolean
     canReadCredit: boolean
+    canReadEscrow: boolean
     /** 会话未落地时可能为空（`/auth/me` 之前）——`null` 不等于超管。 */
     role: string | null
   },
@@ -72,6 +79,9 @@ export function resolveGuard(
     return '/todos'
   }
   if (requires === 'credit' && !session.canReadCredit) {
+    return '/todos'
+  }
+  if (requires === 'escrow' && !session.canReadEscrow) {
     return '/todos'
   }
   if (requires === 'super' && session.role !== 'SUPER_ADMIN') {

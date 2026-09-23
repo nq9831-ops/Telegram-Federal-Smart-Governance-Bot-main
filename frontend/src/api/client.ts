@@ -518,3 +518,58 @@ export async function miniAppLogin(initData: string): Promise<SessionInfo> {
   localStorage.setItem(TOKEN_KEY, token)
   return response.data
 }
+
+// ─────────────────────── 担保交易（模块十二 · 后台只读）───────────────────────
+
+/** 订单投影（字段与 `EscrowQueryController.toView` 一致）。 */
+export interface EscrowOrderView {
+  id: number
+  state: string
+  /** 中文状态名**由后端给**——前端不维护第二份状态表，否则新增状态时两边必然漂移。 */
+  stateLabel: string
+  buyerUserId: number
+  sellerUserId: number
+  amount: string | null
+  currency: string
+  reason: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** 分页外壳（与后端 `page()` 一致）。 */
+export interface EscrowOrderPage {
+  items: EscrowOrderView[]
+  page: number
+  size: number
+  total: number
+}
+
+/**
+ * `GET /admin/escrow/orders` —— 订单列表（可按状态筛选）。
+ *
+ * <p>非法状态由后端 400（不静默忽略），故这里不给 validateStatus——异常如实抛出。
+ */
+export async function fetchEscrowOrders(params: {
+  state?: string
+  page?: number
+  size?: number
+} = {}): Promise<EscrowOrderPage> {
+  const { state, page = 0, size = 50 } = params
+  const query: Record<string, string | number> = { page, size }
+  if (state) {
+    query.state = state
+  }
+  const { data } = await http.get<EscrowOrderPage>('/admin/escrow/orders', { params: query })
+  return data
+}
+
+/** `GET /admin/escrow/orders/{id}` —— 订单详情（不存在时 404 + `{error}`）。 */
+export async function fetchEscrowOrder(id: number): Promise<EscrowOrderView> {
+  const response = await http.get<EscrowOrderView>(`/admin/escrow/orders/${id}`, {
+    validateStatus: (s) => s === 200 || s === 404,
+  })
+  if (response.status !== 200) {
+    throw new Error((response.data as { error?: string })?.error ?? `订单不存在：#${id}`)
+  }
+  return response.data
+}

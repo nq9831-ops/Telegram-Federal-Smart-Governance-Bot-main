@@ -143,6 +143,7 @@ function mountTelegramWidget(botUsername: string): void {
         <el-radio-button value="/mine">我的收录</el-radio-button>
         <el-radio-button v-if="session.canReadAudit" value="/audit">审计</el-radio-button>
         <el-radio-button v-if="session.canReadCredit" value="/credit">信用</el-radio-button>
+        <el-radio-button v-if="session.canReadEscrow" value="/escrow">担保交易</el-radio-button>
         <el-radio-button v-if="session.role === 'SUPER_ADMIN'" value="/accounts">账号管理</el-radio-button>
       </el-radio-group>
     </div>

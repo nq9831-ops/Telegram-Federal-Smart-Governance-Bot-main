@@ -16,11 +16,13 @@ const session = (over: Partial<{
   authenticated: boolean
   canReadAudit: boolean
   canReadCredit: boolean
+  canReadEscrow: boolean
   role: string
 }> = {}) => ({
   authenticated: true,
   canReadAudit: false,
   canReadCredit: false,
+  canReadEscrow: false,
   role: 'OPERATOR',
   ...over,
 })
@@ -54,5 +56,10 @@ describe('路由守卫 · 权限判定', () => {
       '有审计权限不等于能管账号',
     ).toBe('/todos')
     expect(resolveGuard({ meta: { requires: 'super' } }, session({ role: 'SUPER_ADMIN' }))).toBe(true)
+  })
+
+  it('担保交易页：须 canReadEscrow（超管或 FEDERATION_ADMIN），否则回退待办中心', () => {
+    expect(resolveGuard({ meta: { requires: 'escrow' } }, session())).toBe('/todos')
+    expect(resolveGuard({ meta: { requires: 'escrow' } }, session({ canReadEscrow: true }))).toBe(true)
   })
 })
