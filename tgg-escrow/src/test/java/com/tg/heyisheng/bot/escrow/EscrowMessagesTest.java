@@ -23,7 +23,8 @@ class EscrowMessagesTest {
     /** 全部文案（<b>新增文案方法时请同步加入本列表</b>，否则新文案逃出本层守卫）。 */
     private static List<String> everyMessage() {
         return List.of(
-                EscrowMessages.OPEN_USAGE,
+                EscrowMessages.USAGE,
+                EscrowMessages.LIST_EMPTY,
                 EscrowMessages.created(1L, "100", "USDT"),
                 EscrowMessages.awaitingDeposit(1L),
                 EscrowMessages.lockedNotifySeller(1L),
@@ -31,6 +32,12 @@ class EscrowMessagesTest {
                 EscrowMessages.released(1L),
                 EscrowMessages.refunded(1L),
                 EscrowMessages.cancelled(1L),
+                EscrowMessages.advanced("确认", 1L, "待托管资金"),
+                EscrowMessages.notFound(1L),
+                EscrowMessages.onlyPartyAction(1L),
+                EscrowMessages.statusLine(1L, "资金托管中，待交付", "100", "USDT", "11", "22"),
+                EscrowMessages.listHeader(1),
+                EscrowMessages.listItem(1L, "资金托管中，待交付", "100", "USDT"),
                 EscrowMessages.notPartyToOrder(1L),
                 EscrowMessages.cannotCancelAfterFundsHeld(1L));
     }

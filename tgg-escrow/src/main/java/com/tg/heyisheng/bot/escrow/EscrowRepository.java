@@ -19,4 +19,12 @@ public interface EscrowRepository extends JpaRepository<EscrowOrder, Long> {
 
     /** 某买家参与的全部订单（查询侧）。 */
     List<EscrowOrder> findByBuyerUserIdOrderByIdAsc(long buyerUserId);
+
+    /**
+     * 某卖家参与的全部订单（查询侧）。
+     *
+     * <p>V24 已建 {@code idx_escrow_seller} 索引，但此前没有对应方法——即"索引建了、查询侧没接"
+     * （与本仓 {@code MyContentController} 的同类补齐同源）。{@code /escrow list} 依赖它。
+     */
+    List<EscrowOrder> findBySellerUserIdOrderByIdAsc(long sellerUserId);
 }

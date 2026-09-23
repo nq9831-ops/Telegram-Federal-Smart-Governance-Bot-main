@@ -22,13 +22,13 @@ class VoiceConformanceTest {
 
     /** 参与扫描的模块（与 reactor 的业务模块一致）。 */
     private static final List<String> MODULES =
-            List.of("tgg-core", "tgg-listing", "tgg-federation", "tgg-admin", "tgg-credit");
+            List.of("tgg-core", "tgg-listing", "tgg-federation", "tgg-admin", "tgg-credit", "tgg-escrow");
 
     /** 「已搬迁的包」——落点判据只在这些包内强制。新增搬迁域时在此登记。 */
     private static final List<String> MIGRATED_PACKAGES = List.of(
             "core/interaction", "core/notify", "core/dispatch",
             "core/admission", "core/breach", "core/moderation", "core/wordfilter",
-            "admin/approval", "federation", "listing/command");
+            "admin/approval", "federation", "listing/command", "escrow");
 
     /** 文案层类名后缀。 */
     private static final String MESSAGES_SUFFIX = "Messages.java";

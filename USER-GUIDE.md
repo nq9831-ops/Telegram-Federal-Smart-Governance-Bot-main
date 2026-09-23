@@ -40,7 +40,7 @@
 
 | 角色的面 | 私聊 | 群聊 | 授权通道（谁能用） |
 |---|---|---|---|
-| **公众自助面**（`/echo`（别名 `/ping`）、`/menu`、`/help`、`/whoami`、`/status`、`/quiet_hours`、`/export_my_data`、`/case_appeal`、`/appeal`、`/merchant_apply`、`/merchant_status`、`/merchant_exit`、`/listing_list`、`/listing_appeal`） | ✅ | ✅ | 无授权即可用（`/case_appeal` 限当事人；模块类命令需部署方开启对应开关）³ |
+| **公众自助面**（`/echo`（别名 `/ping`）、`/menu`、`/help`、`/whoami`、`/status`、`/quiet_hours`、`/export_my_data`、`/case_appeal`、`/appeal`、`/merchant_apply`、`/merchant_status`、`/merchant_exit`、`/listing_list`、`/listing_appeal`、`/escrow`） | ✅ | ✅ | 无授权即可用（`/case_appeal` 限当事人；模块类命令需部署方开启对应开关）³ |
 | **群内管理面**（`/enable`、`/disable`、`/addword`、`/delword`、`/words`、`/rules`、`/unteach`） | ❌¹ | ✅ | 群内管理员（`TGG_PERMISSION_ADMINS`，**按群**授予） |
 | **群限定三条**（`/teach`、`/group_tag`、`/listing_add`） | ❌² | ✅ **只能在群里用** | 群内管理员（同上） |
 | **商家管理面**（`/merchant_review`、`/merchant_deposit`、`/merchant_settle`） | ✅ | ✅ | **联邦管理员独占**（`TGG_FEDERATION_ADMINS` / 平台 `FEDERATION_ADMIN`，**全局**——「商家只有联邦管理员才可以审核处理」） |
@@ -61,7 +61,7 @@ userId，默认查不到授权 ⇒ 管理命令在私聊里**静默忽略**（�
 
 <!-- /场景矩阵 -->
 
-## 三、命令一览（34 个）
+## 三、命令一览（35 个）
 
 > 计数由 `grep -rhoE '@BotCommand\(value = "[a-z_]+"' --include=*.java tgg-*/src/main | sort -u | wc -l` 实测得出。
 > 手写计数会随功能增长静默失真（本行曾写 29，实际已达 34）——改命令时请重跑该命令核对。

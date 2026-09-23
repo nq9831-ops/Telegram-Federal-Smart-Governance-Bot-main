@@ -104,6 +104,9 @@ public final class DispatchMessages {
     /** 分类名：商家收录。 */
     public static final String CATEGORY_MERCHANT = "商家收录";
 
+    /** 分类名：担保交易（模块十二）。 */
+    public static final String CATEGORY_ESCROW = "担保交易";
+
     /** 分类名：兜底。 */
     public static final String CATEGORY_OTHER = "其他";
 }

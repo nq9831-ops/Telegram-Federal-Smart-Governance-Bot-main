@@ -49,7 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(properties = {
         "tgg.listing.enabled=true",
-        "tgg.merchant.enabled=true"
+        "tgg.merchant.enabled=true",
+        "tgg.escrow.enabled=true"
 })
 class CommandMenuContentTest {
 

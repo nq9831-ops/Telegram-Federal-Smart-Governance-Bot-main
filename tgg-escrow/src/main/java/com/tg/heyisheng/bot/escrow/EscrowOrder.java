@@ -199,7 +199,7 @@ public class EscrowOrder {
     }
 
     private String idSuffix() {
-        return id == null ? "" : "（订单 #" + id + "）";
+        return id == null ? "" : EscrowMessages.orderIdSuffix(id);
     }
 
     public Long getId() {

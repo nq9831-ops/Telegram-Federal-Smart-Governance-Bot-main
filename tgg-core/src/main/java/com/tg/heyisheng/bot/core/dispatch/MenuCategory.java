@@ -44,6 +44,14 @@ public enum MenuCategory {
      */
     MERCHANT(DispatchMessages.CATEGORY_MERCHANT),
 
+    /**
+     * 担保交易（模块十二）：发起、托管、交付、验收、争议、查询。
+     *
+     * <p>单列一类而不是并进「其他」——它是资金面，用户在 {@code /menu} 里需要一眼找到；
+     * 落 {@link #OTHER} 会让它混进未分类项里（那正是本枚举存在的意义）。
+     */
+    ESCROW(DispatchMessages.CATEGORY_ESCROW),
+
     /** 兜底：尚未声明分类的可见命令。 */
     OTHER(DispatchMessages.CATEGORY_OTHER);
 

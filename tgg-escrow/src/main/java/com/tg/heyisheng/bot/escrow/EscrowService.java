@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -56,6 +59,18 @@ public class EscrowService {
     /** 取某订单（查询侧）。 */
     public Optional<EscrowOrder> find(long orderId) {
         return orders.findById(orderId);
+    }
+
+    /**
+     * 某用户参与的全部订单（作为买方或卖方），编号升序——{@code /escrow list} 的数据源。
+     *
+     * <p>两次单边查询后合并：自担保在 {@link #open} 已被拒绝，故同一订单不会在两边同时出现。
+     */
+    public List<EscrowOrder> ordersOf(long userId) {
+        List<EscrowOrder> all = new ArrayList<>(orders.findByBuyerUserIdOrderByIdAsc(userId));
+        all.addAll(orders.findBySellerUserIdOrderByIdAsc(userId));
+        all.sort(Comparator.comparing(EscrowOrder::getId));
+        return all;
     }
 
     /**
