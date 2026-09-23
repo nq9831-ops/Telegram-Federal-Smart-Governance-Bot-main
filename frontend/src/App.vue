@@ -1,22 +1,17 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import { useSession } from './stores/session'
 import { validateGate } from './gate'
 import { fetchLoginConfig, isMiniAppEnvironment } from './api/client'
 import ThemeToggle from './components/ThemeToggle.vue'
-import TodoCenter from './views/TodoCenter.vue'
-import ConfigCenter from './views/ConfigCenter.vue'
-import AccountCenter from './views/AccountCenter.vue'
-import MyContent from './views/MyContent.vue'
-import AuditCenter from './views/AuditCenter.vue'
-import CreditCenter from './views/CreditCenter.vue'
 import MiniAppCenter from './views/MiniAppCenter.vue'
 
 const session = useSession()
+const route = useRoute()
+const router = useRouter()
 const form = reactive({ username: '', password: '' })
-/** 已登录后的六个视图；项目刻意不引 vue-router（条件渲染足够）。账号管理仅超管、审计按 AUDIT_READ、信用按 CREDIT_READ 分区。 */
-const view = ref<'todos' | 'config' | 'accounts' | 'mine' | 'audit' | 'credit'>('todos')
 const submitting = ref(false)
 
 /**
@@ -24,6 +19,11 @@ const submitting = ref(false)
  * 决定门禁页是否显示「用 Telegram 身份登录」这条入口——判据来自容器注入，不是硬编码。
  */
 const inMiniApp = ref(isMiniAppEnvironment())
+
+/** 导航：radio 组选中的值即路由路径（`router.ts` 里登记；越权项由守卫回退）。 */
+function navigate(path: string | number | boolean | undefined): void {
+  void router.push(String(path))
+}
 
 async function submit(): Promise<void> {
   // 校验抽在 gate.ts（纯逻辑，可独立测）——这里只负责反馈与落地。
@@ -136,21 +136,20 @@ function mountTelegramWidget(botUsername: string): void {
 
   <template v-else>
     <div class="admin-nav">
-      <el-radio-group v-model="view" size="small">
-        <el-radio-button value="todos">待办中心</el-radio-button>
-        <el-radio-button value="config">配置中心</el-radio-button>
-        <el-radio-button value="mine">我的收录</el-radio-button>
-        <el-radio-button v-if="session.canReadAudit" value="audit">审计</el-radio-button>
-        <el-radio-button v-if="session.canReadCredit" value="credit">信用</el-radio-button>
-        <el-radio-button v-if="session.role === 'SUPER_ADMIN'" value="accounts">账号管理</el-radio-button>
+      <!-- 导航即路由：地址栏可分享深链、刷新后停在原页（此前条件渲染做不到）。 -->
+      <el-radio-group :model-value="route.path" size="small" @change="navigate">
+        <el-radio-button value="/todos">待办中心</el-radio-button>
+        <el-radio-button value="/config">配置中心</el-radio-button>
+        <el-radio-button value="/mine">我的收录</el-radio-button>
+        <el-radio-button v-if="session.canReadAudit" value="/audit">审计</el-radio-button>
+        <el-radio-button v-if="session.canReadCredit" value="/credit">信用</el-radio-button>
+        <el-radio-button v-if="session.role === 'SUPER_ADMIN'" value="/accounts">账号管理</el-radio-button>
       </el-radio-group>
     </div>
-    <TodoCenter v-if="view === 'todos'" :operator="session.operatorLabel" @sign-out="signOut" />
-    <ConfigCenter v-else-if="view === 'config'" :operator="session.operatorLabel" @sign-out="signOut" />
-    <MyContent v-else-if="view === 'mine'" :operator="session.operatorLabel" @sign-out="signOut" />
-    <AuditCenter v-else-if="view === 'audit'" :operator="session.operatorLabel" @sign-out="signOut" />
-    <CreditCenter v-else-if="view === 'credit'" :operator="session.operatorLabel" @sign-out="signOut" />
-    <AccountCenter v-else :operator="session.operatorLabel" @sign-out="signOut" />
+    <!-- 视图经 router-view 渲染；仍以 props/emit 传 operator 与登出，既有视图组件无需改动。 -->
+    <router-view v-slot="{ Component }">
+      <component :is="Component" :operator="session.operatorLabel" @sign-out="signOut" />
+    </router-view>
   </template>
 </template>
 
