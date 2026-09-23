@@ -13,27 +13,28 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * 模块十二 · 担保交易服务：承载<b>订单状态机</b>（调研报告 §3 gap-ESC-02 骨架）。
+ * 模块十二 · 担保交易服务：承载<b>订单状态机</b>（调研报告 §3 gap-ESC-02 + 规格 §13.2）。
  *
  * <pre>
- * open ──▶ OPEN ──lock──▶ LOCKED ──┬─ release              ─▶ RELEASED
- *        （已创建）     （已锁仓）  ├─ refund(reason)       ─▶ REFUNDED
- *                                 └─ dispute(reason) ─▶ DISPUTED ──┬─ release        ─▶ RELEASED
- *                                        （争议中）               └─ refund(reason) ─▶ REFUNDED
+ * open ─▶ OPEN ─confirm(seller)─▶ CONFIRMED ─lock(buyer)─▶ LOCKED ─deliver(seller)─▶ DELIVERED
+ *        （待卖方确认）          （待买方托管）      （托管中）                        （待验收）
+ *                                                       │                                │
+ *                                                       │◀────── dispute(party) ─────────┘
+ *                                                       ▼
+ *                                                   DISPUTED ──┬─ release(buyer/裁决) ─▶ RELEASED
+ *                                                  （争议中）   └─ refund(party/裁决)  ─▶ REFUNDED
+ *
+ * OPEN / CONFIRMED ─cancel(party)─▶ CANCELLED（仅资金未托管时）
  * </pre>
  *
- * <p><b>fail-closed 的三处落点</b>：
- * <ol>
- *   <li><b>守卫先于落库</b>：{@link #transition} 先让实体方法做状态校验，非法迁移在
- *       {@code save} <b>之前</b>抛 {@link TggException}，绝不留下「状态被推进了一半」；</li>
- *   <li><b>争议 / 退款必带理由</b>：理由为空直接拒绝，且拒绝发生在实体迁移之前；</li>
- *   <li><b>买卖双方不得同人</b>：担保交易需两个主体，自担保无意义（拒绝，而非静默放行）。</li>
- * </ol>
+ * <p><b>身份闸门（本波新增）</b>：每个迁移都要求<b>指定身份</b>的动作方——
+ * 卖方才能确认与交付、买方才能托管与验收放款、当事方（买卖任一）才能争议/退款/取消。
+ * 在此之前服务层不做身份判定：一旦接上命令入口，那等于「任何人都能替别人放款」。
+ * 守卫与状态校验都在 {@code save} <b>之前</b>，非法调用不留半推进状态。
  *
- * <p><b>「完整做」的边界</b>：账本 / 状态机 / 争议裁决判定<b>全部是本地真实逻辑</b>，
- * 可在真库上端到端验证。链上那一半（真实 lock/refund 落链）属 gap-ESC-01，<b>不在本波范围</b>
- * ——本模块当前不依赖 {@code DepositGateway}，链上接入待后续波以 {@code @Primary} 接缝补齐
- * （调研报告 §4.1 A3：接口签名不动，避免链上不可验证代码污染主线）。
+ * <p><b>「完整做」的边界</b>：账本 / 状态机 / 裁决判定<b>全部是本地真实逻辑</b>，可真库端到端验证。
+ * 链上那一半（真实 lock/refund 落链）属 gap-ESC-01，不在本波范围——本模块当前不依赖
+ * {@code DepositGateway}，链上接入待后续波以 {@code @Primary} 接缝补齐（调研报告 §4.1 A3）。
  */
 public class EscrowService {
 
@@ -58,7 +59,7 @@ public class EscrowService {
     }
 
     /**
-     * 创建担保订单：新建一笔 {@code OPEN} 记录（待锁仓）。
+     * 创建担保订单：新建一笔 {@code OPEN} 记录（待卖方确认）。
      *
      * @throws TggException 金额非正 / 买卖双方同人
      */
@@ -76,30 +77,74 @@ public class EscrowService {
         return order;
     }
 
-    /** 锁仓：{@code OPEN} → {@code LOCKED}。 */
+    /** 卖方确认接单：{@code OPEN} → {@code CONFIRMED}。仅卖方。 */
     @Transactional
-    public Optional<EscrowOrder> lock(long orderId) {
-        return transition(orderId, order -> order.markLocked(clock.instant()));
+    public Optional<EscrowOrder> confirm(long orderId, long actorUserId) {
+        return transition(orderId, order -> {
+            requireSeller(order, actorUserId);
+            order.markConfirmed(clock.instant());
+        });
     }
 
-    /** 发起争议：{@code LOCKED} → {@code DISPUTED}（必带理由）。 */
+    /** 买方托管资金：{@code OPEN} / {@code CONFIRMED} → {@code LOCKED}。仅买方。 */
     @Transactional
-    public Optional<EscrowOrder> dispute(long orderId, String reason) {
+    public Optional<EscrowOrder> lock(long orderId, long actorUserId) {
+        return transition(orderId, order -> {
+            requireBuyer(order, actorUserId);
+            order.markLocked(clock.instant());
+        });
+    }
+
+    /** 卖方交付：{@code LOCKED} → {@code DELIVERED}（待买方验收）。仅卖方。 */
+    @Transactional
+    public Optional<EscrowOrder> deliver(long orderId, long actorUserId) {
+        return transition(orderId, order -> {
+            requireSeller(order, actorUserId);
+            order.markDelivered(clock.instant());
+        });
+    }
+
+    /** 买方验收放款：{@code LOCKED} / {@code DELIVERED} / {@code DISPUTED} → {@code RELEASED}。仅买方。 */
+    @Transactional
+    public Optional<EscrowOrder> release(long orderId, long actorUserId) {
+        return transition(orderId, order -> {
+            requireBuyer(order, actorUserId);
+            order.markReleased(clock.instant());
+        });
+    }
+
+    /** 发起争议：{@code LOCKED} / {@code DELIVERED} → {@code DISPUTED}（必带理由）。仅当事方。 */
+    @Transactional
+    public Optional<EscrowOrder> dispute(long orderId, long actorUserId, String reason) {
         requireReason(reason, "发起争议");
-        return transition(orderId, order -> order.markDisputed(reason, clock.instant()));
+        return transition(orderId, order -> {
+            requireParty(order, actorUserId);
+            order.markDisputed(reason, clock.instant());
+        });
     }
 
-    /** 放款给卖家：{@code LOCKED} / {@code DISPUTED} → {@code RELEASED}。 */
+    /** 退款给买家：{@code LOCKED} / {@code DELIVERED} / {@code DISPUTED} → {@code REFUNDED}（必带理由）。仅当事方。 */
     @Transactional
-    public Optional<EscrowOrder> release(long orderId) {
-        return transition(orderId, order -> order.markReleased(clock.instant()));
-    }
-
-    /** 退款给买家：{@code LOCKED} / {@code DISPUTED} → {@code REFUNDED}（必带理由）。 */
-    @Transactional
-    public Optional<EscrowOrder> refund(long orderId, String reason) {
+    public Optional<EscrowOrder> refund(long orderId, long actorUserId, String reason) {
         requireReason(reason, "退款");
-        return transition(orderId, order -> order.markRefunded(reason, clock.instant()));
+        return transition(orderId, order -> {
+            requireParty(order, actorUserId);
+            order.markRefunded(reason, clock.instant());
+        });
+    }
+
+    /**
+     * 协商取消：{@code OPEN} / {@code CONFIRMED} → {@code CANCELLED}（必带理由）。仅当事方。
+     *
+     * <p>资金已托管时实体层会拒绝（见 {@code EscrowOrder#markCancelled}）——要退出须走退款。
+     */
+    @Transactional
+    public Optional<EscrowOrder> cancel(long orderId, long actorUserId, String reason) {
+        requireReason(reason, "取消");
+        return transition(orderId, order -> {
+            requireParty(order, actorUserId);
+            order.markCancelled(reason, clock.instant());
+        });
     }
 
     /**
@@ -111,20 +156,22 @@ public class EscrowService {
     }
 
     /**
-     * 订单是否已超时未锁仓（自创建起算，小时）——由 {@code tgg.escrow.order-timeout-hours} 控制。
-     * 仅 {@code OPEN} 订单适用；已锁仓 / 终态订单恒为 false。
+     * 订单是否已超时未托管（自创建起算，小时）——由 {@code tgg.escrow.order-timeout-hours} 控制。
+     * 仅 {@code OPEN} / {@code CONFIRMED} 订单适用；已托管 / 终态订单恒为 false。
      */
     public boolean isLockExpired(EscrowOrder order) {
-        return EscrowOrder.State.OPEN.name().equals(order.getState())
-                && clock.instant().isAfter(order.getCreatedAt().plus(Duration.ofHours(
-                        properties.getOrderTimeoutHours())));
+        String state = order.getState();
+        boolean beforeCustody = EscrowOrder.State.OPEN.name().equals(state)
+                || EscrowOrder.State.CONFIRMED.name().equals(state);
+        return beforeCustody && clock.instant().isAfter(order.getCreatedAt().plus(Duration.ofHours(
+                properties.getOrderTimeoutHours())));
     }
 
     /**
      * 统一迁移入口：守卫<b>先于</b>落库。
      *
-     * <p>状态校验在实体 {@code markX} 内（fail-closed），它抛出的 {@link TggException} 传播出去时
-     * {@code save} 尚未被调用——非法迁移不会写库，这正是「不留下半推进状态」的落点。
+     * <p>身份校验与状态校验都在 {@code mutation} 内完成，它抛出的 {@link TggException}
+     * 传播出去时 {@code save} 尚未被调用——非法调用不会写库（「不留下半推进状态」的落点）。
      *
      * @return 空 = 订单不存在（无副作用）
      */
@@ -136,6 +183,26 @@ public class EscrowService {
         EscrowOrder order = found.get();
         mutation.accept(order);
         return Optional.of(orders.save(order));
+    }
+
+    // ───────────────────────── 身份守卫（fail-closed） ─────────────────────────
+
+    private static void requireSeller(EscrowOrder order, long actorUserId) {
+        if (order.getSellerUserId() != actorUserId) {
+            throw new TggException("该操作仅限卖方（订单 #" + order.getId() + "，操作者不是卖方）");
+        }
+    }
+
+    private static void requireBuyer(EscrowOrder order, long actorUserId) {
+        if (order.getBuyerUserId() != actorUserId) {
+            throw new TggException("该操作仅限买方（订单 #" + order.getId() + "，操作者不是买方）");
+        }
+    }
+
+    private static void requireParty(EscrowOrder order, long actorUserId) {
+        if (order.getBuyerUserId() != actorUserId && order.getSellerUserId() != actorUserId) {
+            throw new TggException("该操作仅限交易当事方（订单 #" + order.getId() + "，操作者不是买卖任一方）");
+        }
     }
 
     private static void requirePositive(BigDecimal amount) {
