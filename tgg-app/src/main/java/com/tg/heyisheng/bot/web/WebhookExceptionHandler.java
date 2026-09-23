@@ -27,8 +27,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  *   <li>{@link HttpRequestMethodNotSupportedException} → 405（2026-09-20：单段路径的 GET，
  *       落在 POST-only 的 bot 映射上）；</li>
  *   <li>{@link HttpMediaTypeNotSupportedException} → 415（2026-09-23：外部 POST
- *       {@code text/plain}，实测累计 <b>8485 条</b>——本条即该形态的修复）。</li>
+ *       {@code text/plain}）。</li>
  * </ol>
+ * 三族在修复部署<b>之前</b>累计 8485 条（未知路径 7925、方法不支持 446、本形态 114），
+ * <b>业务异常 0 条</b>——全是扫描器噪声。修复部署后当前进程为 0 条。
  * 三者放行均不削弱重试风暴策略：Telegram 的 update 恒为 {@code POST application/json}。
  *
  * <p>注意 secret 校验失败不经此处：那由 {@code SecretTokenFilter} 直接返回 401，属预期控制流。
