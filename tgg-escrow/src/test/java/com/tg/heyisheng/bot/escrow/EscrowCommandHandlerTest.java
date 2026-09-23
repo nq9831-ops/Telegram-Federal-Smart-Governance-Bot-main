@@ -35,7 +35,8 @@ class EscrowCommandHandlerTest {
     private static final long CHAT = -100L;
 
     private final EscrowService service = mock(EscrowService.class);
-    private final EscrowCommandHandler handler = new EscrowCommandHandler(service);
+    private final EscrowNotifier notifier = mock(EscrowNotifier.class);
+    private final EscrowCommandHandler handler = new EscrowCommandHandler(service, notifier);
 
     private static UpdateContext ctx(String args) {
         UpdateContext context = mock(UpdateContext.class);
@@ -125,5 +126,28 @@ class EscrowCommandHandlerTest {
         // 只有动作与订单号、缺理由 → 回用法，不调用服务层
         assertThat(textOf(handler.handle(ctx("dispute 1")))).isEqualTo(EscrowMessages.USAGE);
         verify(service, never()).dispute(anyLong(), anyLong(), anyString());
+    }
+
+    @Test
+    void lockNotifiesTheSeller() {
+        EscrowOrder order = mock(EscrowOrder.class);
+        when(order.getId()).thenReturn(1L);
+        when(order.getSellerUserId()).thenReturn(22L);
+        when(order.getState()).thenReturn("LOCKED");
+        when(service.lock(eq(1L), eq(USER))).thenReturn(Optional.of(order));
+
+        handler.handle(ctx("lock 1"));
+
+        // 托管成功后必须通知卖方交付——双通道通知的关键触发点
+        verify(notifier).notifyParty(eq(22L), eq(CHAT), anyString());
+    }
+
+    @Test
+    void failedTransitionDoesNotNotify() {
+        when(service.release(eq(1L), anyLong())).thenReturn(Optional.empty());
+
+        handler.handle(ctx("release 1"));
+
+        verify(notifier, never()).notifyParty(anyLong(), any(), anyString());
     }
 }

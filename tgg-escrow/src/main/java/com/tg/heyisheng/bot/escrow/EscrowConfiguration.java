@@ -54,4 +54,19 @@ public class EscrowConfiguration {
     public EscrowService escrowService(EscrowRepository orders) {
         return new EscrowService(orders, properties, Clock.systemUTC());
     }
+
+    /**
+     * 进度通知器（双通道 + 各自开关）。
+     *
+     * <p>两个依赖都用 {@code ObjectProvider} 可选取用：通知模块未装配时，私聊静默跳过、
+     * 群内通道退化为日志——通知缺席不该拖垮资金主链路（与本仓 {@code CreditService} 对
+     * {@code CreditEventSink} 的取舍同款）。
+     */
+    @Bean
+    public EscrowNotifier escrowNotifier(
+            org.springframework.beans.factory.ObjectProvider<
+                    com.tg.heyisheng.bot.core.notify.NotificationDispatcher> dispatcher,
+            org.springframework.beans.factory.ObjectProvider<EscrowGroupSender> groupSender) {
+        return new EscrowNotifier(dispatcher.getIfAvailable(), groupSender.getIfAvailable(), properties);
+    }
 }

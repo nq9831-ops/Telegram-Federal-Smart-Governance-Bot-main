@@ -163,6 +163,15 @@ public class EscrowService {
     }
 
     /**
+     * 争议期天数（{@code tgg.escrow.dispute-window-days}）。
+     *
+     * <p>供命令层拼提示文案（"有问题请在 N 天内发起争议"）——文案里写死数字会与配置漂移。
+     */
+    public int disputeWindowDays() {
+        return properties.getDisputeWindowDays();
+    }
+
+    /**
      * 争议期截止时刻（自订单创建起算，天）——由 {@code tgg.escrow.dispute-window-days} 控制。
      * 查询侧与裁决队列据此判断争议窗口。
      */

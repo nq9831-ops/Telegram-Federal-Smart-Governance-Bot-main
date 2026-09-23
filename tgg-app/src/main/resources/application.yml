@@ -197,5 +197,10 @@ tgg:
     # 显式映射多词键：Spring 默认会把 disputeWindowDays 推导为 TGG_ESCROW_DISPUTEWINDOWDAYS（去连字符），
     # 与文档惯用的下划线写法不符，故逐个显式映射（同 tgg.merchant.initial-score 的处理）。
     enabled: ${TGG_ESCROW_ENABLED:false}
+    # 通知通道开关（用户要求「群内与私聊都要有，但要有开关」）：群内让进度公开可见，
+    # 私聊确保对方收到（对方可能不在那个群）。两个都关时交易对他方静默。
+    notify:
+      group-enabled: ${TGG_ESCROW_NOTIFY_GROUP_ENABLED:true}
+      private-enabled: ${TGG_ESCROW_NOTIFY_PRIVATE_ENABLED:true}
     dispute-window-days: ${TGG_ESCROW_DISPUTE_WINDOW_DAYS:7}
     order-timeout-hours: ${TGG_ESCROW_ORDER_TIMEOUT_HOURS:72}

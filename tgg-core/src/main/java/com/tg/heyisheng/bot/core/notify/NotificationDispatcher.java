@@ -46,11 +46,23 @@ public class NotificationDispatcher {
     }
 
     /**
-     * 分发一条通知。
+     * 分发一条通知（<b>治理类别</b>——既有调用点的兼容入口）。
      *
      * @return 本次是否真的投递（false = 已暂存待时段结束，或被频率门抑制并入摘要）
      */
     public boolean notify(Notification notification) {
+        return notify(NotificationCategory.GOVERNANCE, notification);
+    }
+
+    /**
+     * 按<b>类别</b>分发一条通知。
+     *
+     * <p>类别参与频率额度分池（见 {@link NotificationCategory}）：担保交易的通知走 {@code ESCROW} 池，
+     * 不会挤占封禁告知、信用分变动等治理通知的额度——否则交易量大时权益通知会被静默抑制。
+     *
+     * @return 本次是否真的投递（false = 已暂存待时段结束，或被频率门抑制并入摘要）
+     */
+    public boolean notify(NotificationCategory category, Notification notification) {
         if (shouldDefer(notification)) {
             deferred.save(new DeferredNotification(notification.recipientId(), notification.level(),
                     notification.text(), clock.instant()));
@@ -60,7 +72,7 @@ public class NotificationDispatcher {
         }
 
         NotificationRateLimiter.Decision decision =
-                limiter.decide(notification.level(), notification.recipientId());
+                limiter.decide(category, notification.level(), notification.recipientId());
         if (!decision.allowed()) {
             log.info("通知超限，已并入摘要：level={} recipient={}",
                     notification.level(), notification.recipientId());

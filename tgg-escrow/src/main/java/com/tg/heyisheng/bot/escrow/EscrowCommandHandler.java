@@ -15,13 +15,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * {@code /escrow <动作> [参数]} —— 担保交易的统一入口（模块十二 · Wave 1 的 Bot 内 4 项之一）。
  *
  * <p><b>为什么是「单命令 + 子命令」而不是九条独立命令</b>：本项目已有先例
- * （{@code /data_breach report N}）。资金流程是一串<b>有序动作</b>，凑成一条命令后
- * 用户只需记一个词；命令列表也更干净。各动作：
+ * （{@code /data_breach report N}）。资金流程是一串<b>有序动作</b>，凑成一条命令用户只需记一个词。各动作：
  * <ul>
  *   <li>{@code open 卖家userId 金额} —— 买方发起（发起者即买家）；</li>
  *   <li>{@code confirm|lock|deliver|release 订单号} —— 主流程四步（身份由服务层把关）；</li>
@@ -29,15 +30,15 @@ import java.util.Optional;
  *   <li>{@code status 订单号} / {@code list} —— 查询。</li>
  * </ul>
  *
- * <p><b>确认卡</b>：整条命令标 {@code Confirm.ALWAYS}——因为它承载资金动作。
- * 查询也走确认（多点一下），这是刻意用可用性换安全：资金命令不该有"手滑即执行"的路径。
+ * <p><b>确认卡</b>：整条命令标 {@code Confirm.ALWAYS}——它承载资金动作。查询也走确认（多点一下），
+ * 这是刻意用可用性换安全：资金命令不该有"手滑即执行"的路径。
  *
  * <p><b>可见性</b>：{@code publicCommand = true}——担保交易是自助功能，任何人可发起；
- * 具体每步能否执行由<b>服务层的身份闸门</b>（买卖方/当事方）决定，而不是靠可见性隐藏
+ * 每一步能否执行由<b>服务层的身份闸门</b>决定，而不是靠可见性隐藏
  * （本项目教训：把校验寄托在"命令对谁可见"上，换个入口就绕过了）。
  *
- * <p><b>参数非法即回用法</b>，不把脏参数递进服务层再靠异常兜——报错才指向正确的地方。
- * 服务层抛出的 {@link TggException}（身份越权 / 状态非法 / 缺理由）翻译成用户可读回执。
+ * <p><b>进度通知</b>：状态推进成功后按 {@link EscrowNotifier} 双通道通知交易对方
+ * （群内 + 私聊，各自可开关）。通知失败不影响已完成的资金动作——通知器自行吞异常。
  */
 @BotCommand(value = "escrow", description = "担保交易：发起 / 托管 / 交付 / 验收 / 争议 / 查询",
         confirm = Confirm.ALWAYS, category = MenuCategory.ESCROW, publicCommand = true)
@@ -45,9 +46,11 @@ import java.util.Optional;
 public class EscrowCommandHandler implements CommandHandler {
 
     private final EscrowService service;
+    private final EscrowNotifier notifier;
 
-    public EscrowCommandHandler(EscrowService service) {
+    public EscrowCommandHandler(EscrowService service, EscrowNotifier notifier) {
         this.service = service;
+        this.notifier = notifier;
     }
 
     @Override
@@ -62,13 +65,22 @@ public class EscrowCommandHandler implements CommandHandler {
             return switch (action) {
                 case "open" -> open(ctx, parts);
                 case "confirm" -> step(ctx, parts, EscrowMessages.ACTION_CONFIRM,
-                        () -> service.confirm(orderId(parts), ctx.userId()));
+                        () -> service.confirm(orderId(parts), ctx.userId()),
+                        order -> notifyParty(order, ctx, order.getBuyerUserId(),
+                                EscrowMessages.awaitingDeposit(order.getId())));
                 case "lock" -> step(ctx, parts, EscrowMessages.ACTION_LOCK,
-                        () -> service.lock(orderId(parts), ctx.userId()));
+                        () -> service.lock(orderId(parts), ctx.userId()),
+                        order -> notifyParty(order, ctx, order.getSellerUserId(),
+                                EscrowMessages.lockedNotifySeller(order.getId())));
                 case "deliver" -> step(ctx, parts, EscrowMessages.ACTION_DELIVER,
-                        () -> service.deliver(orderId(parts), ctx.userId()));
+                        () -> service.deliver(orderId(parts), ctx.userId()),
+                        order -> notifyParty(order, ctx, order.getBuyerUserId(),
+                                EscrowMessages.deliveredNotifyBuyer(order.getId(),
+                                        service.disputeWindowDays())));
                 case "release" -> step(ctx, parts, EscrowMessages.ACTION_RELEASE,
-                        () -> service.release(orderId(parts), ctx.userId()));
+                        () -> service.release(orderId(parts), ctx.userId()),
+                        order -> notifyParty(order, ctx, order.getSellerUserId(),
+                                EscrowMessages.released(order.getId())));
                 case "dispute" -> withReason(ctx, parts, EscrowMessages.ACTION_DISPUTE,
                         (id, reason) -> service.dispute(id, ctx.userId(), reason));
                 case "cancel" -> withReason(ctx, parts, EscrowMessages.ACTION_CANCEL,
@@ -97,9 +109,10 @@ public class EscrowCommandHandler implements CommandHandler {
         return reply(ctx, EscrowMessages.created(order.getId(), amount.toPlainString(), order.getCurrency()));
     }
 
-    /** 无理由的状态迁移（confirm / lock / deliver / release）。 */
+    /** 无理由的状态迁移（confirm / lock / deliver / release），成功后可带一条通知。 */
     private BotApiMethod<?> step(UpdateContext ctx, String[] parts, String label,
-                                 java.util.function.Supplier<Optional<EscrowOrder>> action) {
+                                 Supplier<Optional<EscrowOrder>> action,
+                                 Consumer<EscrowOrder> onSuccess) {
         if (parts.length < 2) {
             return reply(ctx, EscrowMessages.USAGE);
         }
@@ -109,8 +122,11 @@ public class EscrowCommandHandler implements CommandHandler {
         }
         Optional<EscrowOrder> after = action.get();
         return after
-                .map(order -> reply(ctx, EscrowMessages.advanced(label, order.getId(),
-                        EscrowMessages.stateName(order.getState()))))
+                .map(order -> {
+                    onSuccess.accept(order);
+                    return reply(ctx, EscrowMessages.advanced(label, order.getId(),
+                            EscrowMessages.stateName(order.getState())));
+                })
                 .orElseGet(() -> reply(ctx, EscrowMessages.notFound(id)));
     }
 
@@ -165,7 +181,14 @@ public class EscrowCommandHandler implements CommandHandler {
 
     // ─────────────── 工具 ───────────────
 
-    /** 服务层错误如实复述（服务层消息已是人话，含身份越权的说明）。 */
+    /** 把进度通知发给交易对方（双通道按开关走；通知器自行吞异常，不影响已完成的资金动作）。 */
+    private void notifyParty(EscrowOrder order, UpdateContext ctx, long recipientUserId, String text) {
+        if (recipientUserId == ctx.userId()) {
+            return; // 操作者即对方（如单人测试场景）：不给自己发通知
+        }
+        notifier.notifyParty(recipientUserId, ctx.chatId(), text);
+    }
+
     private static String describeFailure(String message) {
         return EscrowMessages.FAILURE_PREFIX + message;
     }
