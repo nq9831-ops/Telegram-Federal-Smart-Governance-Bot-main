@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 通知频率门（模块十 §11.1）——按「收件人 × 级别」各自计额度。
+ * 通知频率门（模块十 §11.1）——按「类别 × 收件人 × 级别」各自计额度。
  *
  * <p><b>为什么是内存实现而不是 Redis</b>：V5.0 原文写的是 Redis 计数，但本项目<b>未引 Redis</b>
  * （限流走内存实现，见 {@code InMemoryRateLimiter}），为一个计数器引入基础设施依赖不划算。
@@ -39,11 +39,24 @@ public class NotificationRateLimiter {
     }
 
     /**
-     * 判定该级别、该收件人此刻是否可以发送。
+     * 判定该级别、该收件人此刻是否可以发送（<b>治理类别</b>——既有调用点的兼容入口）。
      *
      * @return 允许时 {@code allowed=true}，并带上「此前被抑制、本次应合并的条数」
      */
     public Decision decide(NotificationLevel level, long recipientId) {
+        return decide(NotificationCategory.GOVERNANCE, level, recipientId);
+    }
+
+    /**
+     * 判定该<b>类别</b>、该级别、该收件人此刻是否可以发送。
+     *
+     * <p><b>类别为什么要参与配额键</b>：担保交易的流程通知若与治理通知共用一个池，
+     * 交易量一大就会把封禁告知、信用分变动等权益通知挤掉（分池的由来见
+     * {@link NotificationCategory}）。级别自身的规则不因类别而变。
+     *
+     * @return 允许时 {@code allowed=true}，并带上「此前被抑制、本次应合并的条数」
+     */
+    public Decision decide(NotificationCategory category, NotificationLevel level, long recipientId) {
         if (level.unlimited()) {
             return new Decision(true, 0);
         }
@@ -51,7 +64,7 @@ public class NotificationRateLimiter {
             callsSincePurge.set(0);
             purgeStale();
         }
-        Window window = windows.computeIfAbsent(key(level, recipientId), ignored -> new Window());
+        Window window = windows.computeIfAbsent(key(category, level, recipientId), ignored -> new Window());
         synchronized (window) {
             Instant now = clock.instant();
             window.rollHourIfNeeded(now);
@@ -71,8 +84,8 @@ public class NotificationRateLimiter {
         }
     }
 
-    private static String key(NotificationLevel level, long recipientId) {
-        return level.name() + ':' + recipientId;
+    private static String key(NotificationCategory category, NotificationLevel level, long recipientId) {
+        return category.name() + ':' + level.name() + ':' + recipientId;
     }
 
     /**
