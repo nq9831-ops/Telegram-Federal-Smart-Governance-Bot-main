@@ -1,4 +1,4 @@
-# TGG · Telegram 联邦智能治理 Bot
+# TGG · Telegram 联邦智能治理 Bot「开发中。。。。。」
 
 > 2026-09-23 文档合并产物：原 `README.md` + `DEVELOPMENT-HANDBOOK.md`（开发手册）+ `ARCHITECTURE.md`（架构）+ `CONTRIBUTING.md`（贡献）+ `ADMIN-GUIDE.md`（后台手册）五份合并为本册，内容逐字节搬运零删改。
 > **目录**：第一部分=项目门面与快速开始；第二部分=开发手册（现状快照/模块/门禁/护栏）；第三部分=架构与模块设计；第四部分=贡献流程；第五部分=Web 后台操作手册。
